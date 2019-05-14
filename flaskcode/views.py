@@ -5,15 +5,16 @@ from .utils import write_file, dir_tree, get_file_extension
 from . import blueprint
 
 
-@blueprint.route('/<string:resource_dir>')
-def index(resource_dir):
-    dtree = dir_tree(g.resource_dir_path, g.resource_dir_path + '/')
-    return render_template('flaskcode/index.html', resource_dir=resource_dir, dtree=dtree)
+@blueprint.route('/')
+def index():
+    dirname = os.path.basename(g.flaskcode_resource_basepath)
+    dtree = dir_tree(g.flaskcode_resource_basepath, g.flaskcode_resource_basepath + '/')
+    return render_template('flaskcode/index.html', dirname=dirname, dtree=dtree)
 
 
-@blueprint.route('/resource-data/<string:resource_dir>/<path:file_path>.txt', methods=['GET', 'HEAD'])
-def resource_data(resource_dir, file_path):
-    file_path = os.path.join(g.resource_dir_path, file_path)
+@blueprint.route('/resource-data/<path:file_path>.txt', methods=['GET', 'HEAD'])
+def resource_data(file_path):
+    file_path = os.path.join(g.flaskcode_resource_basepath, file_path)
     if not (os.path.exists(file_path) and os.path.isfile(file_path)):
         abort(404)
     response = send_file(file_path, mimetype='text/plain', cache_timeout=0)
@@ -28,9 +29,9 @@ def resource_data(resource_dir, file_path):
     return response
 
 
-@blueprint.route('/update-resource-data/<string:resource_dir>/<path:file_path>', methods=['POST'])
-def update_resource_data(resource_dir, file_path):
-    file_path = os.path.join(g.resource_dir_path, file_path)
+@blueprint.route('/update-resource-data/<path:file_path>', methods=['POST'])
+def update_resource_data(file_path):
+    file_path = os.path.join(g.flaskcode_resource_basepath, file_path)
     new_resource = bool(int(request.form.get('new_resource', 0)))
     if not new_resource and not (os.path.exists(file_path) and os.path.isfile(file_path)):
         abort(404)

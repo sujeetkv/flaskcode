@@ -1,7 +1,7 @@
 {% extends 'flaskcode/_base.html' %}
 {% from 'flaskcode/_macros.html' import render_dir_tree %}
 
-{% block page_title %}{{ resource_dir }} | {{ app_title }}{% endblock %}
+{% block page_title %}{{ dirname }} | {{ app_title }}{% endblock %}
 
 {% block page_content %}
     <!--Modals-->
@@ -41,8 +41,8 @@
 
     <div id="page-row" class="row">
         <div id="flaskcode-list" class="col-md-2 col-sm-3 col-xs-3">
-            <h4 style="white-space:nowrap;"><i class="fa fa-folder" aria-hidden="true"></i> {{ resource_dir }}</h4>
-            {{ render_dir_tree(dtree, 'dir-tree', resource_dir=resource_dir) }}
+            <h4 style="white-space:nowrap;"><i class="fa fa-folder" aria-hidden="true"></i> {{ dirname|truncate(20) }}</h4>
+            {{ render_dir_tree(dtree, 'dir-tree') }}
         </div>
         <div id="flaskcode-content" class="col-md-10 col-sm-9 col-xs-9">
             <div id="editor-header" class="editor-header well well-sm mb-0">
@@ -96,8 +96,8 @@
 <script type="text/javascript" src="{{ url_for('flaskcode.static', filename='js/objects.js') }}"></script>
 <script type="text/javascript">
 flaskcode.config.set('pluginsBaseUrl', "{{ url_for('flaskcode.static', filename='vendor') }}");
-flaskcode.config.set('updateDataBaseUrl', "{{ url_for('flaskcode.update_resource_data', resource_dir=resource_dir, file_path='') }}");
-flaskcode.config.set('resourceUrlTemplate', "{{ url_for('flaskcode.resource_data', resource_dir=resource_dir, file_path='__pathname__') }}");
+flaskcode.config.set('updateDataBaseUrl', "{{ url_for('flaskcode.update_resource_data', file_path='') }}");
+flaskcode.config.set('resourceUrlTemplate', "{{ url_for('flaskcode.resource_data', file_path='__pathname__') }}");
 </script>
 <script type="text/javascript" src="{{ url_for('flaskcode.static', filename='js/flaskcode.js') }}"></script>
 {% endblock %}

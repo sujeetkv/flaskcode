@@ -1,27 +1,30 @@
 import os
 import click
 from flask import Flask
-from flask.cli import load_dotenv
 from . import blueprint
 
 
-def create_flask_app(url_prefix=None):
-    load_dotenv()
+def create_flask_app():
     app = Flask(__name__)
     app.url_map.strict_slashes = False
-    app.register_blueprint(blueprint, url_prefix=url_prefix)
+    app.register_blueprint(blueprint)
     return app
 
 
 @click.command()
-@click.option('-h', '--host', default='0.0.0.0', help='IP or hostname on which to bind HTTP server')
+@click.option('-h', '--host', default='127.0.0.1', help='IP or hostname on which to bind HTTP server')
 @click.option('-p', '--port', default=5001, type=int, help='Port on which to bind HTTP server')
-@click.option('--url-prefix', default=None, help='URL prefix e.g. for use behind a reverse proxy')
-@click.option('--debug', default=False, help='Enter DEBUG mode')
-def run(host, port, url_prefix, debug):
-    click.echo('FlaskCode')
-    app = create_flask_app(url_prefix)
-    app.config['FLASKCODE_RESOURCE_BASEPATH'] = os.getcwd()
+@click.option('-d', '--resource-basepath', default=None, help='Basepath for resources, default is current working directory')
+@click.option('--debug/--normal', default=False, help='Enter DEBUG mode')
+@click.option('--env', default='development', help='Flask environment, default is development')
+@click.option('--app-title', default=None, help='Application title')
+def run(host, port, resource_basepath, debug, env, app_title):
+    click.echo('FlaskCode CLI')
+    os.environ.setdefault('FLASK_ENV', env)
+    os.environ.setdefault('FLASK_DEBUG', '1' if debug else '0')
+    app = create_flask_app()
+    app.config['FLASKCODE_RESOURCE_BASEPATH'] = resource_basepath or os.getcwd()
+    app.config['FLASKCODE_APP_TITLE'] = app_title
     app.run(host=host, port=port, debug=debug)
 
 

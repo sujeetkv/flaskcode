@@ -2,7 +2,7 @@
 {% macro render_dir_tree(dir_tree, tree_id) %}
     <ul id="{{ tree_id }}">
     {%- for item in dir_tree.children recursive %}
-        <li class="resource-items{% if item.is_file %} file-item{% elif not item.children %} disabled{% else %} dir-item{% endif %}" data-path-name="{{ item.path_name }}" data-url="{{ url_for('flaskcode.resource_data', resource_dir=kwargs.get('resource_dir'), file_path=item.path_name) }}" title="{{ item.name }}">
+        <li class="resource-items{% if item.is_file %} file-item{% elif not item.children %} disabled{% else %} dir-item{% endif %}" data-path-name="{{ item.path_name }}" data-url="{{ url_for('flaskcode.resource_data', file_path=item.path_name) }}" title="{{ item.name }}">
         {{ item.name }}
         {%- if item.children -%}
             <ul>{{ loop(item.children) }}</ul>
