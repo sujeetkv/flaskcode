@@ -96,7 +96,7 @@
 <script type="text/javascript" src="{{ url_for('flaskcode.static', filename='js/objects.js') }}"></script>
 <script type="text/javascript">
 flaskcode.config.set('pluginsBaseUrl', "{{ url_for('flaskcode.static', filename='vendor') }}");
-flaskcode.config.set('updateDataBaseUrl', "{{ url_for('flaskcode.update_resource_data', file_path='') }}");
+flaskcode.config.set('updateResourceBaseUrl', "{{ url_for('flaskcode.update_resource_data', file_path='') }}");
 flaskcode.config.set('resourceUrlTemplate', "{{ url_for('flaskcode.resource_data', file_path='__pathname__') }}");
 </script>
 <script type="text/javascript" src="{{ url_for('flaskcode.static', filename='js/flaskcode.js') }}"></script>

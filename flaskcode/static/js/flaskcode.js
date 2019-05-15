@@ -177,7 +177,7 @@ flaskcode.onEditorSave = function (editor) {
 
         $.ajax({
             type: 'POST',
-            url: flaskcode.config.get('updateDataBaseUrl') + filePath,
+            url: flaskcode.config.get('updateResourceBaseUrl') + filePath,
             data: data,
             cache: false,
             processData: false,
