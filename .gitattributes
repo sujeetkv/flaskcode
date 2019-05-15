@@ -1,1 +1,2 @@
-flaskcode/static/* linguist-vendored
+flaskcode/static/vendor/* linguist-vendored
+flaskcode/templates/* linguist-vendored
