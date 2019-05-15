@@ -3,6 +3,8 @@
 
 var flaskcode = window.flaskcode || {};
 
+flaskcode.$pagePreloader = null;
+
 require.config({
     baseUrl: flaskcode.config.get('pluginsBaseUrl'),
     paths: {'vs': 'monaco-editor/min/vs'}
@@ -418,6 +420,7 @@ flaskcode.openNewFileModal = function ($resourceElement) {
 };
 
 $(function () {
+    flaskcode.$pagePreloader = $('div#page-preloader');
     flaskcode.$editorContainer = $('div#editor-container');
     flaskcode.$editorBody = flaskcode.$editorContainer.find('.editor-body');
     flaskcode.$editorLoader = flaskcode.$editorContainer.find('.editor-preloader');
@@ -555,5 +558,7 @@ $(function () {
                 return evt.returnValue;
             }
         });
+
+        flaskcode.$pagePreloader.fadeOut();
     });
 });

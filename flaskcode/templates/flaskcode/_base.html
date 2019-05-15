@@ -21,6 +21,15 @@
 
 <body{% block body_attrs %}{% endblock %}>
     {% block page_body %}
+    <div id="page-preloader" class="page-preloader">
+        <div class="loading-center">
+            <div class="loading-center-absolute">
+                <i class="fa fa-spinner fa-pulse" aria-hidden="true"></i>
+                {{ app_title }}
+            </div>
+        </div>
+    </div>
+
     <div id="wrapper">
     <!-- header -->
     {% include 'flaskcode/_header.html' %}

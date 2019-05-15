@@ -8,6 +8,40 @@ body {
     overflow: hidden;
 }
 
+/* page preloader start */
+#page-preloader {
+    background-color: rgba(30, 30, 35, 1);
+    height: 100%;
+    width: 100%;
+    margin: 0px;
+    padding: 0px;
+    position: fixed;
+    top: 0px;
+    left: 0px;
+    z-index: 999999;
+}
+#page-preloader.transparent {
+    background-color: rgba(30, 30, 35, 0.6);
+}
+#page-preloader .loading-center {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+#page-preloader .loading-center-absolute {
+    position: absolute;
+    text-align: center;
+    font-size: 36px;
+    color: #FFF;
+    left: 0;
+    top: 50%;
+    width: 100%;
+    height: 100px;
+    margin-top: -50px;
+    text-align: center;
+}
+/* page preloader end */
+
 #wrapper {
     position: relative;
     padding-top: 50px;
