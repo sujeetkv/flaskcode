@@ -1,2 +1,4 @@
 flaskcode/static/vendor/* linguist-vendored
+flaskcode/static/css/* linguist-vendored
+flaskcode/static/img/* linguist-vendored
 flaskcode/templates/* linguist-vendored
