@@ -49,6 +49,17 @@ body {
     overflow: auto;
 }
 
+#flaskcode-list .list-header {
+    border: none;
+    background-color: transparent;
+    white-space: nowrap;
+    height: 38px;
+    font-size: 18px;
+    font-weight: bold;
+    padding-left: 0;
+    padding-right: 0;
+}
+
 #flaskcode-content {
     position: relative;
     height: 100%;
