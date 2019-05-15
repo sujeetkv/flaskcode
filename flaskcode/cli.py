@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+"""flaskcode cli module"""
+
 import os
 import click
 from flask import Flask

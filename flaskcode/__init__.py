@@ -1,6 +1,23 @@
+# -*- coding: utf-8 -*-
+"""flaskcode Flask Blueprint"""
+
 import os
 from flask import Blueprint, current_app, g, abort
-from . import default_config
+from . import __pkginfo__, default_config
+
+
+__title__ = __pkginfo__.title
+__version__ = __pkginfo__.version
+__author__ = __pkginfo__.author
+__email__ = __pkginfo__.email
+__uri__ = __pkginfo__.uri
+__description__ = __pkginfo__.description
+__license__ = __pkginfo__.license
+__copyright__ = __pkginfo__.copyright
+__status__ = __pkginfo__.status
+
+
+__all__ = ['blueprint']
 
 
 blueprint = Blueprint(
