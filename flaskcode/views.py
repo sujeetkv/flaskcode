@@ -33,8 +33,8 @@ def resource_data(file_path):
 @blueprint.route('/update-resource-data/<path:file_path>', methods=['POST'])
 def update_resource_data(file_path):
     file_path = os.path.join(g.flaskcode_resource_basepath, file_path)
-    new_resource = bool(int(request.form.get('new_resource', 0)))
-    if not new_resource and not (os.path.exists(file_path) and os.path.isfile(file_path)):
+    is_new_resource = bool(int(request.form.get('is_new_resource', 0)))
+    if not is_new_resource and not (os.path.exists(file_path) and os.path.isfile(file_path)):
         abort(404)
     success = True
     message = 'File saved successfully'

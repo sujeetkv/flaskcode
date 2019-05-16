@@ -165,7 +165,7 @@ flaskcode.onEditorSave = function (editor) {
     }
 
     var filePath = flaskcode.$editorContainer.data('filePath');
-    var newResource = flaskcode.$editorContainer.data('newResource');
+    var isNewResource = flaskcode.$editorContainer.data('isNewResource');
 
     if (!window.FormData) {
         flaskcode.notifyEditor('This browser does not support editor save', 'error');
@@ -175,7 +175,7 @@ flaskcode.onEditorSave = function (editor) {
         var prevState = flaskcode.editorWidget.editorState;
         var data = new FormData();
         data.set('resource_data', editor.getValue());
-        data.set('new_resource', Number(newResource));
+        data.set('is_new_resource', Number(isNewResource));
 
         $.ajax({
             type: 'POST',
@@ -192,9 +192,9 @@ flaskcode.onEditorSave = function (editor) {
                 if (status == 'success' && data.success) {
                     flaskcode.setEditorState(flaskcode.editorStates.LOADED);
                     flaskcode.notifyEditor(data.message || 'Saved!');
-                    if (flaskcode.$editorContainer.data('newResource')) {
+                    if (flaskcode.$editorContainer.data('isNewResource')) {
                         flaskcode.highlightSelectedResource(filePath, flaskcode.dirname(filePath).replace(/^\/+|\/+$/gm,''));
-                        flaskcode.$editorContainer.data('newResource', false);
+                        flaskcode.$editorContainer.data('isNewResource', false);
                     }
                 } else {
                     flaskcode.setEditorState(prevState);
@@ -275,11 +275,11 @@ flaskcode.setEditorEvents = function (editor) {
     flaskcode.onStateChange = flaskcode.onEditorStateChange;
 };
 
-flaskcode.initEditorBody = function (editorId, resource, newResource) {
+flaskcode.initEditorBody = function (editorId, resource, isNewResource) {
     flaskcode.$editorContainer.data('editorId', editorId);
     flaskcode.$editorContainer.data('url', resource.url);
     flaskcode.$editorContainer.data('filePath', resource.filePath);
-    flaskcode.$editorContainer.data('newResource', !!newResource);
+    flaskcode.$editorContainer.data('isNewResource', !!isNewResource);
     flaskcode.highlightSelectedResource(resource.filePath);
     return flaskcode.$editorBody;
 };
@@ -288,7 +288,7 @@ flaskcode.resetEditorBody = function () {
     flaskcode.$editorContainer.data('editorId', null);
     flaskcode.$editorContainer.data('url', null);
     flaskcode.$editorContainer.data('filePath', null);
-    flaskcode.$editorContainer.data('newResource', false);
+    flaskcode.$editorContainer.data('isNewResource', false);
     return flaskcode.$editorBody.empty();
 };
 
@@ -305,7 +305,7 @@ flaskcode.restoreResourceState = function () {
     }
 };
 
-flaskcode.setEditor = function (data, resource, newResource) {
+flaskcode.setEditor = function (data, resource, isNewResource) {
     var resourceLang = flaskcode.getLanguageByExtension(resource.extension || flaskcode.getResourceExt(resource.url)) || flaskcode.getLanguageByMimetype(resource.mimetype);
     var lang = resourceLang || flaskcode.defaultLang || flaskcode.fallbackLang;
 
@@ -327,7 +327,7 @@ flaskcode.setEditor = function (data, resource, newResource) {
     flaskcode.editorWidget.editor.setModel(newModel);
     flaskcode.editorWidget.resourceName = resource.url;
     flaskcode.restoreResourceState();
-    flaskcode.initEditorBody(flaskcode.editorWidget.editor.getId(), resource, newResource);
+    flaskcode.initEditorBody(flaskcode.editorWidget.editor.getId(), resource, isNewResource);
 
     flaskcode.setEditorState(flaskcode.editorStates.LOADED);
     flaskcode.editorWidget.editor.focus();
@@ -352,13 +352,13 @@ flaskcode.clearEditor = function (alt_content) {
     flaskcode.notifyCursorPosition(null);
 };
 
-flaskcode.loadEditor = function (resource, forceReload, newResource) {
+flaskcode.loadEditor = function (resource, forceReload, isNewResource) {
     if (!forceReload && (flaskcode.editorWidget.resourceName == resource.url || (flaskcode.editorWidget.editorState == flaskcode.editorStates.MODIFIED && !confirm('Current changes not saved. Are you sure to move on without saving?')))) {
         flaskcode.editorWidget.editor.focus();
         return false;
     }
-    if (newResource) {
-        flaskcode.setEditor('', resource, newResource);
+    if (isNewResource) {
+        flaskcode.setEditor('', resource, isNewResource);
     } else {
         $.ajax({
             type: 'GET',

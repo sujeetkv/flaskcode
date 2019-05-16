@@ -1,13 +1,16 @@
 {# render dir tree in recursive list #}
 {% macro render_dir_tree(dir_tree, tree_id) %}
     <ul id="{{ tree_id }}">
-    {%- for item in dir_tree.children recursive %}
-        <li class="resource-items{% if item.is_file %} file-item{% elif not item.children %} disabled{% else %} dir-item{% endif %}" data-path-name="{{ item.path_name }}" data-url="{{ url_for('flaskcode.resource_data', file_path=item.path_name) }}" title="{{ item.name }}">
-        {{ item.name }}
-        {%- if item.children -%}
+        {%- for item in dir_tree.children recursive %}
+        <li class="resource-items{% if item.is_file %} file-item{% elif not item.children %} disabled{% else %} dir-item{% endif %}"
+            title="{{ item.name }}"
+            data-path-name="{{ item.path_name }}"
+            data-url="{{ url_for('flaskcode.resource_data', file_path=item.path_name) }}">
+            {{ item.name }}
+            {%- if item.children -%}
             <ul>{{ loop(item.children) }}</ul>
-        {%- endif %}
+            {%- endif %}
         </li>
-    {%- endfor %}
+        {%- endfor %}
     </ul>
 {% endmacro %}
