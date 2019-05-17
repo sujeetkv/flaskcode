@@ -1,14 +1,47 @@
 # -*- coding: utf-8 -*-
-
 import pytest
 from flaskcode.cli import create_flask_app
 
 
+FILE_NAME = 'script.js'
+FILE_CONTENT = b'var x = 5;'.decode('utf-8')
+NEW_FILE_CONTENT = b'var x = 10;'.decode('utf-8')
+
+
+def pytest_report_header(config):
+    return '***** Tests for flaskcode package *****'
+
+
 @pytest.fixture
-def app(request):
+def file_name():
+    return FILE_NAME
+
+
+@pytest.fixture
+def file_content():
+    return FILE_CONTENT
+
+
+@pytest.fixture
+def new_file_content():
+    return NEW_FILE_CONTENT
+
+
+@pytest.fixture
+def resource_dir(tmp_path, file_name, file_content):
+    resource_dir_path = tmp_path / 'src'
+    resource_dir_path.mkdir()
+    (resource_dir_path / file_name).write_text(file_content)
+    return resource_dir_path
+
+
+@pytest.fixture
+def app(request, resource_dir):
     application = create_flask_app()
     #application.config['TESTING'] = True
     application.testing = True
+    application.config['SERVER_NAME'] = '127.0.0.1:5000'
+    application.config['FLASKCODE_RESOURCE_BASEPATH'] = str(resource_dir)
     with application.app_context():
         yield application
 
@@ -20,19 +53,3 @@ def client(request, app):
         pass
     request.addfinalizer(teardown)
     return client
-
-
-@pytest.fixture
-def resource_dir(tmp_path):
-    return tmp_path / 'src'
-
-
-@pytest.fixture
-def resource_file(resource_dir):
-    resource_file_path = resource_dir / 'script.js'
-    resource_file_path.write_text('var x = 5;')
-    return resource_file_path
-
-
-def pytest_report_header(config):
-    return '***** Tests for flaskcode package *****'
