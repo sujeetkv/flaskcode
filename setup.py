@@ -19,18 +19,20 @@ setup(
     description=flaskcode.__description__,
     long_description=readme(),
     long_description_content_type='text/markdown',
+    keywords='flaskcode code editor code-editor',
     packages=['flaskcode'],
     include_package_data=True,
     zip_safe=False,
     platforms='any',
-    keywords='flaskcode code editor code-editor',
     entry_points={
         'console_scripts': [
             'flaskcode = flaskcode.cli:main',
         ]
     },
     python_requires='>=2.7',
-    install_requires=['Flask>=1.0.0'],
+    install_requires=[
+        'Flask>=1.0.0',
+    ],
     setup_requires=[
         'pytest-runner',
     ],
