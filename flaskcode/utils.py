@@ -1,12 +1,20 @@
 # -*- coding: utf-8 -*-
 import os
+import sys
 import shutil
 from io import StringIO
 from functools import wraps
 from flask import request, make_response
 
 
+PY2 = sys.version_info.major == 2
 DEFAULT_CHUNK_SIZE = 16 * 1024
+
+
+if PY2:
+    string_types = basestring
+else:
+    string_types = str
 
 
 def get_file_extension(filename):
@@ -20,7 +28,7 @@ def get_file_extension(filename):
 def write_file(content, filepath, chunk_size=None):
     success = True
     message = 'File saved successfully'
-    if isinstance(content, str):
+    if isinstance(content, string_types):
         content_io = StringIO()
         content_io.write(content)
         with open(filepath, 'w') as dest:
