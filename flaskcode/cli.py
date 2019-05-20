@@ -3,7 +3,7 @@
 import os
 import click
 from flask import Flask, request, make_response
-from . import blueprint, default_config
+from . import blueprint, default_config, __pkginfo__
 
 
 help_str = """Run {app_title} with given RESOURCE_BASEPATH or current working directory.
@@ -39,8 +39,9 @@ def create_flask_app(username=None, password=None):
 @click.option('-p', '--port', default=5001, type=int, help='Port on which to bind HTTP server')
 @click.option('--username', default=None, help='HTTP Basic Auth username')
 @click.option('--password', default=None, help='HTTP Basic Auth password')
-@click.option('--debug/--normal', default=False, help='Enter DEBUG mode')
+@click.option('--debug', default=False, is_flag=True, help='Enter DEBUG mode')
 @click.option('--env', default='development', help='Flask environment, default is development')
+@click.version_option(version=__pkginfo__.version, prog_name=__pkginfo__.title)
 def run(resource_basepath, host, port, username, password, debug, env):
     os.environ.setdefault('FLASK_ENV', env)
     os.environ.setdefault('FLASK_DEBUG', '1' if debug else '0')
