@@ -1,22 +1,37 @@
 # -*- coding: utf-8 -*-
 """flaskcode module setup"""
+import os
 from setuptools import setup
-import flaskcode
+
+
+BASEDIR = os.path.dirname(__file__)
 
 
 def readme():
-    with open('README.md', 'r') as f:
+    with open(os.path.join(BASEDIR, 'README.md'), 'r') as f:
         return f.read()
 
 
+def get_pkginfo():
+    with open(os.path.join(BASEDIR, 'flaskcode', '__pkginfo__.py'), 'r') as f:
+        context = {}
+        exec(f.read(), context)
+        if 'version' in context:
+            return context
+    raise RuntimeError('No package info found.')
+
+
+pkginfo = get_pkginfo()
+
+
 setup(
-    name=flaskcode.__title__,
-    version=flaskcode.__version__,
-    license=flaskcode.__license__,
-    author=flaskcode.__author__,
-    author_email=flaskcode.__email__,
-    url=flaskcode.__uri__,
-    description=flaskcode.__description__,
+    name=pkginfo['title'],
+    version=pkginfo['version'],
+    license=pkginfo['license'],
+    author=pkginfo['author'],
+    author_email=pkginfo['email'],
+    url=pkginfo['uri'],
+    description=pkginfo['description'],
     long_description=readme(),
     long_description_content_type='text/markdown',
     keywords='flaskcode code editor code-editor',
@@ -31,7 +46,7 @@ setup(
     },
     python_requires='>=2.7',
     install_requires=[
-        'Flask>=1.0.0',
+        'flask',
     ],
     setup_requires=[
         'pytest-runner',
