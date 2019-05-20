@@ -4,12 +4,15 @@ from flaskcode.cli import create_flask_app
 
 
 FILE_NAME = 'script.js'
+FILE_NAME_404 = 'nonexistingfile.txt'
 FILE_CONTENT = b'var x = 5;'.decode('utf-8')
-NEW_FILE_CONTENT = b'var x = 10;'.decode('utf-8')
+FILE_CONTENT_UPDATE = b'var x = 10;'.decode('utf-8')
+NEW_FILE_NAME = 'testfile.txt'
+NEW_FILE_CONTENT = b'This is test content.'.decode('utf-8')
 
 
 def pytest_report_header(config):
-    return '***** Tests for flaskcode package *****'
+    return 'Running tests for flaskcode package...'
 
 
 @pytest.fixture
@@ -18,8 +21,23 @@ def file_name():
 
 
 @pytest.fixture
+def file_name_404():
+    return FILE_NAME_404
+
+
+@pytest.fixture
 def file_content():
     return FILE_CONTENT
+
+
+@pytest.fixture
+def file_content_update():
+    return FILE_CONTENT_UPDATE
+
+
+@pytest.fixture
+def new_file_name():
+    return NEW_FILE_NAME
 
 
 @pytest.fixture
