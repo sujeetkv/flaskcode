@@ -2,7 +2,7 @@
 """package info"""
 title = 'flaskcode'
 
-numversion = (0, 0, 3)
+numversion = (0, 0, 4)
 version = '.'.join([str(num) for num in numversion])
 
 license = 'MIT'
