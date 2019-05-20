@@ -35,7 +35,7 @@ setup(
         'pytest-runner',
     ],
     tests_require=[
-        'pytest',
+        'pytest>=4.5.0',
     ],
     classifiers=[
         # 'Development Status :: 1 - Planning',
