@@ -24,6 +24,13 @@ setup(
     zip_safe=False,
     platforms='any',
     keywords='flaskcode code editor code-editor',
+    python_requires='>=2.7',
+    install_requires=['Flask>=1.0.0'],
+    entry_points={
+        'console_scripts': [
+            'flaskcode = flaskcode.cli:main',
+        ]
+    },
     classifiers=[
         # 'Development Status :: 1 - Planning',
         # 'Development Status :: 2 - Pre-Alpha',
@@ -44,17 +51,4 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules',
         'Topic :: Utilities',
     ],
-    python_requires='>=2.7',
-    install_requires=['Flask>=1.0.0'],
-    setup_requires=[
-        'pytest-runner',
-    ],
-    tests_require=[
-        'pytest',
-    ],
-    entry_points={
-        'console_scripts': [
-            'flaskcode = flaskcode.cli:main',
-        ]
-    },
 )
