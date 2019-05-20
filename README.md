@@ -35,12 +35,13 @@ Usage: flaskcode [OPTIONS] [RESOURCE_BASEPATH]
   variables of the form FLASKCODE_*. For example FLASKCODE_USERNAME.
 
 Options:
-  -h, --host TEXT     IP or hostname on which to run HTTP server
-  -p, --port INTEGER  Port on which to bind HTTP server
-  --username TEXT     HTTP Basic Auth username
-  --password TEXT     HTTP Basic Auth password
-  --debug / --normal  Enter DEBUG mode
-  --env TEXT          Flask environment, default is development
+  -h, --host TEXT     IP or hostname on which to run HTTP server.
+  -p, --port INTEGER  Port on which to bind HTTP server.
+  --username TEXT     HTTP Basic Auth username.
+  --password TEXT     HTTP Basic Auth password.
+  --debug             Enter DEBUG mode.
+  --env TEXT          Flask environment, default is development.
+  --version           Show the version and exit.
   --help              Show this message and exit.
 ```
 

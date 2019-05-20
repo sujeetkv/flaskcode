@@ -35,12 +35,12 @@ def create_flask_app(username=None, password=None):
 
 @click.command(help=help_str)
 @click.argument('resource-basepath', default=os.getcwd(), type=os.path.abspath, required=False)
-@click.option('-h', '--host', default='127.0.0.1', help='IP or hostname on which to run HTTP server')
-@click.option('-p', '--port', default=5001, type=int, help='Port on which to bind HTTP server')
-@click.option('--username', default=None, help='HTTP Basic Auth username')
-@click.option('--password', default=None, help='HTTP Basic Auth password')
-@click.option('--debug', default=False, is_flag=True, help='Enter DEBUG mode')
-@click.option('--env', default='development', help='Flask environment, default is development')
+@click.option('-h', '--host', default='127.0.0.1', help='IP or hostname on which to run HTTP server.')
+@click.option('-p', '--port', default=5001, type=int, help='Port on which to bind HTTP server.')
+@click.option('--username', default=None, help='HTTP Basic Auth username.')
+@click.option('--password', default=None, help='HTTP Basic Auth password.')
+@click.option('--debug', default=False, is_flag=True, help='Enter DEBUG mode.')
+@click.option('--env', default='development', help='Flask environment, default is development.')
 @click.version_option(version=__pkginfo__.version, prog_name=__pkginfo__.title)
 def run(resource_basepath, host, port, username, password, debug, env):
     os.environ.setdefault('FLASK_ENV', env)
