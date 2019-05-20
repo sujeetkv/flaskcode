@@ -1,5 +1,4 @@
-/* flaskcode styles */
-
+/** flaskcode styles **/
 body {
     margin: 0;
     padding: 0;
@@ -61,7 +60,7 @@ body {
     width: 100%;
     height: 25px;
     line-height: 25px;
-    background-color: #808080;
+    background-color: #1F578E;
     color: #FFF;
 }
 

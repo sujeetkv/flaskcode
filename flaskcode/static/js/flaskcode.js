@@ -36,7 +36,11 @@ flaskcode.editorStates = {
 
 flaskcode.APP_BUSY = false;
 
-flaskcode.allowedLangIds = ['plaintext', 'html', 'css', 'less', 'scss', 'javascript', 'typescript', 'coffeescript', 'json', 'markdown'];
+flaskcode.allowedLangIds = [
+    'plaintext', 'html', 'css', 'less', 'scss', 'javascript', 'typescript', 'coffeescript', 'json', 'markdown',
+    'c', 'cpp', 'csharp', 'dockerfile', 'fsharp', 'go', 'ini', 'java', 'lua', 'objective-c', 'php', 'python', 'r',
+    'ruby', 'rust', 'shell', 'sql', 'swift', 'vb', 'xml', 'yaml'
+];
 
 flaskcode.onStateChange = $.noop;
 

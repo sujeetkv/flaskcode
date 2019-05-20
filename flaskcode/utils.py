@@ -12,13 +12,13 @@ DEFAULT_CHUNK_SIZE = 16 * 1024
 
 
 if PY2:
-    string_types = basestring
+    string_types = basestring # pylint:disable=undefined-variable
 else:
     string_types = str
 
 
 def get_file_extension(filename):
-	# return filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+    # return filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
     ext = os.path.splitext(filename)[1]
     if ext.startswith('.'):
         ext = ext[1:]

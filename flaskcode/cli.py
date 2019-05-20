@@ -1,31 +1,52 @@
 # -*- coding: utf-8 -*-
 """flaskcode cli module"""
-
 import os
 import click
-from flask import Flask
+from flask import Flask, request, make_response
 from . import blueprint, default_config
 
 
-def create_flask_app():
+help_str = """Run {app_title} with given RESOURCE_BASEPATH or current working directory.
+
+All options can be set on the command line or through environment
+variables of the form FLASKCODE_*. For example FLASKCODE_USERNAME.
+""".format(app_title=default_config.FLASKCODE_APP_TITLE)
+
+
+def add_auth(blueprint, username, password, realm=default_config.FLASKCODE_APP_TITLE):
+    @blueprint.before_request
+    def http_basic_auth():
+        auth = request.authorization
+        if not (auth and auth.password == password and auth.username == username):
+            response = make_response('Unauthorized', 401)
+            response.headers.set('WWW-Authenticate', 'Basic realm="%s"' % realm)
+            return response
+        return None
+
+
+def create_flask_app(username=None, password=None):
     app = Flask(__name__)
     app.url_map.strict_slashes = False
+    if username:
+        add_auth(blueprint, username, password)
     app.register_blueprint(blueprint)
     return app
 
 
-@click.command(help='Run %s with given RESOURCE_BASEPATH or current working directory.' % default_config.FLASKCODE_APP_TITLE)
+@click.command(help=help_str)
 @click.argument('resource-basepath', default=os.getcwd(), type=os.path.abspath, required=False)
-@click.option('-h', '--host', default='127.0.0.1', help='IP or hostname on which to bind HTTP server')
+@click.option('-h', '--host', default='127.0.0.1', help='IP or hostname on which to run HTTP server')
 @click.option('-p', '--port', default=5001, type=int, help='Port on which to bind HTTP server')
+@click.option('--username', default=None, help='HTTP Basic Auth username')
+@click.option('--password', default=None, help='HTTP Basic Auth password')
 @click.option('--debug/--normal', default=False, help='Enter DEBUG mode')
 @click.option('--env', default='development', help='Flask environment, default is development')
-def run(resource_basepath, host, port, debug, env):
+def run(resource_basepath, host, port, username, password, debug, env):
     os.environ.setdefault('FLASK_ENV', env)
     os.environ.setdefault('FLASK_DEBUG', '1' if debug else '0')
     click.echo('%s CLI: %s' % (default_config.FLASKCODE_APP_TITLE, resource_basepath))
     click.echo('')
-    app = create_flask_app()
+    app = create_flask_app(username=username, password=password)
     app.config['FLASKCODE_RESOURCE_BASEPATH'] = resource_basepath
     app.run(host=host, port=port, debug=debug)
 

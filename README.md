@@ -1,6 +1,9 @@
 # flaskcode
 Web based code editor for flask
 
+Code editor with python [Flask](http://flask.pocoo.org/) framework backend.
+
+
 [![Build Status](https://travis-ci.org/sujeetkv/flaskcode.svg?branch=master)](https://travis-ci.org/sujeetkv/flaskcode)
 [![PyPI Version](https://img.shields.io/pypi/v/flaskcode.svg)](https://pypi.org/project/flaskcode)
 
@@ -28,9 +31,14 @@ Usage: flaskcode [OPTIONS] [RESOURCE_BASEPATH]
 
   Run FlaskCode with given RESOURCE_BASEPATH or current working directory.
 
+  All options can be set on the command line or through environment
+  variables of the form FLASKCODE_*. For example FLASKCODE_USERNAME.
+
 Options:
-  -h, --host TEXT     IP or hostname on which to bind HTTP server
+  -h, --host TEXT     IP or hostname on which to run HTTP server
   -p, --port INTEGER  Port on which to bind HTTP server
+  --username TEXT     HTTP Basic Auth username
+  --password TEXT     HTTP Basic Auth password
   --debug / --normal  Enter DEBUG mode
   --env TEXT          Flask environment, default is development
   --help              Show this message and exit.
@@ -58,4 +66,4 @@ if __name__ == '__main__':
     app.run()
 ```
 
-If you start the Flask app on the default port, you can access the flaskcode at http://localhost:5000/flaskcode.
+If you start the Flask app on the default port, you can access the flaskcode at http://127.0.0.1:5000/flaskcode.

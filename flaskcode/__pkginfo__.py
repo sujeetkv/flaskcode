@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """package info"""
-
 title = 'flaskcode'
 
 numversion = (0, 0, 3)
