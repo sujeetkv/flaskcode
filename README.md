@@ -5,7 +5,7 @@
 
 Web based code editor for flask
 
-Code editor with python [Flask](http://flask.pocoo.org/) framework backend.
+Code editor with python [Flask](http://flask.pocoo.org) framework backend.
 
 ![screenshot](https://user-images.githubusercontent.com/17122995/58122163-9f04bc80-7c26-11e9-9aab-61cf1a312c9f.png)
 
@@ -70,3 +70,19 @@ if __name__ == '__main__':
 ```
 
 Now if you run the Flask app on default port, you can access the flaskcode at http://127.0.0.1:5000/flaskcode.
+
+
+## Built with
+
+* [Flask](http://flask.pocoo.org) - web framework used
+* [Monaco Editor](https://microsoft.github.io/monaco-editor) - a browser based code editor
+
+
+## Authors
+
+* **Sujeet Kumar** - [sujeetkv](https://github.com/sujeetkv)
+
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/sujeetkv/flaskcode/blob/master/LICENSE) file for details.
