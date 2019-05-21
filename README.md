@@ -1,11 +1,13 @@
 # flaskcode
+
+[![Build Status](https://travis-ci.org/sujeetkv/flaskcode.svg?branch=master)](https://travis-ci.org/sujeetkv/flaskcode)
+[![PyPI Version](https://img.shields.io/pypi/v/flaskcode.svg)](https://pypi.org/project/flaskcode)
+
 Web based code editor for flask
 
 Code editor with python [Flask](http://flask.pocoo.org/) framework backend.
 
-
-[![Build Status](https://travis-ci.org/sujeetkv/flaskcode.svg?branch=master)](https://travis-ci.org/sujeetkv/flaskcode)
-[![PyPI Version](https://img.shields.io/pypi/v/flaskcode.svg)](https://pypi.org/project/flaskcode)
+![screenshot](https://user-images.githubusercontent.com/17122995/58122163-9f04bc80-7c26-11e9-9aab-61cf1a312c9f.png)
 
 
 ## Installation
@@ -67,4 +69,4 @@ if __name__ == '__main__':
     app.run()
 ```
 
-If you start the Flask app on the default port, you can access the flaskcode at http://127.0.0.1:5000/flaskcode.
+Now if you run the Flask app on default port, you can access the flaskcode at http://127.0.0.1:5000/flaskcode.
