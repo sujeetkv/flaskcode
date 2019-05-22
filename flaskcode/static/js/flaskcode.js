@@ -34,6 +34,9 @@ flaskcode.editorStates = {
     BUSY: 'busy',
 };
 
+flaskcode.defaultEditorTheme = 'vs-dark';
+flaskcode.availableEditorThemes = ['vs', 'vs-dark', 'hc-black'];
+
 flaskcode.APP_BUSY = false;
 
 flaskcode.allowedLangIds = [
@@ -43,6 +46,11 @@ flaskcode.allowedLangIds = [
 ];
 
 flaskcode.onStateChange = $.noop;
+
+flaskcode.editorTheme = function () {
+    var theme = flaskcode.config.get('editorTheme', flaskcode.defaultEditorTheme);
+    return flaskcode.availableEditorThemes.indexOf(theme) > -1 ? theme : flaskcode.defaultEditorTheme;
+};
 
 flaskcode.setEditorState = function (state) {
     var prevState = flaskcode.editorWidget.editorState;
@@ -316,7 +324,7 @@ flaskcode.setEditor = function (data, resource, isNewResource) {
     if (!flaskcode.editorWidget.editor) {
         flaskcode.resetEditorBody();
         flaskcode.editorWidget.editor = monaco.editor.create(flaskcode.editorElement, {
-            theme: 'vs-dark',
+            theme: flaskcode.editorTheme(),
             minimap: {enabled: flaskcode.minimapEnabled()},
             fontSize: 13,
             model: null,

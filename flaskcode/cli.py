@@ -29,6 +29,7 @@ def create_flask_app(username=None, password=None):
     app.url_map.strict_slashes = False
     if username:
         add_auth(blueprint, username, password)
+    app.config.from_object(default_config)
     app.register_blueprint(blueprint)
     return app
 
@@ -39,16 +40,18 @@ def create_flask_app(username=None, password=None):
 @click.option('-p', '--port', default=5001, type=int, help='Port on which to bind HTTP server.')
 @click.option('--username', default=None, help='HTTP Basic Auth username.')
 @click.option('--password', default=None, help='HTTP Basic Auth password.')
+@click.option('--editor-theme', default='vs-dark', type=click.Choice(['vs', 'vs-dark', 'hc-black']), help='Editor theme, default is vs-dark.')
 @click.option('--debug', default=False, is_flag=True, help='Enter DEBUG mode.')
 @click.option('--env', default='development', help='Flask environment, default is development.')
 @click.version_option(version=__pkginfo__.version, prog_name=__pkginfo__.title)
-def run(resource_basepath, host, port, username, password, debug, env):
+def run(resource_basepath, host, port, username, password, editor_theme, debug, env):
     os.environ.setdefault('FLASK_ENV', env)
     os.environ.setdefault('FLASK_DEBUG', '1' if debug else '0')
     click.echo('%s CLI: %s' % (default_config.FLASKCODE_APP_TITLE, resource_basepath))
     click.echo('')
     app = create_flask_app(username=username, password=password)
     app.config['FLASKCODE_RESOURCE_BASEPATH'] = resource_basepath
+    app.config['FLASKCODE_EDITOR_THEME'] = editor_theme
     app.run(host=host, port=port, debug=debug)
 
 
