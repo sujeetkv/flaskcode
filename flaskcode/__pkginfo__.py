@@ -12,6 +12,6 @@ author = 'Sujeet Kumar'
 email = 'sujeetkv90@gmail.com'
 uri = 'https://github.com/sujeetkv/flaskcode'
 
-description = 'Web based code editor for flask'
+description = 'Web based code editor on flask'
 
 status = 'Development'

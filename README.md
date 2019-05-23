@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.org/sujeetkv/flaskcode.svg?branch=master)](https://travis-ci.org/sujeetkv/flaskcode)
 [![PyPI Version](https://img.shields.io/pypi/v/flaskcode.svg)](https://pypi.org/project/flaskcode)
 
-Web based code editor for flask
+Web based code editor on flask
 
 Code editor with python [Flask](http://flask.pocoo.org) framework backend.
 
