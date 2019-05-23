@@ -52,6 +52,7 @@ setup(
         'pytest-runner',
     ],
     tests_require=[
+        'flask',
         'pytest>=4.5.0',
     ],
     classifiers=[

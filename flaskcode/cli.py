@@ -27,9 +27,9 @@ def add_auth(blueprint, username, password, realm=default_config.FLASKCODE_APP_T
 def create_flask_app(username=None, password=None):
     app = Flask(__name__)
     app.url_map.strict_slashes = False
+    app.config.from_object(default_config)
     if username:
         add_auth(blueprint, username, password)
-    app.config.from_object(default_config)
     app.register_blueprint(blueprint)
     return app
 

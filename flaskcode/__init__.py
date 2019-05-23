@@ -16,9 +16,6 @@ __copyright__ = __pkginfo__.copyright
 __status__ = __pkginfo__.status
 
 
-__all__ = ['blueprint']
-
-
 blueprint = Blueprint(
     'flaskcode',
     __name__,
