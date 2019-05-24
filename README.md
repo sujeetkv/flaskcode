@@ -76,7 +76,7 @@ Now if you run the Flask app on default port, you can access the flaskcode at ht
 
 ## Built with
 
-* [Flask](http://flask.pocoo.org) - web framework used
+* [Flask](http://flask.pocoo.org) - a python web framework
 * [Monaco Editor](https://microsoft.github.io/monaco-editor) - a browser based code editor
 
 
