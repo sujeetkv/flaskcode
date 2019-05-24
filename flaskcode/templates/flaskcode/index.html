@@ -1,7 +1,7 @@
 {% extends 'flaskcode/_base.html' %}
 {% from 'flaskcode/_macros.html' import render_dir_tree %}
 
-{% block page_title %}{{ dirname }} | {{ app_title }}{% endblock %}
+{% block page_title %}{{ app_title }} - {{ dirname }}{% endblock %}
 
 {% block page_content %}
     <!--Modals-->
@@ -67,7 +67,7 @@
                 </span>
             </div>
             <!-- Editor Widget -->
-            <div id="editor-container" class="editor-container">
+            <div id="editor-container" class="editor-container{% if editor_theme == 'vs' %} light-theme{% endif %}">
                 <div class="editor-preloader" style="display:none;">
                     <div class="loading-center">
                         <div class="loading-center-absolute">Requesting...</div>

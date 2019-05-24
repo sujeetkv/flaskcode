@@ -5,9 +5,9 @@
 
 Web based code editor on flask
 
-Code editor with python [Flask](http://flask.pocoo.org) framework backend.
+Code editor with python Flask framework backend.
 
-![screenshot](https://user-images.githubusercontent.com/17122995/58122163-9f04bc80-7c26-11e9-9aab-61cf1a312c9f.png)
+![screenshot](https://user-images.githubusercontent.com/17122995/58358018-c499fc00-7e9a-11e9-92d5-5cb9bcb3b7ad.png)
 
 
 ## Installation
@@ -43,7 +43,7 @@ Options:
   --password TEXT                 HTTP Basic Auth password.
   --editor-theme [vs|vs-dark|hc-black]
                                   Editor theme, default is vs-dark.
-  --debug                         Enter DEBUG mode.
+  --debug                         Run in flask DEBUG mode.
   --env TEXT                      Flask environment, default is development.
   --version                       Show the version and exit.
   --help                          Show this message and exit.

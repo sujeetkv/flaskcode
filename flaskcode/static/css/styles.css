@@ -39,6 +39,9 @@ body {
     margin-top: -50px;
     text-align: center;
 }
+#page-preloader .loading-center-absolute small {
+    font-size: 16px;
+}
 /* page preloader end */
 
 #wrapper {
@@ -122,17 +125,21 @@ div.editor-container div.editor-body {
     background-color: rgba(30, 30, 35, 1);
     color: #FFF;
 }
+div.editor-container.light-theme div.editor-body {
+    background-color: #FFF;
+    color: rgba(30, 30, 35, 1);
+}
 div.editor-container div.editor-body div.editor-body-msg {
     padding: 20px;
 }
 div.editor-container div.editor-notification {
     margin: 0;
     padding: 0;
-    width: 50%;
+    width: 100%;
     height: auto;
     position: absolute;
     top: 0px;
-    left: 25%;
+    left: 0px;
     z-index: 9999;
 }
 /* editor preloader */
@@ -147,8 +154,14 @@ div.editor-container .editor-preloader {
     left: 0px;
     z-index: 99999;
 }
+div.editor-container.light-theme .editor-preloader {
+    background-color: rgba(255, 255, 255, 1);
+}
 div.editor-container .editor-preloader.transparent {
     background-color: rgba(30, 30, 35, 0.6);
+}
+div.editor-container.light-theme .editor-preloader.transparent {
+    background-color: rgba(255, 255, 255, 0.6);
 }
 div.editor-container .editor-preloader .loading-center {
     width: 100%;
@@ -166,6 +179,9 @@ div.editor-container .editor-preloader .loading-center-absolute {
     height: 100px;
     margin-top: -50px;
     margin-left: -150px;
+}
+div.editor-container.light-theme .editor-preloader .loading-center-absolute {
+    color: rgba(30, 30, 35, 1);
 }
 /* editor widget styles end */
 
@@ -221,37 +237,8 @@ div.editor-container .editor-preloader .loading-center-absolute {
 
 /* custom alerts */
 .alert {
-    font: 400 17px/24px;
-    padding:15px 50px;
     border-width: 0;
     border-radius: 0;
-    margin: 0 0 15px 0;
-}
-.alert .close{
-	font-size: 26px;
-    color: #252525;
-    opacity: 0.3;
-	-webkit-transition: all 0.5s ease;
-	-moz-transition: all 0.5s ease;
-	-ms-transition: all 0.5s ease;
-    transition: all 0.5s ease;
-}
-.alert .close:hover{
-	opacity: 0.6;
-}
-.alert.alert-info {
-    background-color: #77aeca;
-	color: #fff;
-}
-.alert.alert-success {
-    background: #4caf50;
-	color: #fff;
-}
-.alert.alert-warning {
-    background-color: #fcf8e3;
-	color:#252525;
-}
-.alert.alert-danger {
-    background-color: #ec8787;
-	color:#fff;
+    padding-top: 8px;
+    padding-bottom: 8px;
 }

@@ -3,8 +3,6 @@
 
 var flaskcode = window.flaskcode || {};
 
-flaskcode.$pagePreloader = null;
-
 require.config({
     baseUrl: flaskcode.config.get('pluginsBaseUrl'),
     paths: {'vs': 'monaco-editor/min/vs'}
@@ -26,6 +24,7 @@ flaskcode.fallbackLang = null;
 flaskcode.$editorContainer = null;
 flaskcode.$editorBody = null;
 flaskcode.$editorLoader = null;
+flaskcode.$pagePreloader = null;
 
 flaskcode.editorStates = {
     INIT: 'init',
@@ -39,11 +38,7 @@ flaskcode.availableEditorThemes = ['vs', 'vs-dark', 'hc-black'];
 
 flaskcode.APP_BUSY = false;
 
-flaskcode.allowedLangIds = [
-    'plaintext', 'html', 'css', 'less', 'scss', 'javascript', 'typescript', 'coffeescript', 'json', 'markdown',
-    'c', 'cpp', 'csharp', 'dockerfile', 'fsharp', 'go', 'ini', 'java', 'lua', 'objective-c', 'php', 'python', 'r',
-    'ruby', 'rust', 'shell', 'sql', 'swift', 'vb', 'xml', 'yaml'
-];
+flaskcode.allowedLangIds = [];
 
 flaskcode.onStateChange = $.noop;
 
@@ -67,7 +62,7 @@ flaskcode.getExt = function (filename) {
 
 flaskcode.getResourceExt = function (resource_url) {
     var m = resource_url.match(/\.(\w*)\.txt$/i);
-    return (m && m.length > 1) ? m[1].toLowerCase() : flaskcode.defaultExt;
+    return (m && m.length > 1) ? m[1].toLowerCase() : null;
 };
 
 flaskcode.getLanguageById = function (langId) {
@@ -103,7 +98,7 @@ flaskcode.minimapEnabled = function (minimapFlag) {
 flaskcode.notifyEditor = function (message, category) {
     var msgType = category == 'error' ? 'danger' : 'success';
     var $msg = $('<div class="alert alert-dismissible alert-'+msgType+'" role="alert">'+
-        '<button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>'+
+        '<button type="button" class="close" data-dismiss="alert" aria-label="Close"><i class="fa fa-times" aria-hidden="true"></i></button>'+
         '<strong>'+message+'</strong>'+
     '</div>');
     $msg.autoremove(msgType == 'success' ? 5 : 10);
@@ -157,6 +152,14 @@ flaskcode.notifyCursorPosition = function (position) {
     } else {
         $('span#line_num').text('');
         $('span#column_num').text('');
+    }
+};
+
+flaskcode.notifyLanguage = function (lang) {
+    if (lang && lang.aliases.length) {
+        $('span#editor_lang').text(lang.aliases[0]);
+    } else {
+        $('span#editor_lang').text('');
     }
 };
 
@@ -318,7 +321,7 @@ flaskcode.restoreResourceState = function () {
 };
 
 flaskcode.setEditor = function (data, resource, isNewResource) {
-    var resourceLang = flaskcode.getLanguageByExtension(resource.extension || flaskcode.getResourceExt(resource.url)) || flaskcode.getLanguageByMimetype(resource.mimetype);
+    var resourceLang = flaskcode.getLanguageByExtension(flaskcode.getResourceExt(resource.url) || resource.extension || flaskcode.defaultExt) || flaskcode.getLanguageByMimetype(resource.mimetype);
     var lang = resourceLang || flaskcode.defaultLang || flaskcode.fallbackLang;
 
     if (!flaskcode.editorWidget.editor) {
@@ -344,6 +347,7 @@ flaskcode.setEditor = function (data, resource, isNewResource) {
     flaskcode.setEditorState(flaskcode.editorStates.LOADED);
     flaskcode.editorWidget.editor.focus();
     flaskcode.notifyCursorPosition(flaskcode.editorWidget.editor.getPosition());
+    flaskcode.notifyLanguage(lang);
 
     if (oldModel) {
         oldModel.dispose();
@@ -362,6 +366,7 @@ flaskcode.clearEditor = function (alt_content) {
     }
     flaskcode.resetEditorBody().append(alt_content || '');
     flaskcode.notifyCursorPosition(null);
+    flaskcode.notifyLanguage(null);
 };
 
 flaskcode.loadEditor = function (resource, forceReload, isNewResource) {
@@ -443,6 +448,7 @@ $(function () {
 
     require(['vs/editor/editor.main'], function() {
         flaskcode.languages = monaco.languages.getLanguages();
+        flaskcode.allowedLangIds = flaskcode.languages.map(function (lang) { return lang.id; });
         flaskcode.defaultLang = flaskcode.getLanguageByExtension(flaskcode.defaultExt);
         flaskcode.fallbackLang = flaskcode.getLanguageById(flaskcode.defaultLangId);
 
