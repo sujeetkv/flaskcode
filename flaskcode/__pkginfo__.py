@@ -2,8 +2,8 @@
 """package info"""
 title = 'flaskcode'
 
-numversion = (0, 0, 7)
-version = '.'.join([str(num) for num in numversion])
+version_info = (0, 0, 7)
+version = '.'.join(map(str, version_info))
 
 license = 'MIT'
 copyright = 'Copyright (c) 2019 Sujeet Kumar <sujeetkv90@gmail.com>'
