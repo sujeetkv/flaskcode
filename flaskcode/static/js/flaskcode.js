@@ -1,6 +1,47 @@
 /* flaskcode scripts */
 'use strict';
 
+var flaskcode = window.flaskcode || {};
+
+require.config({
+    baseUrl: flaskcode.config.get('pluginsBaseUrl'),
+    paths: {'vs': 'monaco-editor/min/vs'}
+});
+
+flaskcode.editorWidget = {
+    editor: null,
+    resourceName: null,
+    editorState: null,
+};
+flaskcode.editorElement = null;
+
+flaskcode.languages = [];
+flaskcode.defaultExt = 'txt';
+flaskcode.defaultLangId = 'plaintext';
+flaskcode.defaultLang = null;
+flaskcode.fallbackLang = null;
+
+flaskcode.$editorContainer = null;
+flaskcode.$editorBody = null;
+flaskcode.$editorLoader = null;
+flaskcode.$pagePreloader = null;
+
+flaskcode.editorStates = {
+    INIT: 'init',
+    LOADED: 'loaded',
+    MODIFIED: 'modified',
+    BUSY: 'busy',
+};
+
+flaskcode.defaultEditorTheme = 'vs-dark';
+flaskcode.availableEditorThemes = ['vs', 'vs-dark', 'hc-black'];
+
+flaskcode.APP_BUSY = false;
+
+flaskcode.allowedLangIds = [];
+
+flaskcode.onStateChange = $.noop;
+
 $(function () {
     flaskcode.$pagePreloader = $('div#page-preloader');
     flaskcode.$editorContainer = $('div#editor-container');
@@ -137,7 +178,7 @@ $(function () {
         $(window).on('beforeunload', function (evt) {
             if (flaskcode.APP_BUSY || flaskcode.editorWidget.editorState == flaskcode.editorStates.BUSY) {
                 evt.preventDefault();
-                evt.returnValue = 'App is working...';
+                evt.returnValue = 'Editor is working...';
                 return evt.returnValue;
             }
         });
@@ -145,47 +186,6 @@ $(function () {
         flaskcode.$pagePreloader.fadeOut();
     });
 });
-
-var flaskcode = window.flaskcode || {};
-
-require.config({
-    baseUrl: flaskcode.config.get('pluginsBaseUrl'),
-    paths: {'vs': 'monaco-editor/min/vs'}
-});
-
-flaskcode.editorWidget = {
-    editor: null,
-    resourceName: null,
-    editorState: null,
-};
-flaskcode.editorElement = null;
-
-flaskcode.languages = [];
-flaskcode.defaultExt = 'txt';
-flaskcode.defaultLangId = 'plaintext';
-flaskcode.defaultLang = null;
-flaskcode.fallbackLang = null;
-
-flaskcode.$editorContainer = null;
-flaskcode.$editorBody = null;
-flaskcode.$editorLoader = null;
-flaskcode.$pagePreloader = null;
-
-flaskcode.editorStates = {
-    INIT: 'init',
-    LOADED: 'loaded',
-    MODIFIED: 'modified',
-    BUSY: 'busy',
-};
-
-flaskcode.defaultEditorTheme = 'vs-dark';
-flaskcode.availableEditorThemes = ['vs', 'vs-dark', 'hc-black'];
-
-flaskcode.APP_BUSY = false;
-
-flaskcode.allowedLangIds = [];
-
-flaskcode.onStateChange = $.noop;
 
 flaskcode.editorTheme = function () {
     var theme = flaskcode.config.get('editorTheme', flaskcode.defaultEditorTheme);
