@@ -13,11 +13,12 @@ export var USUAL_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
 function createWordRegExp(allowInWords) {
     if (allowInWords === void 0) { allowInWords = ''; }
     var source = '(-?\\d*\\.\\d\\w*)|([^';
-    for (var i = 0; i < USUAL_WORD_SEPARATORS.length; i++) {
-        if (allowInWords.indexOf(USUAL_WORD_SEPARATORS[i]) >= 0) {
+    for (var _i = 0, USUAL_WORD_SEPARATORS_1 = USUAL_WORD_SEPARATORS; _i < USUAL_WORD_SEPARATORS_1.length; _i++) {
+        var sep = USUAL_WORD_SEPARATORS_1[_i];
+        if (allowInWords.indexOf(sep) >= 0) {
             continue;
         }
-        source += '\\' + USUAL_WORD_SEPARATORS[i];
+        source += '\\' + sep;
     }
     source += '\\s]+)';
     return new RegExp(source, 'g');
@@ -35,6 +36,9 @@ export function ensureValidWordDefinition(wordDefinition) {
             if (wordDefinition.multiline) {
                 flags += 'm';
             }
+            if (wordDefinition.unicode) {
+                flags += 'u';
+            }
             result = new RegExp(wordDefinition.source, flags);
         }
         else {
@@ -48,10 +52,6 @@ function getWordAtPosFast(column, wordDefinition, text, textOffset) {
     // find whitespace enclosed text around column and match from there
     var pos = column - 1 - textOffset;
     var start = text.lastIndexOf(' ', pos - 1) + 1;
-    var end = text.indexOf(' ', pos);
-    if (end === -1) {
-        end = text.length;
-    }
     wordDefinition.lastIndex = start;
     var match;
     while (match = wordDefinition.exec(text)) {

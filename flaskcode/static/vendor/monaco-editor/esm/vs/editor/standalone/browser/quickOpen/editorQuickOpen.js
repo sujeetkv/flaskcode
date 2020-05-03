@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -32,13 +32,13 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 var QuickOpenController = /** @class */ (function () {
     function QuickOpenController(editor, themeService) {
         this.themeService = themeService;
+        this.widget = null;
+        this.rangeHighlightDecorationId = null;
+        this.lastKnownEditorSelection = null;
         this.editor = editor;
     }
     QuickOpenController.get = function (editor) {
         return editor.getContribution(QuickOpenController.ID);
-    };
-    QuickOpenController.prototype.getId = function () {
-        return QuickOpenController.ID;
     };
     QuickOpenController.prototype.dispose = function () {
         // Dispose widget
@@ -137,4 +137,4 @@ var BaseEditorQuickOpenAction = /** @class */ (function (_super) {
     return BaseEditorQuickOpenAction;
 }(EditorAction));
 export { BaseEditorQuickOpenAction };
-registerEditorContribution(QuickOpenController);
+registerEditorContribution(QuickOpenController.ID, QuickOpenController);

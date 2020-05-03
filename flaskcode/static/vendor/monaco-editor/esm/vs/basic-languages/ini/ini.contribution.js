@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import { registerLanguage } from '../_.contribution.js';
-// Allow for running under nodejs/requirejs in tests
-var _monaco = (typeof monaco === 'undefined' ? self.monaco : monaco);
 registerLanguage({
     id: 'ini',
     extensions: ['.ini', '.properties', '.gitconfig'],
     filenames: ['config', '.gitattributes', '.gitconfig', '.editorconfig'],
     aliases: ['Ini', 'ini'],
-    loader: function () { return _monaco.Promise.wrap(import('./ini.js')); }
+    loader: function () { return import('./ini.js'); }
 });

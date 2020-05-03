@@ -6,16 +6,16 @@ import * as Types from '../../../base/common/types.js';
 import * as Assert from '../../../base/common/assert.js';
 var RegistryImpl = /** @class */ (function () {
     function RegistryImpl() {
-        this.data = {};
+        this.data = new Map();
     }
     RegistryImpl.prototype.add = function (id, data) {
         Assert.ok(Types.isString(id));
         Assert.ok(Types.isObject(data));
-        Assert.ok(!this.data.hasOwnProperty(id), 'There is already an extension with this id');
-        this.data[id] = data;
+        Assert.ok(!this.data.has(id), 'There is already an extension with this id');
+        this.data.set(id, data);
     };
     RegistryImpl.prototype.as = function (id) {
-        return this.data[id] || null;
+        return this.data.get(id) || null;
     };
     return RegistryImpl;
 }());

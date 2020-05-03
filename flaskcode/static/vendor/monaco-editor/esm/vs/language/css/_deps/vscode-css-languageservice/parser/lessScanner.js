@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 var __extends = (this && this.__extends) || (function () {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+    var extendStatics = function (d, b) {
+        extendStatics = Object.setPrototypeOf ||
+            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        return extendStatics(d, b);
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -28,7 +31,7 @@ var LESSScanner = /** @class */ (function (_super) {
         return _super !== null && _super.apply(this, arguments) || this;
     }
     LESSScanner.prototype.scanNext = function (offset) {
-        // LESS: escaped JavaScript code `let a = "dddd"`
+        // LESS: escaped JavaScript code `const a = "dddd"`
         var tokenType = this.escapedJavaScript();
         if (tokenType !== null) {
             return this.finishToken(offset, tokenType);
@@ -71,4 +74,3 @@ var LESSScanner = /** @class */ (function (_super) {
     return LESSScanner;
 }(scanner.Scanner));
 export { LESSScanner };
-//# sourceMappingURL=lessScanner.js.map

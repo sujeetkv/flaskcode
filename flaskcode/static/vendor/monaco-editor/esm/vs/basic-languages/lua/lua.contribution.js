@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import { registerLanguage } from '../_.contribution.js';
-// Allow for running under nodejs/requirejs in tests
-var _monaco = (typeof monaco === 'undefined' ? self.monaco : monaco);
 registerLanguage({
     id: 'lua',
     extensions: ['.lua'],
     aliases: ['Lua', 'lua'],
-    loader: function () { return _monaco.Promise.wrap(import('./lua.js')); }
+    loader: function () { return import('./lua.js'); }
 });

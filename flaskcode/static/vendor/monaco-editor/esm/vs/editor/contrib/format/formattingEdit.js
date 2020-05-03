@@ -20,11 +20,16 @@ var FormattingEdit = /** @class */ (function () {
             }
         }
         if (typeof newEol === 'number') {
-            editor.getModel().pushEOL(newEol);
+            if (editor.hasModel()) {
+                editor.getModel().pushEOL(newEol);
+            }
         }
         return singleEdits;
     };
     FormattingEdit._isFullModelReplaceEdit = function (editor, edit) {
+        if (!editor.hasModel()) {
+            return false;
+        }
         var model = editor.getModel();
         var editRange = model.validateRange(edit.range);
         var fullModelRange = model.getFullModelRange();

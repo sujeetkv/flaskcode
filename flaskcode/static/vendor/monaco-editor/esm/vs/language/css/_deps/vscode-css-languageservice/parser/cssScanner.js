@@ -93,11 +93,11 @@ var MultiLineStream = /** @class */ (function () {
         return false;
     };
     MultiLineStream.prototype.advanceIfChars = function (ch) {
-        var i;
         if (this.position + ch.length > this.source.length) {
             return false;
         }
-        for (i = 0; i < ch.length; i++) {
+        var i = 0;
+        for (; i < ch.length; i++) {
             if (this.source.charCodeAt(this.position + i) !== ch[i]) {
                 return false;
             }
@@ -578,4 +578,3 @@ var Scanner = /** @class */ (function () {
     return Scanner;
 }());
 export { Scanner };
-//# sourceMappingURL=cssScanner.js.map

@@ -2,19 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { fuzzyScore, fuzzyScoreGracefulAggressive, anyScore } from '../../../base/common/filters.js';
-import { isDisposable } from '../../../base/common/lifecycle.js';
-import { ensureLowerCaseVariants } from './suggest.js';
-import { EDITOR_DEFAULTS } from '../../common/config/editorOptions.js';
+import { fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScore, anyScore } from '../../../base/common/filters.js';
+import { compareIgnoreCase } from '../../../base/common/strings.js';
 var LineContext = /** @class */ (function () {
-    function LineContext() {
+    function LineContext(leadingLineContent, characterCountDelta) {
+        this.leadingLineContent = leadingLineContent;
+        this.characterCountDelta = characterCountDelta;
     }
     return LineContext;
 }());
 export { LineContext };
 var CompletionModel = /** @class */ (function () {
-    function CompletionModel(items, column, lineContext, wordDistance, options) {
-        if (options === void 0) { options = EDITOR_DEFAULTS.contribInfo.suggest; }
+    function CompletionModel(items, column, lineContext, wordDistance, options, snippetSuggestions) {
         this._snippetCompareFn = CompletionModel._compareCompletionItems;
         this._items = items;
         this._column = column;
@@ -22,25 +21,13 @@ var CompletionModel = /** @class */ (function () {
         this._options = options;
         this._refilterKind = 1 /* All */;
         this._lineContext = lineContext;
-        if (options.snippets === 'top') {
+        if (snippetSuggestions === 'top') {
             this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsUp;
         }
-        else if (options.snippets === 'bottom') {
+        else if (snippetSuggestions === 'bottom') {
             this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsDown;
         }
     }
-    CompletionModel.prototype.dispose = function () {
-        var seen = new Set();
-        for (var _i = 0, _a = this._items; _i < _a.length; _i++) {
-            var container = _a[_i].container;
-            if (!seen.has(container)) {
-                seen.add(container);
-                if (isDisposable(container)) {
-                    container.dispose();
-                }
-            }
-        }
-    };
     Object.defineProperty(CompletionModel.prototype, "lineContext", {
         get: function () {
             return this._lineContext;
@@ -74,7 +61,7 @@ var CompletionModel = /** @class */ (function () {
     CompletionModel.prototype.adopt = function (except) {
         var res = new Array();
         for (var i = 0; i < this._items.length;) {
-            if (!except.has(this._items[i].support)) {
+            if (!except.has(this._items[i].provider)) {
                 res.push(this._items[i]);
                 // unordered removed
                 this._items[i] = this._items[this._items.length - 1];
@@ -116,18 +103,15 @@ var CompletionModel = /** @class */ (function () {
         var scoreFn = (!this._options.filterGraceful || source.length > 2000) ? fuzzyScore : fuzzyScoreGracefulAggressive;
         for (var i = 0; i < source.length; i++) {
             var item = source[i];
-            var suggestion = item.suggestion, container = item.container;
-            // make sure _labelLow, _filterTextLow, _sortTextLow exist
-            ensureLowerCaseVariants(suggestion);
             // collect those supports that signaled having
             // an incomplete result
-            if (container.incomplete) {
-                this._isIncomplete.add(item.support);
+            if (item.container.incomplete) {
+                this._isIncomplete.add(item.provider);
             }
             // 'word' is that remainder of the current line that we
             // filter and score against. In theory each suggestion uses a
             // different word, but in practice not - that's why we cache
-            var overwriteBefore = item.position.column - suggestion.range.startColumn;
+            var overwriteBefore = item.position.column - item.editStart.column;
             var wordLen = overwriteBefore + characterCountDelta - (item.position.column - this._column);
             if (word.length !== wordLen) {
                 word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
@@ -142,8 +126,7 @@ var CompletionModel = /** @class */ (function () {
                 // the fallback-sort using the initial sort order.
                 // use a score of `-100` because that is out of the
                 // bound of values `fuzzyScore` will return
-                item.score = -100;
-                item.matches = undefined;
+                item.score = FuzzyScore.Default;
             }
             else {
                 // skip word characters that are whitespace until
@@ -158,42 +141,47 @@ var CompletionModel = /** @class */ (function () {
                         break;
                     }
                 }
+                var textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
                 if (wordPos >= wordLen) {
                     // the wordPos at which scoring starts is the whole word
                     // and therefore the same rules as not having a word apply
-                    item.score = -100;
-                    item.matches = [];
+                    item.score = FuzzyScore.Default;
                 }
-                else if (typeof suggestion.filterText === 'string') {
+                else if (typeof item.completion.filterText === 'string') {
                     // when there is a `filterText` it must match the `word`.
                     // if it matches we check with the label to compute highlights
                     // and if that doesn't yield a result we have no highlights,
                     // despite having the match
-                    var match = scoreFn(word, wordLow, wordPos, suggestion.filterText, suggestion._filterTextLow, 0, false);
+                    var match = scoreFn(word, wordLow, wordPos, item.completion.filterText, item.filterTextLow, 0, false);
                     if (!match) {
-                        continue;
+                        continue; // NO match
                     }
-                    item.score = match[0];
-                    item.matches = (fuzzyScore(word, wordLow, 0, suggestion.label, suggestion._labelLow, 0, true) || anyScore(word, suggestion.label))[1];
+                    if (compareIgnoreCase(item.completion.filterText, textLabel) === 0) {
+                        // filterText and label are actually the same -> use good highlights
+                        item.score = match;
+                    }
+                    else {
+                        // re-run the scorer on the label in the hope of a result BUT use the rank
+                        // of the filterText-match
+                        item.score = anyScore(word, wordLow, wordPos, textLabel, item.labelLow, 0);
+                        item.score[0] = match[0]; // use score from filterText
+                    }
                 }
                 else {
                     // by default match `word` against the `label`
-                    var match = scoreFn(word, wordLow, wordPos, suggestion.label, suggestion._labelLow, 0, false);
-                    if (match) {
-                        item.score = match[0];
-                        item.matches = match[1];
+                    var match = scoreFn(word, wordLow, wordPos, textLabel, item.labelLow, 0, false);
+                    if (!match) {
+                        continue; // NO match
                     }
-                    else {
-                        continue;
-                    }
+                    item.score = match;
                 }
             }
             item.idx = i;
-            item.distance = this._wordDistance.distance(item.position, suggestion);
+            item.distance = this._wordDistance.distance(item.position, item.completion);
             target.push(item);
             // update stats
             this._stats.suggestionCount++;
-            switch (suggestion.kind) {
+            switch (item.completion.kind) {
                 case 25 /* Snippet */:
                     this._stats.snippetCount++;
                     break;
@@ -206,10 +194,10 @@ var CompletionModel = /** @class */ (function () {
         this._refilterKind = 0 /* Nothing */;
     };
     CompletionModel._compareCompletionItems = function (a, b) {
-        if (a.score > b.score) {
+        if (a.score[0] > b.score[0]) {
             return -1;
         }
-        else if (a.score < b.score) {
+        else if (a.score[0] < b.score[0]) {
             return 1;
         }
         else if (a.distance < b.distance) {
@@ -229,22 +217,22 @@ var CompletionModel = /** @class */ (function () {
         }
     };
     CompletionModel._compareCompletionItemsSnippetsDown = function (a, b) {
-        if (a.suggestion.kind !== b.suggestion.kind) {
-            if (a.suggestion.kind === 25 /* Snippet */) {
+        if (a.completion.kind !== b.completion.kind) {
+            if (a.completion.kind === 25 /* Snippet */) {
                 return 1;
             }
-            else if (b.suggestion.kind === 25 /* Snippet */) {
+            else if (b.completion.kind === 25 /* Snippet */) {
                 return -1;
             }
         }
         return CompletionModel._compareCompletionItems(a, b);
     };
     CompletionModel._compareCompletionItemsSnippetsUp = function (a, b) {
-        if (a.suggestion.kind !== b.suggestion.kind) {
-            if (a.suggestion.kind === 25 /* Snippet */) {
+        if (a.completion.kind !== b.completion.kind) {
+            if (a.completion.kind === 25 /* Snippet */) {
                 return -1;
             }
-            else if (b.suggestion.kind === 25 /* Snippet */) {
+            else if (b.completion.kind === 25 /* Snippet */) {
                 return 1;
             }
         }

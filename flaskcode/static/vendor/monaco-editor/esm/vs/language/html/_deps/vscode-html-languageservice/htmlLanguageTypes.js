@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
+import { MarkupKind } from './_deps/vscode-languageserver-types/main.js';
 export var TokenType;
 (function (TokenType) {
     TokenType[TokenType["StartCommentTag"] = 0] = "StartCommentTag";
@@ -42,4 +42,18 @@ export var ScannerState;
     ScannerState[ScannerState["AfterAttributeName"] = 9] = "AfterAttributeName";
     ScannerState[ScannerState["BeforeAttributeValue"] = 10] = "BeforeAttributeValue";
 })(ScannerState || (ScannerState = {}));
-//# sourceMappingURL=htmlLanguageTypes.js.map
+export var ClientCapabilities;
+(function (ClientCapabilities) {
+    ClientCapabilities.LATEST = {
+        textDocument: {
+            completion: {
+                completionItem: {
+                    documentationFormat: [MarkupKind.Markdown, MarkupKind.PlainText]
+                }
+            },
+            hover: {
+                contentFormat: [MarkupKind.Markdown, MarkupKind.PlainText]
+            }
+        }
+    };
+})(ClientCapabilities || (ClientCapabilities = {}));

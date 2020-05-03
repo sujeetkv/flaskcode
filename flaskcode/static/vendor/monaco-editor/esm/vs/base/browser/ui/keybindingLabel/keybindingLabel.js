@@ -6,10 +6,12 @@ import './keybindingLabel.css';
 import { equals } from '../../../common/objects.js';
 import { UILabelProvider } from '../../../common/keybindingLabels.js';
 import * as dom from '../../dom.js';
+import { localize } from '../../../../nls.js';
 var $ = dom.$;
 var KeybindingLabel = /** @class */ (function () {
-    function KeybindingLabel(container, os) {
+    function KeybindingLabel(container, os, options) {
         this.os = os;
+        this.options = options;
         this.domNode = dom.append(container, $('.monaco-keybinding'));
         this.didEverRender = false;
         container.appendChild(this.domNode);
@@ -35,25 +37,28 @@ var KeybindingLabel = /** @class */ (function () {
             }
             this.domNode.title = this.keybinding.getAriaLabel() || '';
         }
+        else if (this.options && this.options.renderUnboundKeybindings) {
+            this.renderUnbound(this.domNode);
+        }
         this.didEverRender = true;
     };
     KeybindingLabel.prototype.renderPart = function (parent, part, match) {
         var modifierLabels = UILabelProvider.modifierLabels[this.os];
         if (part.ctrlKey) {
-            this.renderKey(parent, modifierLabels.ctrlKey, Boolean(match && match.ctrlKey), modifierLabels.separator);
+            this.renderKey(parent, modifierLabels.ctrlKey, Boolean(match === null || match === void 0 ? void 0 : match.ctrlKey), modifierLabels.separator);
         }
         if (part.shiftKey) {
-            this.renderKey(parent, modifierLabels.shiftKey, Boolean(match && match.shiftKey), modifierLabels.separator);
+            this.renderKey(parent, modifierLabels.shiftKey, Boolean(match === null || match === void 0 ? void 0 : match.shiftKey), modifierLabels.separator);
         }
         if (part.altKey) {
-            this.renderKey(parent, modifierLabels.altKey, Boolean(match && match.altKey), modifierLabels.separator);
+            this.renderKey(parent, modifierLabels.altKey, Boolean(match === null || match === void 0 ? void 0 : match.altKey), modifierLabels.separator);
         }
         if (part.metaKey) {
-            this.renderKey(parent, modifierLabels.metaKey, Boolean(match && match.metaKey), modifierLabels.separator);
+            this.renderKey(parent, modifierLabels.metaKey, Boolean(match === null || match === void 0 ? void 0 : match.metaKey), modifierLabels.separator);
         }
         var keyLabel = part.keyLabel;
         if (keyLabel) {
-            this.renderKey(parent, keyLabel, Boolean(match && match.keyCode), '');
+            this.renderKey(parent, keyLabel, Boolean(match === null || match === void 0 ? void 0 : match.keyCode), '');
         }
     };
     KeybindingLabel.prototype.renderKey = function (parent, label, highlight, separator) {
@@ -62,7 +67,8 @@ var KeybindingLabel = /** @class */ (function () {
             dom.append(parent, $('span.monaco-keybinding-key-separator', undefined, separator));
         }
     };
-    KeybindingLabel.prototype.dispose = function () {
+    KeybindingLabel.prototype.renderUnbound = function (parent) {
+        dom.append(parent, $('span.monaco-keybinding-key', undefined, localize('unbound', "Unbound")));
     };
     KeybindingLabel.areSame = function (a, b) {
         if (a === b || (!a && !b)) {

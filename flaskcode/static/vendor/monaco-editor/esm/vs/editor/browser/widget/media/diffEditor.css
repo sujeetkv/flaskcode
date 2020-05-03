@@ -37,39 +37,16 @@
 .monaco-diff-editor .insert-sign,
 .monaco-editor .delete-sign,
 .monaco-diff-editor .delete-sign {
-	background-size: 60%;
-	opacity: 0.7;
-	background-repeat: no-repeat;
-	background-position: 50% 50%;
-	background-position: center;
-	background-size: 11px 11px;
+	font-size: 11px !important;
+	opacity: 0.7 !important;
+	display: flex !important;
+	align-items: center;
 }
 .monaco-editor.hc-black .insert-sign,
 .monaco-diff-editor.hc-black .insert-sign,
 .monaco-editor.hc-black .delete-sign,
 .monaco-diff-editor.hc-black .delete-sign {
 	opacity: 1;
-}
-.monaco-editor .insert-sign,
-.monaco-diff-editor .insert-sign {
-	background-image: url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHRpdGxlPkxheWVyIDE8L3RpdGxlPjxyZWN0IGhlaWdodD0iMTEiIHdpZHRoPSIzIiB5PSIzIiB4PSI3IiBmaWxsPSIjNDI0MjQyIi8+PHJlY3QgaGVpZ2h0PSIzIiB3aWR0aD0iMTEiIHk9IjciIHg9IjMiIGZpbGw9IiM0MjQyNDIiLz48L3N2Zz4=");
-}
-.monaco-editor .delete-sign,
-.monaco-diff-editor .delete-sign {
-	background-image: url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHRpdGxlPkxheWVyIDE8L3RpdGxlPjxyZWN0IGhlaWdodD0iMyIgd2lkdGg9IjExIiB5PSI3IiB4PSIzIiBmaWxsPSIjNDI0MjQyIi8+PC9zdmc+");
-}
-
-.monaco-editor.vs-dark .insert-sign,
-.monaco-diff-editor.vs-dark .insert-sign,
-.monaco-editor.hc-black .insert-sign,
-.monaco-diff-editor.hc-black .insert-sign {
-	background-image: url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHRpdGxlPkxheWVyIDE8L3RpdGxlPjxyZWN0IGhlaWdodD0iMTEiIHdpZHRoPSIzIiB5PSIzIiB4PSI3IiBmaWxsPSIjQzVDNUM1Ii8+PHJlY3QgaGVpZ2h0PSIzIiB3aWR0aD0iMTEiIHk9IjciIHg9IjMiIGZpbGw9IiNDNUM1QzUiLz48L3N2Zz4=");
-}
-.monaco-editor.vs-dark .delete-sign,
-.monaco-diff-editor.vs-dark .delete-sign,
-.monaco-editor.hc-black .delete-sign,
-.monaco-diff-editor.hc-black .delete-sign {
-	background-image: url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHRpdGxlPkxheWVyIDE8L3RpdGxlPjxyZWN0IGhlaWdodD0iMyIgd2lkdGg9IjExIiB5PSI3IiB4PSIzIiBmaWxsPSIjQzVDNUM1Ii8+PC9zdmc+");
 }
 
 .monaco-editor .inline-deleted-margin-view-zone {
@@ -93,4 +70,8 @@
 
 .monaco-editor .view-zones .view-lines .view-line span {
 	display: inline-block;
+}
+
+.monaco-editor .margin-view-zones .lightbulb-glyph:hover {
+	cursor: pointer;
 }

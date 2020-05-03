@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import { registerLanguage } from '../_.contribution.js';
-// Allow for running under nodejs/requirejs in tests
-var _monaco = (typeof monaco === 'undefined' ? self.monaco : monaco);
 registerLanguage({
     id: 'apex',
     extensions: ['.cls'],
     aliases: ['Apex', 'apex'],
     mimetypes: ['text/x-apex-source', 'text/x-apex'],
-    loader: function () { return _monaco.Promise.wrap(import('./apex.js')); }
+    loader: function () { return import('./apex.js'); }
 });

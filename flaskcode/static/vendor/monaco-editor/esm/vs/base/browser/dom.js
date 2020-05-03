@@ -8,13 +8,31 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
     };
 })();
+var __assign = (this && this.__assign) || function () {
+    __assign = Object.assign || function(t) {
+        for (var s, i = 1, n = arguments.length; i < n; i++) {
+            s = arguments[i];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+                t[p] = s[p];
+        }
+        return t;
+    };
+    return __assign.apply(this, arguments);
+};
+var __spreadArrays = (this && this.__spreadArrays) || function () {
+    for (var s = 0, i = 0, il = arguments.length; i < il; i++) s += arguments[i].length;
+    for (var r = Array(s), k = 0, i = 0; i < il; i++)
+        for (var a = arguments[i], j = 0, jl = a.length; j < jl; j++, k++)
+            r[k] = a[j];
+    return r;
+};
 import * as browser from './browser.js';
 import { domEvent } from './event.js';
 import { StandardKeyboardEvent } from './keyboardEvent.js';
@@ -22,8 +40,11 @@ import { StandardMouseEvent } from './mouseEvent.js';
 import { TimeoutTimer } from '../common/async.js';
 import { onUnexpectedError } from '../common/errors.js';
 import { Emitter } from '../common/event.js';
-import { Disposable, dispose } from '../common/lifecycle.js';
+import { Disposable, toDisposable } from '../common/lifecycle.js';
 import * as platform from '../common/platform.js';
+import { coalesce } from '../common/arrays.js';
+import { Schemas, RemoteAuthorities } from '../common/network.js';
+import { BrowserFeatures } from './canIUse.js';
 export function clearNode(node) {
     while (node.firstChild) {
         node.removeChild(node.firstChild);
@@ -39,12 +60,14 @@ export function isInDOM(node) {
         if (node === document.body) {
             return true;
         }
-        node = node.parentNode;
+        node = node.parentNode || node.host;
     }
     return false;
 }
 var _manualClassList = new /** @class */ (function () {
     function class_1() {
+        this._lastStart = -1;
+        this._lastEnd = -1;
     }
     class_1.prototype._findClassName = function (node, className) {
         var classes = node.className;
@@ -133,10 +156,10 @@ var _manualClassList = new /** @class */ (function () {
     };
     class_1.prototype.toggleClass = function (node, className, shouldHaveIt) {
         this._findClassName(node, className);
-        if (this._lastStart !== -1 && (shouldHaveIt === void 0 || !shouldHaveIt)) {
+        if (this._lastStart !== -1 && (shouldHaveIt === undefined || !shouldHaveIt)) {
             this.removeClass(node, className);
         }
-        if (this._lastStart === -1 && (shouldHaveIt === void 0 || shouldHaveIt)) {
+        if (this._lastStart === -1 && (shouldHaveIt === undefined || shouldHaveIt)) {
             this.addClass(node, className);
         }
     };
@@ -191,27 +214,27 @@ export var removeClass = _classList.removeClass.bind(_classList);
 export var removeClasses = _classList.removeClasses.bind(_classList);
 export var toggleClass = _classList.toggleClass.bind(_classList);
 var DomListener = /** @class */ (function () {
-    function DomListener(node, type, handler, useCapture) {
+    function DomListener(node, type, handler, options) {
         this._node = node;
         this._type = type;
         this._handler = handler;
-        this._useCapture = (useCapture || false);
-        this._node.addEventListener(this._type, this._handler, this._useCapture);
+        this._options = (options || false);
+        this._node.addEventListener(this._type, this._handler, this._options);
     }
     DomListener.prototype.dispose = function () {
         if (!this._handler) {
             // Already disposed
             return;
         }
-        this._node.removeEventListener(this._type, this._handler, this._useCapture);
+        this._node.removeEventListener(this._type, this._handler, this._options);
         // Prevent leakers from holding on to the dom or handler func
         this._node = null;
         this._handler = null;
     };
     return DomListener;
 }());
-export function addDisposableListener(node, type, handler, useCapture) {
-    return new DomListener(node, type, handler, useCapture);
+export function addDisposableListener(node, type, handler, useCaptureOrOptions) {
+    return new DomListener(node, type, handler, useCaptureOrOptions);
 }
 function _wrapAsStandardMouseEvent(handler) {
     return function (e) {
@@ -233,10 +256,33 @@ export var addStandardDisposableListener = function addStandardDisposableListene
     }
     return addDisposableListener(node, type, wrapHandler, useCapture);
 };
+export var addStandardDisposableGenericMouseDownListner = function addStandardDisposableListener(node, handler, useCapture) {
+    var wrapHandler = _wrapAsStandardMouseEvent(handler);
+    return addDisposableGenericMouseDownListner(node, wrapHandler, useCapture);
+};
+export function addDisposableGenericMouseDownListner(node, handler, useCapture) {
+    return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_DOWN : EventType.MOUSE_DOWN, handler, useCapture);
+}
+export function addDisposableGenericMouseUpListner(node, handler, useCapture) {
+    return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_UP : EventType.MOUSE_UP, handler, useCapture);
+}
 export function addDisposableNonBubblingMouseOutListener(node, handler) {
     return addDisposableListener(node, 'mouseout', function (e) {
         // Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-        var toElement = (e.relatedTarget || e.toElement);
+        var toElement = (e.relatedTarget);
+        while (toElement && toElement !== node) {
+            toElement = toElement.parentNode;
+        }
+        if (toElement === node) {
+            return;
+        }
+        handler(e);
+    });
+}
+export function addDisposableNonBubblingPointerOutListener(node, handler) {
+    return addDisposableListener(node, 'pointerout', function (e) {
+        // Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
+        var toElement = (e.relatedTarget);
         while (toElement && toElement !== node) {
             toElement = toElement.parentNode;
         }
@@ -391,31 +437,21 @@ export function addDisposableThrottledListener(node, type, handler, eventMerger,
 export function getComputedStyle(el) {
     return document.defaultView.getComputedStyle(el, null);
 }
-// Adapted from WinJS
-// Converts a CSS positioning string for the specified element to pixels.
-var convertToPixels = (function () {
-    return function (element, value) {
-        return parseFloat(value) || 0;
-    };
-})();
-function getDimension(element, cssPropertyName, jsPropertyName) {
-    var computedStyle = getComputedStyle(element);
-    var value = '0';
-    if (computedStyle) {
-        if (computedStyle.getPropertyValue) {
-            value = computedStyle.getPropertyValue(cssPropertyName);
-        }
-        else {
-            // IE8
-            value = computedStyle.getAttribute(jsPropertyName);
-        }
-    }
-    return convertToPixels(element, value);
-}
 export function getClientArea(element) {
     // Try with DOM clientWidth / clientHeight
     if (element !== document.body) {
         return new Dimension(element.clientWidth, element.clientHeight);
+    }
+    // If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
+    if (platform.isIOS && window.visualViewport) {
+        var width = window.visualViewport.width;
+        var height = window.visualViewport.height - (browser.isStandalone
+            // in PWA mode, the visual viewport always includes the safe-area-inset-bottom (which is for the home indicator)
+            // even when you are using the onscreen monitor, the visual viewport will include the area between system statusbar and the onscreen keyboard
+            // plus the area between onscreen keyboard and the bottom bezel, which is 20px on iOS.
+            ? (20 + 4) // + 4px for body margin
+            : 0);
+        return new Dimension(width, height);
     }
     // Try innerWidth / innerHeight
     if (window.innerWidth && window.innerHeight) {
@@ -431,45 +467,66 @@ export function getClientArea(element) {
     }
     throw new Error('Unable to figure out browser width and height');
 }
-var sizeUtils = {
-    getBorderLeftWidth: function (element) {
-        return getDimension(element, 'border-left-width', 'borderLeftWidth');
-    },
-    getBorderRightWidth: function (element) {
-        return getDimension(element, 'border-right-width', 'borderRightWidth');
-    },
-    getBorderTopWidth: function (element) {
-        return getDimension(element, 'border-top-width', 'borderTopWidth');
-    },
-    getBorderBottomWidth: function (element) {
-        return getDimension(element, 'border-bottom-width', 'borderBottomWidth');
-    },
-    getPaddingLeft: function (element) {
-        return getDimension(element, 'padding-left', 'paddingLeft');
-    },
-    getPaddingRight: function (element) {
-        return getDimension(element, 'padding-right', 'paddingRight');
-    },
-    getPaddingTop: function (element) {
-        return getDimension(element, 'padding-top', 'paddingTop');
-    },
-    getPaddingBottom: function (element) {
-        return getDimension(element, 'padding-bottom', 'paddingBottom');
-    },
-    getMarginLeft: function (element) {
-        return getDimension(element, 'margin-left', 'marginLeft');
-    },
-    getMarginTop: function (element) {
-        return getDimension(element, 'margin-top', 'marginTop');
-    },
-    getMarginRight: function (element) {
-        return getDimension(element, 'margin-right', 'marginRight');
-    },
-    getMarginBottom: function (element) {
-        return getDimension(element, 'margin-bottom', 'marginBottom');
-    },
-    __commaSentinel: false
-};
+var SizeUtils = /** @class */ (function () {
+    function SizeUtils() {
+    }
+    // Adapted from WinJS
+    // Converts a CSS positioning string for the specified element to pixels.
+    SizeUtils.convertToPixels = function (element, value) {
+        return parseFloat(value) || 0;
+    };
+    SizeUtils.getDimension = function (element, cssPropertyName, jsPropertyName) {
+        var computedStyle = getComputedStyle(element);
+        var value = '0';
+        if (computedStyle) {
+            if (computedStyle.getPropertyValue) {
+                value = computedStyle.getPropertyValue(cssPropertyName);
+            }
+            else {
+                // IE8
+                value = computedStyle.getAttribute(jsPropertyName);
+            }
+        }
+        return SizeUtils.convertToPixels(element, value);
+    };
+    SizeUtils.getBorderLeftWidth = function (element) {
+        return SizeUtils.getDimension(element, 'border-left-width', 'borderLeftWidth');
+    };
+    SizeUtils.getBorderRightWidth = function (element) {
+        return SizeUtils.getDimension(element, 'border-right-width', 'borderRightWidth');
+    };
+    SizeUtils.getBorderTopWidth = function (element) {
+        return SizeUtils.getDimension(element, 'border-top-width', 'borderTopWidth');
+    };
+    SizeUtils.getBorderBottomWidth = function (element) {
+        return SizeUtils.getDimension(element, 'border-bottom-width', 'borderBottomWidth');
+    };
+    SizeUtils.getPaddingLeft = function (element) {
+        return SizeUtils.getDimension(element, 'padding-left', 'paddingLeft');
+    };
+    SizeUtils.getPaddingRight = function (element) {
+        return SizeUtils.getDimension(element, 'padding-right', 'paddingRight');
+    };
+    SizeUtils.getPaddingTop = function (element) {
+        return SizeUtils.getDimension(element, 'padding-top', 'paddingTop');
+    };
+    SizeUtils.getPaddingBottom = function (element) {
+        return SizeUtils.getDimension(element, 'padding-bottom', 'paddingBottom');
+    };
+    SizeUtils.getMarginLeft = function (element) {
+        return SizeUtils.getDimension(element, 'margin-left', 'marginLeft');
+    };
+    SizeUtils.getMarginTop = function (element) {
+        return SizeUtils.getDimension(element, 'margin-top', 'marginTop');
+    };
+    SizeUtils.getMarginRight = function (element) {
+        return SizeUtils.getDimension(element, 'margin-right', 'marginRight');
+    };
+    SizeUtils.getMarginBottom = function (element) {
+        return SizeUtils.getDimension(element, 'margin-bottom', 'marginBottom');
+    };
+    return SizeUtils;
+}());
 // ----------------------------------------------------------------------------------------
 // Position & Dimension
 var Dimension = /** @class */ (function () {
@@ -483,16 +540,20 @@ export { Dimension };
 export function getTopLeftOffset(element) {
     // Adapted from WinJS.Utilities.getPosition
     // and added borders to the mix
-    var offsetParent = element.offsetParent, top = element.offsetTop, left = element.offsetLeft;
-    while ((element = element.parentNode) !== null && element !== document.body && element !== document.documentElement) {
+    var offsetParent = element.offsetParent;
+    var top = element.offsetTop;
+    var left = element.offsetLeft;
+    while ((element = element.parentNode) !== null
+        && element !== document.body
+        && element !== document.documentElement) {
         top -= element.scrollTop;
-        var c = getComputedStyle(element);
+        var c = isShadowRoot(element) ? null : getComputedStyle(element);
         if (c) {
             left -= c.direction !== 'rtl' ? element.scrollLeft : -element.scrollLeft;
         }
         if (element === offsetParent) {
-            left += sizeUtils.getBorderLeftWidth(element);
-            top += sizeUtils.getBorderTopWidth(element);
+            left += SizeUtils.getBorderLeftWidth(element);
+            top += SizeUtils.getBorderTopWidth(element);
             top += element.offsetTop;
             left += element.offsetLeft;
             offsetParent = element.offsetParent;
@@ -549,25 +610,25 @@ export var StandardWindow = new /** @class */ (function () {
 // Adapted from WinJS
 // Gets the width of the element, including margins.
 export function getTotalWidth(element) {
-    var margin = sizeUtils.getMarginLeft(element) + sizeUtils.getMarginRight(element);
+    var margin = SizeUtils.getMarginLeft(element) + SizeUtils.getMarginRight(element);
     return element.offsetWidth + margin;
 }
 export function getContentWidth(element) {
-    var border = sizeUtils.getBorderLeftWidth(element) + sizeUtils.getBorderRightWidth(element);
-    var padding = sizeUtils.getPaddingLeft(element) + sizeUtils.getPaddingRight(element);
+    var border = SizeUtils.getBorderLeftWidth(element) + SizeUtils.getBorderRightWidth(element);
+    var padding = SizeUtils.getPaddingLeft(element) + SizeUtils.getPaddingRight(element);
     return element.offsetWidth - border - padding;
 }
 // Adapted from WinJS
 // Gets the height of the content of the specified element. The content height does not include borders or padding.
 export function getContentHeight(element) {
-    var border = sizeUtils.getBorderTopWidth(element) + sizeUtils.getBorderBottomWidth(element);
-    var padding = sizeUtils.getPaddingTop(element) + sizeUtils.getPaddingBottom(element);
+    var border = SizeUtils.getBorderTopWidth(element) + SizeUtils.getBorderBottomWidth(element);
+    var padding = SizeUtils.getPaddingTop(element) + SizeUtils.getPaddingBottom(element);
     return element.offsetHeight - border - padding;
 }
 // Adapted from WinJS
 // Gets the height of the element, including its margins.
 export function getTotalHeight(element) {
-    var margin = sizeUtils.getMarginTop(element) + sizeUtils.getMarginBottom(element);
+    var margin = SizeUtils.getMarginTop(element) + SizeUtils.getMarginBottom(element);
     return element.offsetHeight + margin;
 }
 // ----------------------------------------------------------------------------------------
@@ -581,7 +642,7 @@ export function isAncestor(testChild, testAncestor) {
     return false;
 }
 export function findParentWithClass(node, clazz, stopAtClazzOrNode) {
-    while (node) {
+    while (node && node.nodeType === node.ELEMENT_NODE) {
         if (hasClass(node, clazz)) {
             return node;
         }
@@ -600,6 +661,22 @@ export function findParentWithClass(node, clazz, stopAtClazzOrNode) {
         node = node.parentNode;
     }
     return null;
+}
+export function isShadowRoot(node) {
+    return (node && !!node.host && !!node.mode);
+}
+export function isInShadowDOM(domNode) {
+    return !!getShadowRoot(domNode);
+}
+export function getShadowRoot(domNode) {
+    while (domNode.parentNode) {
+        if (domNode === document.body) {
+            // reached the body
+            return null;
+        }
+        domNode = domNode.parentNode;
+    }
+    return isShadowRoot(domNode) ? domNode : null;
 }
 export function createStyleSheet(container) {
     if (container === void 0) { container = document.getElementsByTagName('head')[0]; }
@@ -668,6 +745,9 @@ export var EventType = {
     MOUSE_OUT: 'mouseout',
     MOUSE_ENTER: 'mouseenter',
     MOUSE_LEAVE: 'mouseleave',
+    POINTER_UP: 'pointerup',
+    POINTER_DOWN: 'pointerdown',
+    POINTER_MOVE: 'pointermove',
     CONTEXT_MENU: 'contextmenu',
     WHEEL: 'wheel',
     // Keyboard
@@ -676,11 +756,14 @@ export var EventType = {
     KEY_UP: 'keyup',
     // HTML Document
     LOAD: 'load',
+    BEFORE_UNLOAD: 'beforeunload',
     UNLOAD: 'unload',
     ABORT: 'abort',
     ERROR: 'error',
     RESIZE: 'resize',
     SCROLL: 'scroll',
+    FULLSCREEN_CHANGE: 'fullscreenchange',
+    WK_FULLSCREEN_CHANGE: 'webkitfullscreenchange',
     // Form
     SELECT: 'select',
     CHANGE: 'change',
@@ -742,14 +825,14 @@ export function restoreParentsScrollTop(node, state) {
         node = node.parentNode;
     }
 }
-var FocusTracker = /** @class */ (function () {
+var FocusTracker = /** @class */ (function (_super) {
+    __extends(FocusTracker, _super);
     function FocusTracker(element) {
-        var _this = this;
-        this._onDidFocus = new Emitter();
-        this.onDidFocus = this._onDidFocus.event;
-        this._onDidBlur = new Emitter();
-        this.onDidBlur = this._onDidBlur.event;
-        this.disposables = [];
+        var _this = _super.call(this) || this;
+        _this._onDidFocus = _this._register(new Emitter());
+        _this.onDidFocus = _this._onDidFocus.event;
+        _this._onDidBlur = _this._register(new Emitter());
+        _this.onDidBlur = _this._onDidBlur.event;
         var hasFocus = isAncestor(document.activeElement, element);
         var loosingFocus = false;
         var onFocus = function () {
@@ -771,16 +854,23 @@ var FocusTracker = /** @class */ (function () {
                 }, 0);
             }
         };
-        domEvent(element, EventType.FOCUS, true)(onFocus, null, this.disposables);
-        domEvent(element, EventType.BLUR, true)(onBlur, null, this.disposables);
+        _this._refreshStateHandler = function () {
+            var currentNodeHasFocus = isAncestor(document.activeElement, element);
+            if (currentNodeHasFocus !== hasFocus) {
+                if (hasFocus) {
+                    onBlur();
+                }
+                else {
+                    onFocus();
+                }
+            }
+        };
+        _this._register(domEvent(element, EventType.FOCUS, true)(onFocus));
+        _this._register(domEvent(element, EventType.BLUR, true)(onBlur));
+        return _this;
     }
-    FocusTracker.prototype.dispose = function () {
-        this.disposables = dispose(this.disposables);
-        this._onDidFocus.dispose();
-        this._onDidBlur.dispose();
-    };
     return FocusTracker;
-}());
+}(Disposable));
 export function trackFocus(element) {
     return new FocusTracker(element);
 }
@@ -793,25 +883,40 @@ export function append(parent) {
     return children[children.length - 1];
 }
 var SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((.([\w\-]+))*)/;
-export function $(description, attrs) {
+export var Namespace;
+(function (Namespace) {
+    Namespace["HTML"] = "http://www.w3.org/1999/xhtml";
+    Namespace["SVG"] = "http://www.w3.org/2000/svg";
+})(Namespace || (Namespace = {}));
+function _$(namespace, description, attrs) {
     var children = [];
-    for (var _i = 2; _i < arguments.length; _i++) {
-        children[_i - 2] = arguments[_i];
+    for (var _i = 3; _i < arguments.length; _i++) {
+        children[_i - 3] = arguments[_i];
     }
     var match = SELECTOR_REGEX.exec(description);
     if (!match) {
         throw new Error('Bad use of emmet');
     }
-    var result = document.createElement(match[1] || 'div');
+    attrs = __assign({}, (attrs || {}));
+    var tagName = match[1] || 'div';
+    var result;
+    if (namespace !== Namespace.HTML) {
+        result = document.createElementNS(namespace, tagName);
+    }
+    else {
+        result = document.createElement(tagName);
+    }
     if (match[3]) {
         result.id = match[3];
     }
     if (match[4]) {
         result.className = match[4].replace(/\./g, ' ').trim();
     }
-    attrs = attrs || {};
     Object.keys(attrs).forEach(function (name) {
         var value = attrs[name];
+        if (typeof value === 'undefined') {
+            return;
+        }
         if (/^on\w+$/.test(name)) {
             result[name] = value;
         }
@@ -824,8 +929,7 @@ export function $(description, attrs) {
             result.setAttribute(name, value);
         }
     });
-    children
-        .filter(function (child) { return !!child; })
+    coalesce(children)
         .forEach(function (child) {
         if (child instanceof Node) {
             result.appendChild(child);
@@ -836,6 +940,20 @@ export function $(description, attrs) {
     });
     return result;
 }
+export function $(description, attrs) {
+    var children = [];
+    for (var _i = 2; _i < arguments.length; _i++) {
+        children[_i - 2] = arguments[_i];
+    }
+    return _$.apply(void 0, __spreadArrays([Namespace.HTML, description, attrs], children));
+}
+$.SVG = function (description, attrs) {
+    var children = [];
+    for (var _i = 2; _i < arguments.length; _i++) {
+        children[_i - 2] = arguments[_i];
+    }
+    return _$.apply(void 0, __spreadArrays([Namespace.SVG, description, attrs], children));
+};
 export function show() {
     var elements = [];
     for (var _i = 0; _i < arguments.length; _i++) {
@@ -859,7 +977,7 @@ export function hide() {
     }
 }
 function findParentWithAttribute(node, attribute) {
-    while (node) {
+    while (node && node.nodeType === node.ELEMENT_NODE) {
         if (node instanceof HTMLElement && node.hasAttribute(attribute)) {
             return node;
         }
@@ -918,4 +1036,31 @@ export function windowOpenNoOpener(url) {
             newTab.location.href = url;
         }
     }
+}
+export function animate(fn) {
+    var step = function () {
+        fn();
+        stepDisposable = scheduleAtNextAnimationFrame(step);
+    };
+    var stepDisposable = scheduleAtNextAnimationFrame(step);
+    return toDisposable(function () { return stepDisposable.dispose(); });
+}
+RemoteAuthorities.setPreferredWebSchema(/^https:/.test(window.location.href) ? 'https' : 'http');
+export function asDomUri(uri) {
+    if (!uri) {
+        return uri;
+    }
+    if (Schemas.vscodeRemote === uri.scheme) {
+        return RemoteAuthorities.rewrite(uri);
+    }
+    return uri;
+}
+/**
+ * returns url('...')
+ */
+export function asCSSUrl(uri) {
+    if (!uri) {
+        return "url('')";
+    }
+    return "url('" + asDomUri(uri).toString(true).replace(/'/g, '%27') + "')";
 }

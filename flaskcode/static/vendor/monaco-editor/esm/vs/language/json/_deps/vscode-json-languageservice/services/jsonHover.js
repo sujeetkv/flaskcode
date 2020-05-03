@@ -2,9 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 import * as Parser from '../parser/jsonParser.js';
-import { Range } from './../../vscode-languageserver-types/main.js';
+import { Range } from '../jsonLanguageTypes.js';
 var JSONHover = /** @class */ (function () {
     function JSONHover(schemaService, contributions, promiseConstructor) {
         if (contributions === void 0) { contributions = []; }
@@ -22,7 +21,7 @@ var JSONHover = /** @class */ (function () {
         // use the property description when hovering over an object key
         if (node.type === 'string') {
             var parent = node.parent;
-            if (parent.type === 'property' && parent.keyNode === node) {
+            if (parent && parent.type === 'property' && parent.keyNode === node) {
                 node = parent.valueNode;
                 if (!node) {
                     return this.promise.resolve(null);
@@ -87,7 +86,7 @@ var JSONHover = /** @class */ (function () {
                     if (result.length > 0) {
                         result += "\n\n";
                     }
-                    result += "`" + toMarkdown(enumValue_1) + "`: " + markdownEnumValueDescription_1;
+                    result += "`" + toMarkdownCodeBlock(enumValue_1) + "`: " + markdownEnumValueDescription_1;
                 }
                 return createHover([result]);
             }
@@ -104,4 +103,10 @@ function toMarkdown(plain) {
     }
     return void 0;
 }
-//# sourceMappingURL=jsonHover.js.map
+function toMarkdownCodeBlock(content) {
+    // see https://daringfireball.net/projects/markdown/syntax#precode
+    if (content.indexOf('`') !== -1) {
+        return '`` ' + content + ' ``';
+    }
+    return content;
+}

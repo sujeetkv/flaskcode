@@ -92,20 +92,23 @@ export function computeRanges(model, offSide, markers, foldingRangesLimit) {
     if (foldingRangesLimit === void 0) { foldingRangesLimit = MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT; }
     var tabSize = model.getOptions().tabSize;
     var result = new RangesCollector(foldingRangesLimit);
-    var pattern = void 0;
+    var pattern = undefined;
     if (markers) {
         pattern = new RegExp("(" + markers.start.source + ")|(?:" + markers.end.source + ")");
     }
     var previousRegions = [];
-    previousRegions.push({ indent: -1, line: model.getLineCount() + 1, marker: false }); // sentinel, to make sure there's at least one entry
-    for (var line = model.getLineCount(); line > 0; line--) {
-        var lineContent = model.getLineContent(line);
+    var line = model.getLineCount() + 1;
+    previousRegions.push({ indent: -1, endAbove: line, line: line }); // sentinel, to make sure there's at least one entry
+    for (var line_1 = model.getLineCount(); line_1 > 0; line_1--) {
+        var lineContent = model.getLineContent(line_1);
         var indent = TextModel.computeIndentLevel(lineContent, tabSize);
         var previous = previousRegions[previousRegions.length - 1];
         if (indent === -1) {
-            if (offSide && !previous.marker) {
-                // for offSide languages, empty lines are associated to the next block
-                previous.line = line;
+            if (offSide) {
+                // for offSide languages, empty lines are associated to the previous block
+                // note: the next block is already written to the results, so this only
+                // impacts the end position of the block before
+                previous.endAbove = line_1;
             }
             continue; // only whitespace
         }
@@ -115,17 +118,17 @@ export function computeRanges(model, offSide, markers, foldingRangesLimit) {
             if (m[1]) { // start pattern match
                 // discard all regions until the folding pattern
                 var i = previousRegions.length - 1;
-                while (i > 0 && !previousRegions[i].marker) {
+                while (i > 0 && previousRegions[i].indent !== -2) {
                     i--;
                 }
                 if (i > 0) {
                     previousRegions.length = i + 1;
                     previous = previousRegions[i];
                     // new folding range from pattern, includes the end line
-                    result.insertFirst(line, previous.line, indent);
-                    previous.marker = false;
+                    result.insertFirst(line_1, previous.line, indent);
+                    previous.line = line_1;
                     previous.indent = indent;
-                    previous.line = line;
+                    previous.endAbove = line_1;
                     continue;
                 }
                 else {
@@ -133,7 +136,7 @@ export function computeRanges(model, offSide, markers, foldingRangesLimit) {
                 }
             }
             else { // end pattern match
-                previousRegions.push({ indent: -2, line: line, marker: true });
+                previousRegions.push({ indent: -2, endAbove: line_1, line: line_1 });
                 continue;
             }
         }
@@ -144,17 +147,17 @@ export function computeRanges(model, offSide, markers, foldingRangesLimit) {
                 previous = previousRegions[previousRegions.length - 1];
             } while (previous.indent > indent);
             // new folding range
-            var endLineNumber = previous.line - 1;
-            if (endLineNumber - line >= 1) { // needs at east size 1
-                result.insertFirst(line, endLineNumber, indent);
+            var endLineNumber = previous.endAbove - 1;
+            if (endLineNumber - line_1 >= 1) { // needs at east size 1
+                result.insertFirst(line_1, endLineNumber, indent);
             }
         }
         if (previous.indent === indent) {
-            previous.line = line;
+            previous.endAbove = line_1;
         }
         else { // previous.indent < indent
             // new region with a bigger indent
-            previousRegions.push({ indent: indent, line: line, marker: false });
+            previousRegions.push({ indent: indent, endAbove: line_1, line: line_1 });
         }
     }
     return result.toIndentRanges(model);

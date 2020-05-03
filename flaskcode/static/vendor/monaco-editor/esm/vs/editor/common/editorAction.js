@@ -16,10 +16,10 @@ var InternalEditorAction = /** @class */ (function () {
     };
     InternalEditorAction.prototype.run = function () {
         if (!this.isSupported()) {
-            return Promise.resolve(void 0);
+            return Promise.resolve(undefined);
         }
         var r = this._run();
-        return r ? r : Promise.resolve(void 0);
+        return r ? r : Promise.resolve(undefined);
     };
     return InternalEditorAction;
 }());

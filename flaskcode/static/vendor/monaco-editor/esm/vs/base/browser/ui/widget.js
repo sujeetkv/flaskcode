@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -19,6 +19,7 @@ import * as dom from '../dom.js';
 import { StandardKeyboardEvent } from '../keyboardEvent.js';
 import { StandardMouseEvent } from '../mouseEvent.js';
 import { Disposable } from '../../common/lifecycle.js';
+import { Gesture } from '../touch.js';
 var Widget = /** @class */ (function (_super) {
     __extends(Widget, _super);
     function Widget() {
@@ -51,8 +52,8 @@ var Widget = /** @class */ (function (_super) {
     Widget.prototype.onfocus = function (domNode, listener) {
         this._register(dom.addDisposableListener(domNode, dom.EventType.FOCUS, listener));
     };
-    Widget.prototype.onchange = function (domNode, listener) {
-        this._register(dom.addDisposableListener(domNode, dom.EventType.CHANGE, listener));
+    Widget.prototype.ignoreGesture = function (domNode) {
+        Gesture.ignoreTarget(domNode);
     };
     return Widget;
 }(Disposable));

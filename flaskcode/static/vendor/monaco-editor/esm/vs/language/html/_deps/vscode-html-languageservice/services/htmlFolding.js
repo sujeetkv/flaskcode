@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-import { FoldingRangeKind } from './../../vscode-languageserver-types/main.js';
+import { FoldingRangeKind } from './../_deps/vscode-languageserver-types/main.js';
 import { TokenType } from '../htmlLanguageTypes.js';
 import { createScanner } from '../parser/htmlScanner.js';
-import { isEmptyElement } from '../parser/htmlTags.js';
+import { isVoidElement } from '../languageFacts/fact.js';
 function limitRanges(ranges, rangeLimit) {
     ranges = ranges.sort(function (r1, r2) {
         var diff = r1.startLine - r2.startLine;
@@ -102,7 +101,7 @@ export function getFoldingRanges(document, context) {
                 break;
             }
             case TokenType.StartTagClose:
-                if (!lastTagName || !isEmptyElement(lastTagName)) {
+                if (!lastTagName || !isVoidElement(lastTagName)) {
                     break;
                 }
             // fallthrough
@@ -161,8 +160,7 @@ export function getFoldingRanges(document, context) {
     }
     var rangeLimit = context && context.rangeLimit || Number.MAX_VALUE;
     if (ranges.length > rangeLimit) {
-        ranges = limitRanges(ranges, rangeLimit);
+        return limitRanges(ranges, rangeLimit);
     }
     return ranges;
 }
-//# sourceMappingURL=htmlFolding.js.map

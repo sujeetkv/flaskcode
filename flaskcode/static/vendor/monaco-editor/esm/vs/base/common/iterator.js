@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -27,6 +27,19 @@ export var Iterator;
         return _empty;
     }
     Iterator.empty = empty;
+    function single(value) {
+        var done = false;
+        return {
+            next: function () {
+                if (done) {
+                    return FIN;
+                }
+                done = true;
+                return { done: false, value: value };
+            }
+        };
+    }
+    Iterator.single = single;
     function fromArray(array, index, length) {
         if (index === void 0) { index = 0; }
         if (length === void 0) { length = array.length; }
@@ -40,6 +53,18 @@ export var Iterator;
         };
     }
     Iterator.fromArray = fromArray;
+    function fromNativeIterator(it) {
+        return {
+            next: function () {
+                var result = it.next();
+                if (result.done) {
+                    return FIN;
+                }
+                return { done: false, value: result.value };
+            }
+        };
+    }
+    Iterator.fromNativeIterator = fromNativeIterator;
     function from(elements) {
         if (!elements) {
             return Iterator.empty();
@@ -88,13 +113,68 @@ export var Iterator;
         }
     }
     Iterator.forEach = forEach;
-    function collect(iterator) {
+    function collect(iterator, atMost) {
+        if (atMost === void 0) { atMost = Number.POSITIVE_INFINITY; }
         var result = [];
-        forEach(iterator, function (value) { return result.push(value); });
+        if (atMost === 0) {
+            return result;
+        }
+        var i = 0;
+        for (var next = iterator.next(); !next.done; next = iterator.next()) {
+            result.push(next.value);
+            if (++i >= atMost) {
+                break;
+            }
+        }
         return result;
     }
     Iterator.collect = collect;
+    function concat() {
+        var iterators = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            iterators[_i] = arguments[_i];
+        }
+        var i = 0;
+        return {
+            next: function () {
+                if (i >= iterators.length) {
+                    return FIN;
+                }
+                var iterator = iterators[i];
+                var result = iterator.next();
+                if (result.done) {
+                    i++;
+                    return this.next();
+                }
+                return result;
+            }
+        };
+    }
+    Iterator.concat = concat;
+    function chain(iterator) {
+        return new ChainableIterator(iterator);
+    }
+    Iterator.chain = chain;
 })(Iterator || (Iterator = {}));
+var ChainableIterator = /** @class */ (function () {
+    function ChainableIterator(it) {
+        this.it = it;
+    }
+    ChainableIterator.prototype.next = function () { return this.it.next(); };
+    return ChainableIterator;
+}());
+export { ChainableIterator };
+export function getSequenceIterator(arg) {
+    if (Array.isArray(arg)) {
+        return Iterator.fromArray(arg);
+    }
+    else if (!arg) {
+        return Iterator.empty();
+    }
+    else {
+        return arg;
+    }
+}
 var ArrayIterator = /** @class */ (function () {
     function ArrayIterator(items, start, end, index) {
         if (start === void 0) { start = 0; }
@@ -105,6 +185,10 @@ var ArrayIterator = /** @class */ (function () {
         this.end = end;
         this.index = index;
     }
+    ArrayIterator.prototype.first = function () {
+        this.index = this.start;
+        return this.current();
+    };
     ArrayIterator.prototype.next = function () {
         this.index = Math.min(this.index + 1, this.end);
         return this.current();

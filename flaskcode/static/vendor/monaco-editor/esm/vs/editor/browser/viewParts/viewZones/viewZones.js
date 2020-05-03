@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -19,13 +19,16 @@ import { createFastDomNode } from '../../../../base/browser/fastDomNode.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { ViewPart } from '../../view/viewPart.js';
 import { Position } from '../../../common/core/position.js';
+var invalidFunc = function () { throw new Error("Invalid change accessor"); };
 var ViewZones = /** @class */ (function (_super) {
     __extends(ViewZones, _super);
     function ViewZones(context) {
         var _this = _super.call(this, context) || this;
-        _this._lineHeight = _this._context.configuration.editor.lineHeight;
-        _this._contentWidth = _this._context.configuration.editor.layoutInfo.contentWidth;
-        _this._contentLeft = _this._context.configuration.editor.layoutInfo.contentLeft;
+        var options = _this._context.configuration.options;
+        var layoutInfo = options.get(107 /* layoutInfo */);
+        _this._lineHeight = options.get(49 /* lineHeight */);
+        _this._contentWidth = layoutInfo.contentWidth;
+        _this._contentLeft = layoutInfo.contentLeft;
         _this.domNode = createFastDomNode(document.createElement('div'));
         _this.domNode.setClassName('view-zones');
         _this.domNode.setPosition('absolute');
@@ -45,27 +48,38 @@ var ViewZones = /** @class */ (function (_super) {
     };
     // ---- begin view event handlers
     ViewZones.prototype._recomputeWhitespacesProps = function () {
-        var hadAChange = false;
-        var keys = Object.keys(this._zones);
-        for (var i = 0, len = keys.length; i < len; i++) {
-            var id = keys[i];
-            var zone = this._zones[id];
-            var props = this._computeWhitespaceProps(zone.delegate);
-            if (this._context.viewLayout.changeWhitespace(parseInt(id, 10), props.afterViewLineNumber, props.heightInPx)) {
-                this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
-                hadAChange = true;
-            }
+        var _this = this;
+        var whitespaces = this._context.viewLayout.getWhitespaces();
+        var oldWhitespaces = new Map();
+        for (var _i = 0, whitespaces_1 = whitespaces; _i < whitespaces_1.length; _i++) {
+            var whitespace = whitespaces_1[_i];
+            oldWhitespaces.set(whitespace.id, whitespace);
         }
-        return hadAChange;
+        return this._context.viewLayout.changeWhitespace(function (whitespaceAccessor) {
+            var hadAChange = false;
+            var keys = Object.keys(_this._zones);
+            for (var i = 0, len = keys.length; i < len; i++) {
+                var id = keys[i];
+                var zone = _this._zones[id];
+                var props = _this._computeWhitespaceProps(zone.delegate);
+                var oldWhitespace = oldWhitespaces.get(id);
+                if (oldWhitespace && (oldWhitespace.afterLineNumber !== props.afterViewLineNumber || oldWhitespace.height !== props.heightInPx)) {
+                    whitespaceAccessor.changeOneWhitespace(id, props.afterViewLineNumber, props.heightInPx);
+                    _this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
+                    hadAChange = true;
+                }
+            }
+            return hadAChange;
+        });
     };
     ViewZones.prototype.onConfigurationChanged = function (e) {
-        if (e.lineHeight) {
-            this._lineHeight = this._context.configuration.editor.lineHeight;
-            return this._recomputeWhitespacesProps();
-        }
-        if (e.layoutInfo) {
-            this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
-            this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
+        var options = this._context.configuration.options;
+        var layoutInfo = options.get(107 /* layoutInfo */);
+        this._lineHeight = options.get(49 /* lineHeight */);
+        this._contentWidth = layoutInfo.contentWidth;
+        this._contentLeft = layoutInfo.contentLeft;
+        if (e.hasChanged(49 /* lineHeight */)) {
+            this._recomputeWhitespacesProps();
         }
         return true;
     };
@@ -138,9 +152,39 @@ var ViewZones = /** @class */ (function (_super) {
             minWidthInPx: this._minWidthInPixels(zone)
         };
     };
-    ViewZones.prototype.addZone = function (zone) {
+    ViewZones.prototype.changeViewZones = function (callback) {
+        var _this = this;
+        return this._context.viewLayout.changeWhitespace(function (whitespaceAccessor) {
+            var zonesHaveChanged = false;
+            var changeAccessor = {
+                addZone: function (zone) {
+                    zonesHaveChanged = true;
+                    return _this._addZone(whitespaceAccessor, zone);
+                },
+                removeZone: function (id) {
+                    if (!id) {
+                        return;
+                    }
+                    zonesHaveChanged = _this._removeZone(whitespaceAccessor, id) || zonesHaveChanged;
+                },
+                layoutZone: function (id) {
+                    if (!id) {
+                        return;
+                    }
+                    zonesHaveChanged = _this._layoutZone(whitespaceAccessor, id) || zonesHaveChanged;
+                }
+            };
+            safeInvoke1Arg(callback, changeAccessor);
+            // Invalidate changeAccessor
+            changeAccessor.addZone = invalidFunc;
+            changeAccessor.removeZone = invalidFunc;
+            changeAccessor.layoutZone = invalidFunc;
+            return zonesHaveChanged;
+        });
+    };
+    ViewZones.prototype._addZone = function (whitespaceAccessor, zone) {
         var props = this._computeWhitespaceProps(zone);
-        var whitespaceId = this._context.viewLayout.addWhitespace(props.afterViewLineNumber, this._getZoneOrdinal(zone), props.heightInPx, props.minWidthInPx);
+        var whitespaceId = whitespaceAccessor.insertWhitespace(props.afterViewLineNumber, this._getZoneOrdinal(zone), props.heightInPx, props.minWidthInPx);
         var myZone = {
             whitespaceId: whitespaceId,
             delegate: zone,
@@ -152,24 +196,24 @@ var ViewZones = /** @class */ (function (_super) {
         myZone.domNode.setPosition('absolute');
         myZone.domNode.domNode.style.width = '100%';
         myZone.domNode.setDisplay('none');
-        myZone.domNode.setAttribute('monaco-view-zone', myZone.whitespaceId.toString());
+        myZone.domNode.setAttribute('monaco-view-zone', myZone.whitespaceId);
         this.domNode.appendChild(myZone.domNode);
         if (myZone.marginDomNode) {
             myZone.marginDomNode.setPosition('absolute');
             myZone.marginDomNode.domNode.style.width = '100%';
             myZone.marginDomNode.setDisplay('none');
-            myZone.marginDomNode.setAttribute('monaco-view-zone', myZone.whitespaceId.toString());
+            myZone.marginDomNode.setAttribute('monaco-view-zone', myZone.whitespaceId);
             this.marginDomNode.appendChild(myZone.marginDomNode);
         }
-        this._zones[myZone.whitespaceId.toString()] = myZone;
+        this._zones[myZone.whitespaceId] = myZone;
         this.setShouldRender();
         return myZone.whitespaceId;
     };
-    ViewZones.prototype.removeZone = function (id) {
-        if (this._zones.hasOwnProperty(id.toString())) {
-            var zone = this._zones[id.toString()];
-            delete this._zones[id.toString()];
-            this._context.viewLayout.removeWhitespace(zone.whitespaceId);
+    ViewZones.prototype._removeZone = function (whitespaceAccessor, id) {
+        if (this._zones.hasOwnProperty(id)) {
+            var zone = this._zones[id];
+            delete this._zones[id];
+            whitespaceAccessor.removeWhitespace(zone.whitespaceId);
             zone.domNode.removeAttribute('monaco-visible-view-zone');
             zone.domNode.removeAttribute('monaco-view-zone');
             zone.domNode.domNode.parentNode.removeChild(zone.domNode.domNode);
@@ -183,24 +227,22 @@ var ViewZones = /** @class */ (function (_super) {
         }
         return false;
     };
-    ViewZones.prototype.layoutZone = function (id) {
-        var changed = false;
-        if (this._zones.hasOwnProperty(id.toString())) {
-            var zone = this._zones[id.toString()];
+    ViewZones.prototype._layoutZone = function (whitespaceAccessor, id) {
+        if (this._zones.hasOwnProperty(id)) {
+            var zone = this._zones[id];
             var props = this._computeWhitespaceProps(zone.delegate);
-            // let newOrdinal = this._getZoneOrdinal(zone.delegate);
-            changed = this._context.viewLayout.changeWhitespace(zone.whitespaceId, props.afterViewLineNumber, props.heightInPx) || changed;
+            // const newOrdinal = this._getZoneOrdinal(zone.delegate);
+            whitespaceAccessor.changeOneWhitespace(zone.whitespaceId, props.afterViewLineNumber, props.heightInPx);
             // TODO@Alex: change `newOrdinal` too
-            if (changed) {
-                this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
-                this.setShouldRender();
-            }
+            this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
+            this.setShouldRender();
+            return true;
         }
-        return changed;
+        return false;
     };
     ViewZones.prototype.shouldSuppressMouseDownOnViewZone = function (id) {
-        if (this._zones.hasOwnProperty(id.toString())) {
-            var zone = this._zones[id.toString()];
+        if (this._zones.hasOwnProperty(id)) {
+            var zone = this._zones[id];
             return Boolean(zone.delegate.suppressMouseDown);
         }
         return false;
@@ -248,7 +290,7 @@ var ViewZones = /** @class */ (function (_super) {
         var visibleZones = {};
         var hasVisibleZone = false;
         for (var i = 0, len = visibleWhitespaces.length; i < len; i++) {
-            visibleZones[visibleWhitespaces[i].id.toString()] = visibleWhitespaces[i];
+            visibleZones[visibleWhitespaces[i].id] = visibleWhitespaces[i];
             hasVisibleZone = true;
         }
         var keys = Object.keys(this._zones);
@@ -293,3 +335,11 @@ var ViewZones = /** @class */ (function (_super) {
     return ViewZones;
 }(ViewPart));
 export { ViewZones };
+function safeInvoke1Arg(func, arg1) {
+    try {
+        return func(arg1);
+    }
+    catch (e) {
+        onUnexpectedError(e);
+    }
+}

@@ -7,19 +7,20 @@ import { EditOperation } from '../core/editOperation.js';
 import { Range } from '../core/range.js';
 var TrimTrailingWhitespaceCommand = /** @class */ (function () {
     function TrimTrailingWhitespaceCommand(selection, cursors) {
-        this.selection = selection;
-        this.cursors = cursors;
+        this._selection = selection;
+        this._cursors = cursors;
+        this._selectionId = null;
     }
     TrimTrailingWhitespaceCommand.prototype.getEditOperations = function (model, builder) {
-        var ops = trimTrailingWhitespace(model, this.cursors);
+        var ops = trimTrailingWhitespace(model, this._cursors);
         for (var i = 0, len = ops.length; i < len; i++) {
             var op = ops[i];
             builder.addEditOperation(op.range, op.text);
         }
-        this.selectionId = builder.trackSelection(this.selection);
+        this._selectionId = builder.trackSelection(this._selection);
     };
     TrimTrailingWhitespaceCommand.prototype.computeCursorState = function (model, helper) {
-        return helper.getTrackedSelection(this.selectionId);
+        return helper.getTrackedSelection(this._selectionId);
     };
     return TrimTrailingWhitespaceCommand;
 }());

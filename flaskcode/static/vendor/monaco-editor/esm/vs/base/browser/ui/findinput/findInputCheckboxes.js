@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -16,7 +16,6 @@ var __extends = (this && this.__extends) || (function () {
     };
 })();
 import { Checkbox } from '../checkbox/checkbox.js';
-import './findInputCheckboxes.css';
 import * as nls from '../../../../nls.js';
 var NLS_CASE_SENSITIVE_CHECKBOX_LABEL = nls.localize('caseDescription', "Match Case");
 var NLS_WHOLE_WORD_CHECKBOX_LABEL = nls.localize('wordsDescription', "Match Whole Word");
@@ -25,10 +24,11 @@ var CaseSensitiveCheckbox = /** @class */ (function (_super) {
     __extends(CaseSensitiveCheckbox, _super);
     function CaseSensitiveCheckbox(opts) {
         return _super.call(this, {
-            actionClassName: 'monaco-case-sensitive',
+            actionClassName: 'codicon-case-sensitive',
             title: NLS_CASE_SENSITIVE_CHECKBOX_LABEL + opts.appendTitle,
             isChecked: opts.isChecked,
-            inputActiveOptionBorder: opts.inputActiveOptionBorder
+            inputActiveOptionBorder: opts.inputActiveOptionBorder,
+            inputActiveOptionBackground: opts.inputActiveOptionBackground
         }) || this;
     }
     return CaseSensitiveCheckbox;
@@ -38,10 +38,11 @@ var WholeWordsCheckbox = /** @class */ (function (_super) {
     __extends(WholeWordsCheckbox, _super);
     function WholeWordsCheckbox(opts) {
         return _super.call(this, {
-            actionClassName: 'monaco-whole-word',
+            actionClassName: 'codicon-whole-word',
             title: NLS_WHOLE_WORD_CHECKBOX_LABEL + opts.appendTitle,
             isChecked: opts.isChecked,
-            inputActiveOptionBorder: opts.inputActiveOptionBorder
+            inputActiveOptionBorder: opts.inputActiveOptionBorder,
+            inputActiveOptionBackground: opts.inputActiveOptionBackground
         }) || this;
     }
     return WholeWordsCheckbox;
@@ -51,10 +52,11 @@ var RegexCheckbox = /** @class */ (function (_super) {
     __extends(RegexCheckbox, _super);
     function RegexCheckbox(opts) {
         return _super.call(this, {
-            actionClassName: 'monaco-regex',
+            actionClassName: 'codicon-regex',
             title: NLS_REGEX_CHECKBOX_LABEL + opts.appendTitle,
             isChecked: opts.isChecked,
-            inputActiveOptionBorder: opts.inputActiveOptionBorder
+            inputActiveOptionBorder: opts.inputActiveOptionBorder,
+            inputActiveOptionBackground: opts.inputActiveOptionBackground
         }) || this;
     }
     return RegexCheckbox;

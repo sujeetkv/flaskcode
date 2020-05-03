@@ -2,51 +2,99 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = function (d, b) {
+        extendStatics = Object.setPrototypeOf ||
+            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        return extendStatics(d, b);
+    };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 import * as dom from '../../../base/browser/dom.js';
 import { GlobalMouseMoveMonitor, standardMouseMoveMerger } from '../../../base/browser/globalMouseMoveMonitor.js';
-import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Emitter } from '../../../base/common/event.js';
-import { dispose } from '../../../base/common/lifecycle.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import './lightBulbWidget.css';
 import { TextModel } from '../../common/model/textModel.js';
-import { CodeActionKind } from './codeActionTrigger.js';
-var LightBulbWidget = /** @class */ (function () {
-    function LightBulbWidget(editor) {
-        var _this = this;
-        this._disposables = [];
-        this._onClick = new Emitter();
-        this.onClick = this._onClick.event;
-        this._futureFixes = new CancellationTokenSource();
-        this._domNode = document.createElement('div');
-        this._domNode.className = 'lightbulb-glyph';
-        this._editor = editor;
-        this._editor.addContentWidget(this);
-        this._disposables.push(this._editor.onDidChangeModel(function (_) { return _this._futureFixes.cancel(); }));
-        this._disposables.push(this._editor.onDidChangeModelLanguage(function (_) { return _this._futureFixes.cancel(); }));
-        this._disposables.push(this._editor.onDidChangeModelContent(function (_) {
+import * as nls from '../../../nls.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { registerThemingParticipant } from '../../../platform/theme/common/themeService.js';
+import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from '../../../platform/theme/common/colorRegistry.js';
+import { Gesture } from '../../../base/browser/touch.js';
+var LightBulbState;
+(function (LightBulbState) {
+    LightBulbState.Hidden = { type: 0 /* Hidden */ };
+    var Showing = /** @class */ (function () {
+        function Showing(actions, trigger, editorPosition, widgetPosition) {
+            this.actions = actions;
+            this.trigger = trigger;
+            this.editorPosition = editorPosition;
+            this.widgetPosition = widgetPosition;
+            this.type = 1 /* Showing */;
+        }
+        return Showing;
+    }());
+    LightBulbState.Showing = Showing;
+})(LightBulbState || (LightBulbState = {}));
+var LightBulbWidget = /** @class */ (function (_super) {
+    __extends(LightBulbWidget, _super);
+    function LightBulbWidget(_editor, _quickFixActionId, _preferredFixActionId, _keybindingService) {
+        var _this = _super.call(this) || this;
+        _this._editor = _editor;
+        _this._quickFixActionId = _quickFixActionId;
+        _this._preferredFixActionId = _preferredFixActionId;
+        _this._keybindingService = _keybindingService;
+        _this._onClick = _this._register(new Emitter());
+        _this.onClick = _this._onClick.event;
+        _this._state = LightBulbState.Hidden;
+        _this._domNode = document.createElement('div');
+        _this._domNode.className = 'codicon codicon-lightbulb';
+        _this._editor.addContentWidget(_this);
+        _this._register(_this._editor.onDidChangeModelContent(function (_) {
             // cancel when the line in question has been removed
             var editorModel = _this._editor.getModel();
-            if (!_this.model || !_this.model.position || !editorModel || _this.model.position.lineNumber >= editorModel.getLineCount()) {
-                _this._futureFixes.cancel();
+            if (_this.state.type !== 1 /* Showing */ || !editorModel || _this.state.editorPosition.lineNumber >= editorModel.getLineCount()) {
+                _this.hide();
             }
         }));
-        this._disposables.push(dom.addStandardDisposableListener(this._domNode, 'click', function (e) {
+        Gesture.ignoreTarget(_this._domNode);
+        _this._register(dom.addStandardDisposableGenericMouseDownListner(_this._domNode, function (e) {
+            if (_this.state.type !== 1 /* Showing */) {
+                return;
+            }
             // Make sure that focus / cursor location is not lost when clicking widget icon
             _this._editor.focus();
+            e.preventDefault();
             // a bit of extra work to make sure the menu
             // doesn't cover the line-text
             var _a = dom.getDomNodePagePosition(_this._domNode), top = _a.top, height = _a.height;
-            var lineHeight = _this._editor.getConfiguration().lineHeight;
+            var lineHeight = _this._editor.getOption(49 /* lineHeight */);
             var pad = Math.floor(lineHeight / 3);
-            if (_this._position && _this._model && _this._model.position && _this._position.position !== null && _this._position.position.lineNumber < _this._model.position.lineNumber) {
+            if (_this.state.widgetPosition.position !== null && _this.state.widgetPosition.position.lineNumber < _this.state.editorPosition.lineNumber) {
                 pad += lineHeight;
             }
             _this._onClick.fire({
                 x: e.posx,
-                y: top + height + pad
+                y: top + height + pad,
+                actions: _this.state.actions,
+                trigger: _this.state.trigger,
             });
         }));
-        this._disposables.push(dom.addDisposableListener(this._domNode, 'mouseenter', function (e) {
+        _this._register(dom.addDisposableListener(_this._domNode, 'mouseenter', function (e) {
             if ((e.buttons & 1) !== 1) {
                 return;
             }
@@ -55,19 +103,22 @@ var LightBulbWidget = /** @class */ (function () {
             // showings until mouse is released
             _this.hide();
             var monitor = new GlobalMouseMoveMonitor();
-            monitor.startMonitoring(standardMouseMoveMerger, function () { }, function () {
+            monitor.startMonitoring(e.target, e.buttons, standardMouseMoveMerger, function () { }, function () {
                 monitor.dispose();
             });
         }));
-        this._disposables.push(this._editor.onDidChangeConfiguration(function (e) {
+        _this._register(_this._editor.onDidChangeConfiguration(function (e) {
             // hide when told to do so
-            if (e.contribInfo && !_this._editor.getConfiguration().contribInfo.lightbulbEnabled) {
+            if (e.hasChanged(47 /* lightbulb */) && !_this._editor.getOption(47 /* lightbulb */).enabled) {
                 _this.hide();
             }
         }));
+        _this._updateLightBulbTitle();
+        _this._register(_this._keybindingService.onDidUpdateKeybindings(_this._updateLightBulbTitle, _this));
+        return _this;
     }
     LightBulbWidget.prototype.dispose = function () {
-        dispose(this._disposables);
+        _super.prototype.dispose.call(this);
         this._editor.removeContentWidget(this);
     };
     LightBulbWidget.prototype.getId = function () {
@@ -77,77 +128,27 @@ var LightBulbWidget = /** @class */ (function () {
         return this._domNode;
     };
     LightBulbWidget.prototype.getPosition = function () {
-        return this._position;
+        return this._state.type === 1 /* Showing */ ? this._state.widgetPosition : null;
     };
-    Object.defineProperty(LightBulbWidget.prototype, "model", {
-        get: function () {
-            return this._model;
-        },
-        set: function (value) {
-            var _this = this;
-            if (!value || this._position && (!value.position || this._position.position && this._position.position.lineNumber !== value.position.lineNumber)) {
-                // hide when getting a 'hide'-request or when currently
-                // showing on another line
-                this.hide();
-            }
-            else if (this._futureFixes) {
-                // cancel pending show request in any case
-                this._futureFixes.cancel();
-            }
-            this._futureFixes = new CancellationTokenSource();
-            var token = this._futureFixes.token;
-            this._model = value;
-            if (!this._model || !this._model.actions) {
-                return;
-            }
-            var selection = this._model.rangeOrSelection;
-            this._model.actions.then(function (fixes) {
-                if (!token.isCancellationRequested && fixes && fixes.length > 0) {
-                    if (!selection || selection.isEmpty() && fixes.every(function (fix) { return !!(fix.kind && CodeActionKind.Refactor.contains(fix.kind)); })) {
-                        _this.hide();
-                    }
-                    else {
-                        _this._show();
-                    }
-                }
-                else {
-                    _this.hide();
-                }
-            }).catch(function () {
-                _this.hide();
-            });
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(LightBulbWidget.prototype, "title", {
-        get: function () {
-            return this._domNode.title;
-        },
-        set: function (value) {
-            this._domNode.title = value;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    LightBulbWidget.prototype._show = function () {
+    LightBulbWidget.prototype.update = function (actions, trigger, atPosition) {
         var _this = this;
-        var config = this._editor.getConfiguration();
-        if (!config.contribInfo.lightbulbEnabled) {
-            return;
+        if (actions.validActions.length <= 0) {
+            return this.hide();
         }
-        if (!this._model || !this._model.position) {
-            return;
+        var options = this._editor.getOptions();
+        if (!options.get(47 /* lightbulb */).enabled) {
+            return this.hide();
         }
-        var _a = this._model.position, lineNumber = _a.lineNumber, column = _a.column;
+        var lineNumber = atPosition.lineNumber, column = atPosition.column;
         var model = this._editor.getModel();
         if (!model) {
-            return;
+            return this.hide();
         }
         var tabSize = model.getOptions().tabSize;
+        var fontInfo = options.get(34 /* fontInfo */);
         var lineContent = model.getLineContent(lineNumber);
         var indent = TextModel.computeIndentLevel(lineContent, tabSize);
-        var lineHasSpace = config.fontInfo.spaceWidth * indent > 22;
+        var lineHasSpace = fontInfo.spaceWidth * indent > 22;
         var isFolded = function (lineNumber) {
             return lineNumber > 2 && _this._editor.getTopForLineNumber(lineNumber) === _this._editor.getTopForLineNumber(lineNumber - 1);
         };
@@ -159,26 +160,71 @@ var LightBulbWidget = /** @class */ (function () {
             else if (!isFolded(lineNumber + 1)) {
                 effectiveLineNumber += 1;
             }
-            else if (column * config.fontInfo.spaceWidth < 22) {
+            else if (column * fontInfo.spaceWidth < 22) {
                 // cannot show lightbulb above/below and showing
                 // it inline would overlay the cursor...
-                this.hide();
-                return;
+                return this.hide();
             }
         }
-        this._position = {
+        this.state = new LightBulbState.Showing(actions, trigger, atPosition, {
             position: { lineNumber: effectiveLineNumber, column: 1 },
             preference: LightBulbWidget._posPref
-        };
+        });
+        dom.toggleClass(this._domNode, 'codicon-lightbulb-autofix', actions.hasAutoFix);
         this._editor.layoutContentWidget(this);
     };
     LightBulbWidget.prototype.hide = function () {
-        this._position = null;
-        this._model = null;
-        this._futureFixes.cancel();
+        this.state = LightBulbState.Hidden;
         this._editor.layoutContentWidget(this);
     };
+    Object.defineProperty(LightBulbWidget.prototype, "state", {
+        get: function () { return this._state; },
+        set: function (value) {
+            this._state = value;
+            this._updateLightBulbTitle();
+        },
+        enumerable: true,
+        configurable: true
+    });
+    LightBulbWidget.prototype._updateLightBulbTitle = function () {
+        if (this.state.type === 1 /* Showing */ && this.state.actions.hasAutoFix) {
+            var preferredKb = this._keybindingService.lookupKeybinding(this._preferredFixActionId);
+            if (preferredKb) {
+                this.title = nls.localize('prefferedQuickFixWithKb', "Show Fixes. Preferred Fix Available ({0})", preferredKb.getLabel());
+                return;
+            }
+        }
+        var kb = this._keybindingService.lookupKeybinding(this._quickFixActionId);
+        if (kb) {
+            this.title = nls.localize('quickFixWithKb', "Show Fixes ({0})", kb.getLabel());
+        }
+        else {
+            this.title = nls.localize('quickFix', "Show Fixes");
+        }
+    };
+    Object.defineProperty(LightBulbWidget.prototype, "title", {
+        set: function (value) {
+            this._domNode.title = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
     LightBulbWidget._posPref = [0 /* EXACT */];
+    LightBulbWidget = __decorate([
+        __param(3, IKeybindingService)
+    ], LightBulbWidget);
     return LightBulbWidget;
-}());
+}(Disposable));
 export { LightBulbWidget };
+registerThemingParticipant(function (theme, collector) {
+    // Lightbulb Icon
+    var editorLightBulbForegroundColor = theme.getColor(editorLightBulbForeground);
+    if (editorLightBulbForegroundColor) {
+        collector.addRule("\n\t\t.monaco-editor .contentWidgets .codicon-lightbulb {\n\t\t\tcolor: " + editorLightBulbForegroundColor + ";\n\t\t}");
+    }
+    // Lightbulb Auto Fix Icon
+    var editorLightBulbAutoFixForegroundColor = theme.getColor(editorLightBulbAutoFixForeground);
+    if (editorLightBulbAutoFixForegroundColor) {
+        collector.addRule("\n\t\t.monaco-editor .contentWidgets .codicon-lightbulb-autofix {\n\t\t\tcolor: " + editorLightBulbAutoFixForegroundColor + ";\n\t\t}");
+    }
+});

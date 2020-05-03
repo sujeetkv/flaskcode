@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -25,7 +25,7 @@ var EditorFontZoomIn = /** @class */ (function (_super) {
             id: 'editor.action.fontZoomIn',
             label: nls.localize('EditorFontZoomIn.label', "Editor Font Zoom In"),
             alias: 'Editor Font Zoom In',
-            precondition: null
+            precondition: undefined
         }) || this;
     }
     EditorFontZoomIn.prototype.run = function (accessor, editor) {
@@ -40,7 +40,7 @@ var EditorFontZoomOut = /** @class */ (function (_super) {
             id: 'editor.action.fontZoomOut',
             label: nls.localize('EditorFontZoomOut.label', "Editor Font Zoom Out"),
             alias: 'Editor Font Zoom Out',
-            precondition: null
+            precondition: undefined
         }) || this;
     }
     EditorFontZoomOut.prototype.run = function (accessor, editor) {
@@ -55,7 +55,7 @@ var EditorFontZoomReset = /** @class */ (function (_super) {
             id: 'editor.action.fontZoomReset',
             label: nls.localize('EditorFontZoomReset.label', "Editor Font Zoom Reset"),
             alias: 'Editor Font Zoom Reset',
-            precondition: null
+            precondition: undefined
         }) || this;
     }
     EditorFontZoomReset.prototype.run = function (accessor, editor) {

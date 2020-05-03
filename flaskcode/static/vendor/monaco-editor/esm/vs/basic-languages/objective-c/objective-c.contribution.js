@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import { registerLanguage } from '../_.contribution.js';
-// Allow for running under nodejs/requirejs in tests
-var _monaco = (typeof monaco === 'undefined' ? self.monaco : monaco);
 registerLanguage({
     id: 'objective-c',
     extensions: ['.m'],
     aliases: ['Objective-C'],
-    loader: function () { return _monaco.Promise.wrap(import('./objective-c.js')); }
+    loader: function () { return import('./objective-c.js'); }
 });

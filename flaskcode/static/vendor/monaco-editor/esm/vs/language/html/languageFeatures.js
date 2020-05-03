@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-import * as ls from './_deps/vscode-languageserver-types/main.js';
+import * as htmlService from './_deps/vscode-html-languageservice/htmlLanguageService.js';
+var Uri = monaco.Uri;
 var Range = monaco.Range;
 // --- diagnostics --- ---
 var DiagnosticsAdapter = /** @class */ (function () {
@@ -78,10 +79,10 @@ var DiagnosticsAdapter = /** @class */ (function () {
 export { DiagnosticsAdapter };
 function toSeverity(lsSeverity) {
     switch (lsSeverity) {
-        case ls.DiagnosticSeverity.Error: return monaco.MarkerSeverity.Error;
-        case ls.DiagnosticSeverity.Warning: return monaco.MarkerSeverity.Warning;
-        case ls.DiagnosticSeverity.Information: return monaco.MarkerSeverity.Info;
-        case ls.DiagnosticSeverity.Hint: return monaco.MarkerSeverity.Hint;
+        case htmlService.DiagnosticSeverity.Error: return monaco.MarkerSeverity.Error;
+        case htmlService.DiagnosticSeverity.Warning: return monaco.MarkerSeverity.Warning;
+        case htmlService.DiagnosticSeverity.Information: return monaco.MarkerSeverity.Info;
+        case htmlService.DiagnosticSeverity.Hint: return monaco.MarkerSeverity.Hint;
         default:
             return monaco.MarkerSeverity.Info;
     }
@@ -121,50 +122,50 @@ function toRange(range) {
 function toCompletionItemKind(kind) {
     var mItemKind = monaco.languages.CompletionItemKind;
     switch (kind) {
-        case ls.CompletionItemKind.Text: return mItemKind.Text;
-        case ls.CompletionItemKind.Method: return mItemKind.Method;
-        case ls.CompletionItemKind.Function: return mItemKind.Function;
-        case ls.CompletionItemKind.Constructor: return mItemKind.Constructor;
-        case ls.CompletionItemKind.Field: return mItemKind.Field;
-        case ls.CompletionItemKind.Variable: return mItemKind.Variable;
-        case ls.CompletionItemKind.Class: return mItemKind.Class;
-        case ls.CompletionItemKind.Interface: return mItemKind.Interface;
-        case ls.CompletionItemKind.Module: return mItemKind.Module;
-        case ls.CompletionItemKind.Property: return mItemKind.Property;
-        case ls.CompletionItemKind.Unit: return mItemKind.Unit;
-        case ls.CompletionItemKind.Value: return mItemKind.Value;
-        case ls.CompletionItemKind.Enum: return mItemKind.Enum;
-        case ls.CompletionItemKind.Keyword: return mItemKind.Keyword;
-        case ls.CompletionItemKind.Snippet: return mItemKind.Snippet;
-        case ls.CompletionItemKind.Color: return mItemKind.Color;
-        case ls.CompletionItemKind.File: return mItemKind.File;
-        case ls.CompletionItemKind.Reference: return mItemKind.Reference;
+        case htmlService.CompletionItemKind.Text: return mItemKind.Text;
+        case htmlService.CompletionItemKind.Method: return mItemKind.Method;
+        case htmlService.CompletionItemKind.Function: return mItemKind.Function;
+        case htmlService.CompletionItemKind.Constructor: return mItemKind.Constructor;
+        case htmlService.CompletionItemKind.Field: return mItemKind.Field;
+        case htmlService.CompletionItemKind.Variable: return mItemKind.Variable;
+        case htmlService.CompletionItemKind.Class: return mItemKind.Class;
+        case htmlService.CompletionItemKind.Interface: return mItemKind.Interface;
+        case htmlService.CompletionItemKind.Module: return mItemKind.Module;
+        case htmlService.CompletionItemKind.Property: return mItemKind.Property;
+        case htmlService.CompletionItemKind.Unit: return mItemKind.Unit;
+        case htmlService.CompletionItemKind.Value: return mItemKind.Value;
+        case htmlService.CompletionItemKind.Enum: return mItemKind.Enum;
+        case htmlService.CompletionItemKind.Keyword: return mItemKind.Keyword;
+        case htmlService.CompletionItemKind.Snippet: return mItemKind.Snippet;
+        case htmlService.CompletionItemKind.Color: return mItemKind.Color;
+        case htmlService.CompletionItemKind.File: return mItemKind.File;
+        case htmlService.CompletionItemKind.Reference: return mItemKind.Reference;
     }
     return mItemKind.Property;
 }
 function fromCompletionItemKind(kind) {
     var mItemKind = monaco.languages.CompletionItemKind;
     switch (kind) {
-        case mItemKind.Text: return ls.CompletionItemKind.Text;
-        case mItemKind.Method: return ls.CompletionItemKind.Method;
-        case mItemKind.Function: return ls.CompletionItemKind.Function;
-        case mItemKind.Constructor: return ls.CompletionItemKind.Constructor;
-        case mItemKind.Field: return ls.CompletionItemKind.Field;
-        case mItemKind.Variable: return ls.CompletionItemKind.Variable;
-        case mItemKind.Class: return ls.CompletionItemKind.Class;
-        case mItemKind.Interface: return ls.CompletionItemKind.Interface;
-        case mItemKind.Module: return ls.CompletionItemKind.Module;
-        case mItemKind.Property: return ls.CompletionItemKind.Property;
-        case mItemKind.Unit: return ls.CompletionItemKind.Unit;
-        case mItemKind.Value: return ls.CompletionItemKind.Value;
-        case mItemKind.Enum: return ls.CompletionItemKind.Enum;
-        case mItemKind.Keyword: return ls.CompletionItemKind.Keyword;
-        case mItemKind.Snippet: return ls.CompletionItemKind.Snippet;
-        case mItemKind.Color: return ls.CompletionItemKind.Color;
-        case mItemKind.File: return ls.CompletionItemKind.File;
-        case mItemKind.Reference: return ls.CompletionItemKind.Reference;
+        case mItemKind.Text: return htmlService.CompletionItemKind.Text;
+        case mItemKind.Method: return htmlService.CompletionItemKind.Method;
+        case mItemKind.Function: return htmlService.CompletionItemKind.Function;
+        case mItemKind.Constructor: return htmlService.CompletionItemKind.Constructor;
+        case mItemKind.Field: return htmlService.CompletionItemKind.Field;
+        case mItemKind.Variable: return htmlService.CompletionItemKind.Variable;
+        case mItemKind.Class: return htmlService.CompletionItemKind.Class;
+        case mItemKind.Interface: return htmlService.CompletionItemKind.Interface;
+        case mItemKind.Module: return htmlService.CompletionItemKind.Module;
+        case mItemKind.Property: return htmlService.CompletionItemKind.Property;
+        case mItemKind.Unit: return htmlService.CompletionItemKind.Unit;
+        case mItemKind.Value: return htmlService.CompletionItemKind.Value;
+        case mItemKind.Enum: return htmlService.CompletionItemKind.Enum;
+        case mItemKind.Keyword: return htmlService.CompletionItemKind.Keyword;
+        case mItemKind.Snippet: return htmlService.CompletionItemKind.Snippet;
+        case mItemKind.Color: return htmlService.CompletionItemKind.Color;
+        case mItemKind.File: return htmlService.CompletionItemKind.File;
+        case mItemKind.Reference: return htmlService.CompletionItemKind.Reference;
     }
-    return ls.CompletionItemKind.Property;
+    return htmlService.CompletionItemKind.Property;
 }
 function toTextEdit(textEdit) {
     if (!textEdit) {
@@ -187,7 +188,6 @@ var CompletionAdapter = /** @class */ (function () {
         configurable: true
     });
     CompletionAdapter.prototype.provideCompletionItems = function (model, position, context, token) {
-        var wordInfo = model.getWordUntilPosition(position);
         var resource = model.uri;
         return this._worker(resource).then(function (worker) {
             return worker.doComplete(resource.toString(), fromPosition(position));
@@ -195,6 +195,8 @@ var CompletionAdapter = /** @class */ (function () {
             if (!info) {
                 return;
             }
+            var wordInfo = model.getWordUntilPosition(position);
+            var wordRange = new Range(position.lineNumber, wordInfo.startColumn, position.lineNumber, wordInfo.endColumn);
             var items = info.items.map(function (entry) {
                 var item = {
                     label: entry.label,
@@ -203,6 +205,7 @@ var CompletionAdapter = /** @class */ (function () {
                     filterText: entry.filterText,
                     documentation: entry.documentation,
                     detail: entry.detail,
+                    range: wordRange,
                     kind: toCompletionItemKind(entry.kind),
                 };
                 if (entry.textEdit) {
@@ -212,7 +215,7 @@ var CompletionAdapter = /** @class */ (function () {
                 if (entry.additionalTextEdits) {
                     item.additionalTextEdits = entry.additionalTextEdits.map(toTextEdit);
                 }
-                if (entry.insertTextFormat === ls.InsertTextFormat.Snippet) {
+                if (entry.insertTextFormat === htmlService.InsertTextFormat.Snippet) {
                     item.insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
                 }
                 return item;
@@ -226,6 +229,7 @@ var CompletionAdapter = /** @class */ (function () {
     return CompletionAdapter;
 }());
 export { CompletionAdapter };
+// --- hover ------
 function isMarkupContent(thing) {
     return thing && typeof thing === 'object' && typeof thing.kind === 'string';
 }
@@ -247,12 +251,43 @@ function toMarkdownString(entry) {
     }
     return { value: '```' + entry.language + '\n' + entry.value + '\n```\n' };
 }
+function toMarkedStringArray(contents) {
+    if (!contents) {
+        return void 0;
+    }
+    if (Array.isArray(contents)) {
+        return contents.map(toMarkdownString);
+    }
+    return [toMarkdownString(contents)];
+}
+var HoverAdapter = /** @class */ (function () {
+    function HoverAdapter(_worker) {
+        this._worker = _worker;
+    }
+    HoverAdapter.prototype.provideHover = function (model, position, token) {
+        var resource = model.uri;
+        return this._worker(resource).then(function (worker) {
+            return worker.doHover(resource.toString(), fromPosition(position));
+        }).then(function (info) {
+            if (!info) {
+                return;
+            }
+            return {
+                range: toRange(info.range),
+                contents: toMarkedStringArray(info.contents)
+            };
+        });
+    };
+    return HoverAdapter;
+}());
+export { HoverAdapter };
+// --- document highlights ------
 function toHighlighKind(kind) {
     var mKind = monaco.languages.DocumentHighlightKind;
     switch (kind) {
-        case ls.DocumentHighlightKind.Read: return mKind.Read;
-        case ls.DocumentHighlightKind.Write: return mKind.Write;
-        case ls.DocumentHighlightKind.Text: return mKind.Text;
+        case htmlService.DocumentHighlightKind.Read: return mKind.Read;
+        case htmlService.DocumentHighlightKind.Write: return mKind.Write;
+        case htmlService.DocumentHighlightKind.Text: return mKind.Text;
     }
     return mKind.Text;
 }
@@ -275,6 +310,55 @@ var DocumentHighlightAdapter = /** @class */ (function () {
     return DocumentHighlightAdapter;
 }());
 export { DocumentHighlightAdapter };
+// --- document symbols ------
+function toSymbolKind(kind) {
+    var mKind = monaco.languages.SymbolKind;
+    switch (kind) {
+        case htmlService.SymbolKind.File: return mKind.Array;
+        case htmlService.SymbolKind.Module: return mKind.Module;
+        case htmlService.SymbolKind.Namespace: return mKind.Namespace;
+        case htmlService.SymbolKind.Package: return mKind.Package;
+        case htmlService.SymbolKind.Class: return mKind.Class;
+        case htmlService.SymbolKind.Method: return mKind.Method;
+        case htmlService.SymbolKind.Property: return mKind.Property;
+        case htmlService.SymbolKind.Field: return mKind.Field;
+        case htmlService.SymbolKind.Constructor: return mKind.Constructor;
+        case htmlService.SymbolKind.Enum: return mKind.Enum;
+        case htmlService.SymbolKind.Interface: return mKind.Interface;
+        case htmlService.SymbolKind.Function: return mKind.Function;
+        case htmlService.SymbolKind.Variable: return mKind.Variable;
+        case htmlService.SymbolKind.Constant: return mKind.Constant;
+        case htmlService.SymbolKind.String: return mKind.String;
+        case htmlService.SymbolKind.Number: return mKind.Number;
+        case htmlService.SymbolKind.Boolean: return mKind.Boolean;
+        case htmlService.SymbolKind.Array: return mKind.Array;
+    }
+    return mKind.Function;
+}
+var DocumentSymbolAdapter = /** @class */ (function () {
+    function DocumentSymbolAdapter(_worker) {
+        this._worker = _worker;
+    }
+    DocumentSymbolAdapter.prototype.provideDocumentSymbols = function (model, token) {
+        var resource = model.uri;
+        return this._worker(resource).then(function (worker) { return worker.findDocumentSymbols(resource.toString()); }).then(function (items) {
+            if (!items) {
+                return;
+            }
+            return items.map(function (item) { return ({
+                name: item.name,
+                detail: '',
+                containerName: item.containerName,
+                kind: toSymbolKind(item.kind),
+                tags: [],
+                range: toRange(item.location.range),
+                selectionRange: toRange(item.location.range)
+            }); });
+        });
+    };
+    return DocumentSymbolAdapter;
+}());
+export { DocumentSymbolAdapter };
 var DocumentLinkAdapter = /** @class */ (function () {
     function DocumentLinkAdapter(_worker) {
         this._worker = _worker;
@@ -285,10 +369,12 @@ var DocumentLinkAdapter = /** @class */ (function () {
             if (!items) {
                 return;
             }
-            return items.map(function (item) { return ({
-                range: toRange(item.range),
-                url: item.target
-            }); });
+            return {
+                links: items.map(function (item) { return ({
+                    range: toRange(item.range),
+                    url: item.target
+                }); })
+            };
         });
     };
     return DocumentLinkAdapter;
@@ -336,13 +422,50 @@ var DocumentRangeFormattingEditProvider = /** @class */ (function () {
     return DocumentRangeFormattingEditProvider;
 }());
 export { DocumentRangeFormattingEditProvider };
+var RenameAdapter = /** @class */ (function () {
+    function RenameAdapter(_worker) {
+        this._worker = _worker;
+    }
+    RenameAdapter.prototype.provideRenameEdits = function (model, position, newName, token) {
+        var resource = model.uri;
+        return this._worker(resource).then(function (worker) {
+            return worker.doRename(resource.toString(), fromPosition(position), newName);
+        }).then(function (edit) {
+            return toWorkspaceEdit(edit);
+        });
+    };
+    return RenameAdapter;
+}());
+export { RenameAdapter };
+function toWorkspaceEdit(edit) {
+    if (!edit || !edit.changes) {
+        return void 0;
+    }
+    var resourceEdits = [];
+    for (var uri in edit.changes) {
+        var _uri = Uri.parse(uri);
+        for (var _i = 0, _a = edit.changes[uri]; _i < _a.length; _i++) {
+            var e = _a[_i];
+            resourceEdits.push({
+                resource: _uri,
+                edit: {
+                    range: toRange(e.range),
+                    text: e.newText
+                }
+            });
+        }
+    }
+    return {
+        edits: resourceEdits
+    };
+}
 var FoldingRangeAdapter = /** @class */ (function () {
     function FoldingRangeAdapter(_worker) {
         this._worker = _worker;
     }
     FoldingRangeAdapter.prototype.provideFoldingRanges = function (model, context, token) {
         var resource = model.uri;
-        return this._worker(resource).then(function (worker) { return worker.provideFoldingRanges(resource.toString(), context); }).then(function (ranges) {
+        return this._worker(resource).then(function (worker) { return worker.getFoldingRanges(resource.toString(), context); }).then(function (ranges) {
             if (!ranges) {
                 return;
             }
@@ -363,9 +486,31 @@ var FoldingRangeAdapter = /** @class */ (function () {
 export { FoldingRangeAdapter };
 function toFoldingRangeKind(kind) {
     switch (kind) {
-        case ls.FoldingRangeKind.Comment: return monaco.languages.FoldingRangeKind.Comment;
-        case ls.FoldingRangeKind.Imports: return monaco.languages.FoldingRangeKind.Imports;
-        case ls.FoldingRangeKind.Region: return monaco.languages.FoldingRangeKind.Region;
+        case htmlService.FoldingRangeKind.Comment: return monaco.languages.FoldingRangeKind.Comment;
+        case htmlService.FoldingRangeKind.Imports: return monaco.languages.FoldingRangeKind.Imports;
+        case htmlService.FoldingRangeKind.Region: return monaco.languages.FoldingRangeKind.Region;
     }
-    return void 0;
 }
+var SelectionRangeAdapter = /** @class */ (function () {
+    function SelectionRangeAdapter(_worker) {
+        this._worker = _worker;
+    }
+    SelectionRangeAdapter.prototype.provideSelectionRanges = function (model, positions, token) {
+        var resource = model.uri;
+        return this._worker(resource).then(function (worker) { return worker.getSelectionRanges(resource.toString(), positions.map(fromPosition)); }).then(function (selectionRanges) {
+            if (!selectionRanges) {
+                return;
+            }
+            return selectionRanges.map(function (selectionRange) {
+                var result = [];
+                while (selectionRange) {
+                    result.push({ range: toRange(selectionRange.range) });
+                    selectionRange = selectionRange.parent;
+                }
+                return result;
+            });
+        });
+    };
+    return SelectionRangeAdapter;
+}());
+export { SelectionRangeAdapter };

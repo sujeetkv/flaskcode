@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 var __extends = (this && this.__extends) || (function () {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+    var extendStatics = function (d, b) {
+        extendStatics = Object.setPrototypeOf ||
+            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        return extendStatics(d, b);
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -146,7 +149,7 @@ var ScopeBuilder = /** @class */ (function () {
             case nodes.NodeType.For:
                 var forNode = node;
                 var scopeNode = forNode.getDeclarations();
-                if (scopeNode) {
+                if (scopeNode && forNode.variable) {
                     this.addSymbolToChildScope(scopeNode, forNode.variable, forNode.variable.getName(), void 0, nodes.ReferenceType.Variable);
                 }
                 return true;
@@ -284,12 +287,8 @@ var Symbols = /** @class */ (function () {
         else if (node instanceof nodes.Variable) {
             return [nodes.ReferenceType.Variable];
         }
-        var selector = node.findParent(nodes.NodeType.Selector);
+        var selector = node.findAParent(nodes.NodeType.Selector, nodes.NodeType.ExtendsReference);
         if (selector) {
-            return [nodes.ReferenceType.Rule];
-        }
-        var extendsRef = node.findParent(nodes.NodeType.ExtendsReference);
-        if (extendsRef) {
             return [nodes.ReferenceType.Rule];
         }
         return null;
@@ -314,7 +313,7 @@ var Symbols = /** @class */ (function () {
         while (node.type === nodes.NodeType.Interpolation) {
             node = node.getParent();
         }
-        if (symbol.name.length !== node.length || symbol.name !== node.getText()) {
+        if (!node.matches(symbol.name)) {
             return false;
         }
         var referenceTypes = this.evaluateReferenceTypes(node);
@@ -338,4 +337,3 @@ var Symbols = /** @class */ (function () {
     return Symbols;
 }());
 export { Symbols };
-//# sourceMappingURL=cssSymbolScope.js.map

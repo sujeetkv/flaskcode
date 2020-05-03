@@ -129,7 +129,7 @@ export function sanitizeRanges(rangeData, limit) {
         return diff;
     });
     var collector = new RangesCollector(limit);
-    var top = void 0;
+    var top = undefined;
     var previous = [];
     for (var _i = 0, sorted_1 = sorted; _i < sorted_1.length; _i++) {
         var entry = sorted_1[_i];

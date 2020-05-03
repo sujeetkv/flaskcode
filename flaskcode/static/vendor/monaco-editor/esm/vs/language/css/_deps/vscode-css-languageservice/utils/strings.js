@@ -81,4 +81,3 @@ export function getLimitedString(str, ellipsis) {
     }
     return str.slice(0, 140) + (ellipsis ? '\u2026' : '');
 }
-//# sourceMappingURL=strings.js.map

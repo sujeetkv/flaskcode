@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -20,6 +20,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { FrankensteinMode } from '../modes/abstractMode.js';
 import { NULL_LANGUAGE_IDENTIFIER } from '../modes/nullMode.js';
 import { LanguagesRegistry } from './languagesRegistry.js';
+import { firstOrDefault } from '../../../base/common/arrays.js';
 var LanguageSelection = /** @class */ (function (_super) {
     __extends(LanguageSelection, _super);
     function LanguageSelection(onLanguagesMaybeChanged, selector) {
@@ -44,8 +45,8 @@ var LanguageSelection = /** @class */ (function (_super) {
 }(Disposable));
 var ModeServiceImpl = /** @class */ (function () {
     function ModeServiceImpl(warnOnOverwrite) {
-        if (warnOnOverwrite === void 0) { warnOnOverwrite = false; }
         var _this = this;
+        if (warnOnOverwrite === void 0) { warnOnOverwrite = false; }
         this._onDidCreateMode = new Emitter();
         this.onDidCreateMode = this._onDidCreateMode.event;
         this._onLanguagesMaybeChanged = new Emitter();
@@ -60,19 +61,13 @@ var ModeServiceImpl = /** @class */ (function () {
     ModeServiceImpl.prototype.getModeIdForLanguageName = function (alias) {
         return this._registry.getModeIdForLanguageNameLowercase(alias);
     };
-    ModeServiceImpl.prototype.getModeIdByFilepathOrFirstLine = function (filepath, firstLine) {
-        var modeIds = this._registry.getModeIdsFromFilepathOrFirstLine(filepath, firstLine);
-        if (modeIds.length > 0) {
-            return modeIds[0];
-        }
-        return null;
+    ModeServiceImpl.prototype.getModeIdByFilepathOrFirstLine = function (resource, firstLine) {
+        var modeIds = this._registry.getModeIdsFromFilepathOrFirstLine(resource, firstLine);
+        return firstOrDefault(modeIds, null);
     };
     ModeServiceImpl.prototype.getModeId = function (commaSeparatedMimetypesOrCommaSeparatedIds) {
         var modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
-        if (modeIds.length > 0) {
-            return modeIds[0];
-        }
-        return null;
+        return firstOrDefault(modeIds, null);
     };
     ModeServiceImpl.prototype.getLanguageIdentifier = function (modeId) {
         return this._registry.getLanguageIdentifier(modeId);
@@ -85,10 +80,10 @@ var ModeServiceImpl = /** @class */ (function () {
             return _this._createModeAndGetLanguageIdentifier(modeId);
         });
     };
-    ModeServiceImpl.prototype.createByFilepathOrFirstLine = function (filepath, firstLine) {
+    ModeServiceImpl.prototype.createByFilepathOrFirstLine = function (resource, firstLine) {
         var _this = this;
         return new LanguageSelection(this.onLanguagesMaybeChanged, function () {
-            var modeId = _this.getModeIdByFilepathOrFirstLine(filepath, firstLine);
+            var modeId = _this.getModeIdByFilepathOrFirstLine(resource, firstLine);
             return _this._createModeAndGetLanguageIdentifier(modeId);
         });
     };

@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 var __extends = (this && this.__extends) || (function () {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+    var extendStatics = function (d, b) {
+        extendStatics = Object.setPrototypeOf ||
+            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        return extendStatics(d, b);
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -92,6 +95,11 @@ export var NodeType;
     NodeType[NodeType["GridLine"] = 70] = "GridLine";
     NodeType[NodeType["Plugin"] = 71] = "Plugin";
     NodeType[NodeType["UnknownAtRule"] = 72] = "UnknownAtRule";
+    NodeType[NodeType["Use"] = 73] = "Use";
+    NodeType[NodeType["ModuleConfiguration"] = 74] = "ModuleConfiguration";
+    NodeType[NodeType["Forward"] = 75] = "Forward";
+    NodeType[NodeType["ForwardVisibility"] = 76] = "ForwardVisibility";
+    NodeType[NodeType["Module"] = 77] = "Module";
 })(NodeType || (NodeType = {}));
 export var ReferenceType;
 (function (ReferenceType) {
@@ -101,6 +109,9 @@ export var ReferenceType;
     ReferenceType[ReferenceType["Function"] = 3] = "Function";
     ReferenceType[ReferenceType["Keyframe"] = 4] = "Keyframe";
     ReferenceType[ReferenceType["Unknown"] = 5] = "Unknown";
+    ReferenceType[ReferenceType["Module"] = 6] = "Module";
+    ReferenceType[ReferenceType["Forward"] = 7] = "Forward";
+    ReferenceType[ReferenceType["ForwardVisibility"] = 8] = "ForwardVisibility";
 })(ReferenceType || (ReferenceType = {}));
 export function getNodeAtOffset(node, offset) {
     var candidate = null;
@@ -136,7 +147,8 @@ export function getNodePath(node, offset) {
 }
 export function getParentDeclaration(node) {
     var decl = node.findParent(NodeType.Declaration);
-    if (decl && decl.getValue() && decl.getValue().encloses(node)) {
+    var value = decl && decl.getValue();
+    if (value && value.encloses(node)) {
         return decl;
     }
     return null;
@@ -279,7 +291,7 @@ var Node = /** @class */ (function () {
         }
     };
     Node.prototype.hasChildren = function () {
-        return this.children && this.children.length > 0;
+        return !!this.children && this.children.length > 0;
     };
     Node.prototype.getChildren = function () {
         return this.children ? this.children.slice(0) : [];
@@ -332,6 +344,17 @@ var Node = /** @class */ (function () {
     Node.prototype.findParent = function (type) {
         var result = this;
         while (result && result.type !== type) {
+            result = result.parent;
+        }
+        return result;
+    };
+    Node.prototype.findAParent = function () {
+        var types = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            types[_i] = arguments[_i];
+        }
+        var result = this;
+        while (result && !types.some(function (t) { return result.type === t; })) {
             result = result.parent;
         }
         return result;
@@ -396,9 +419,6 @@ var Stylesheet = /** @class */ (function (_super) {
         enumerable: true,
         configurable: true
     });
-    Stylesheet.prototype.setName = function (value) {
-        this.name = value;
-    };
     return Stylesheet;
 }(Node));
 export { Stylesheet };
@@ -568,7 +588,9 @@ export { CustomPropertySet };
 var Declaration = /** @class */ (function (_super) {
     __extends(Declaration, _super);
     function Declaration(offset, length) {
-        return _super.call(this, offset, length) || this;
+        var _this = _super.call(this, offset, length) || this;
+        _this.property = null;
+        return _this;
     }
     Object.defineProperty(Declaration.prototype, "type", {
         get: function () {
@@ -610,10 +632,10 @@ var Declaration = /** @class */ (function (_super) {
         return this.value;
     };
     Declaration.prototype.setNestedProperties = function (value) {
-        return this.setNode('nestedProprties', value);
+        return this.setNode('nestedProperties', value);
     };
     Declaration.prototype.getNestedProperties = function () {
-        return this.nestedProprties;
+        return this.nestedProperties;
     };
     return Declaration;
 }(AbstractDeclaration));
@@ -640,7 +662,7 @@ var Property = /** @class */ (function (_super) {
         return this.getText();
     };
     Property.prototype.isCustomProperty = function () {
-        return this.identifier.isCustomProperty;
+        return !!this.identifier && this.identifier.isCustomProperty;
     };
     return Property;
 }(Node));
@@ -975,7 +997,6 @@ var Import = /** @class */ (function (_super) {
     Import.prototype.setMedialist = function (node) {
         if (node) {
             node.attachTo(this);
-            this.medialist = node;
             return true;
         }
         return false;
@@ -983,6 +1004,105 @@ var Import = /** @class */ (function (_super) {
     return Import;
 }(Node));
 export { Import };
+var Use = /** @class */ (function (_super) {
+    __extends(Use, _super);
+    function Use() {
+        return _super !== null && _super.apply(this, arguments) || this;
+    }
+    Object.defineProperty(Use.prototype, "type", {
+        get: function () {
+            return NodeType.Use;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Use.prototype.getParameters = function () {
+        if (!this.parameters) {
+            this.parameters = new Nodelist(this);
+        }
+        return this.parameters;
+    };
+    Use.prototype.setIdentifier = function (node) {
+        return this.setNode('identifier', node, 0);
+    };
+    Use.prototype.getIdentifier = function () {
+        return this.identifier;
+    };
+    return Use;
+}(Node));
+export { Use };
+var ModuleConfiguration = /** @class */ (function (_super) {
+    __extends(ModuleConfiguration, _super);
+    function ModuleConfiguration() {
+        return _super !== null && _super.apply(this, arguments) || this;
+    }
+    Object.defineProperty(ModuleConfiguration.prototype, "type", {
+        get: function () {
+            return NodeType.ModuleConfiguration;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    ModuleConfiguration.prototype.setIdentifier = function (node) {
+        return this.setNode('identifier', node, 0);
+    };
+    ModuleConfiguration.prototype.getIdentifier = function () {
+        return this.identifier;
+    };
+    ModuleConfiguration.prototype.getName = function () {
+        return this.identifier ? this.identifier.getText() : '';
+    };
+    ModuleConfiguration.prototype.setValue = function (node) {
+        return this.setNode('value', node, 0);
+    };
+    ModuleConfiguration.prototype.getValue = function () {
+        return this.value;
+    };
+    return ModuleConfiguration;
+}(Node));
+export { ModuleConfiguration };
+var Forward = /** @class */ (function (_super) {
+    __extends(Forward, _super);
+    function Forward() {
+        return _super !== null && _super.apply(this, arguments) || this;
+    }
+    Object.defineProperty(Forward.prototype, "type", {
+        get: function () {
+            return NodeType.Forward;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Forward.prototype.setIdentifier = function (node) {
+        return this.setNode('identifier', node, 0);
+    };
+    Forward.prototype.getIdentifier = function () {
+        return this.identifier;
+    };
+    return Forward;
+}(Node));
+export { Forward };
+var ForwardVisibility = /** @class */ (function (_super) {
+    __extends(ForwardVisibility, _super);
+    function ForwardVisibility() {
+        return _super !== null && _super.apply(this, arguments) || this;
+    }
+    Object.defineProperty(ForwardVisibility.prototype, "type", {
+        get: function () {
+            return NodeType.ForwardVisibility;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    ForwardVisibility.prototype.setIdentifier = function (node) {
+        return this.setNode('identifier', node, 0);
+    };
+    ForwardVisibility.prototype.getIdentifier = function () {
+        return this.identifier;
+    };
+    return ForwardVisibility;
+}(Node));
+export { ForwardVisibility };
 var Namespace = /** @class */ (function (_super) {
     __extends(Namespace, _super);
     function Namespace(offset, length) {
@@ -1261,6 +1381,7 @@ var HexColorValue = /** @class */ (function (_super) {
     return HexColorValue;
 }(Node));
 export { HexColorValue };
+var _dot = '.'.charCodeAt(0), _0 = '0'.charCodeAt(0), _9 = '9'.charCodeAt(0);
 var NumericValue = /** @class */ (function (_super) {
     __extends(NumericValue, _super);
     function NumericValue(offset, length) {
@@ -1275,7 +1396,8 @@ var NumericValue = /** @class */ (function (_super) {
     });
     NumericValue.prototype.getValue = function () {
         var raw = this.getText();
-        var unitIdx = 0, code, _dot = '.'.charCodeAt(0), _0 = '0'.charCodeAt(0), _9 = '9'.charCodeAt(0);
+        var unitIdx = 0;
+        var code;
         for (var i = 0, len = raw.length; i < len; i++) {
             code = raw.charCodeAt(i);
             if (!(_0 <= code && code <= _9 || code === _dot)) {
@@ -1294,7 +1416,11 @@ export { NumericValue };
 var VariableDeclaration = /** @class */ (function (_super) {
     __extends(VariableDeclaration, _super);
     function VariableDeclaration(offset, length) {
-        return _super.call(this, offset, length) || this;
+        var _this = _super.call(this, offset, length) || this;
+        _this.variable = null;
+        _this.value = null;
+        _this.needsSemicolon = true;
+        return _this;
     }
     Object.defineProperty(VariableDeclaration.prototype, "type", {
         get: function () {
@@ -1333,6 +1459,7 @@ var VariableDeclaration = /** @class */ (function (_super) {
 export { VariableDeclaration };
 var Interpolation = /** @class */ (function (_super) {
     __extends(Interpolation, _super);
+    // private _interpolations: void; // workaround for https://github.com/Microsoft/TypeScript/issues/18276
     function Interpolation(offset, length) {
         return _super.call(this, offset, length) || this;
     }
@@ -1479,7 +1606,7 @@ var UnknownAtRule = /** @class */ (function (_super) {
     UnknownAtRule.prototype.setAtRuleName = function (atRuleName) {
         this.atRuleName = atRuleName;
     };
-    UnknownAtRule.prototype.getAtRuleName = function (atRuleName) {
+    UnknownAtRule.prototype.getAtRuleName = function () {
         return this.atRuleName;
     };
     return UnknownAtRule;
@@ -1531,6 +1658,27 @@ var GuardCondition = /** @class */ (function (_super) {
     return GuardCondition;
 }(Node));
 export { GuardCondition };
+var Module = /** @class */ (function (_super) {
+    __extends(Module, _super);
+    function Module() {
+        return _super !== null && _super.apply(this, arguments) || this;
+    }
+    Object.defineProperty(Module.prototype, "type", {
+        get: function () {
+            return NodeType.Module;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Module.prototype.setIdentifier = function (node) {
+        return this.setNode('identifier', node, 0);
+    };
+    Module.prototype.getIdentifier = function () {
+        return this.identifier;
+    };
+    return Module;
+}(Node));
+export { Module };
 export var Level;
 (function (Level) {
     Level[Level["Ignore"] = 1] = "Ignore";
@@ -1747,4 +1895,3 @@ var ParseErrorCollector = /** @class */ (function () {
     return ParseErrorCollector;
 }());
 export { ParseErrorCollector };
-//# sourceMappingURL=cssNodes.js.map

@@ -89,6 +89,10 @@ function isWhitespace(code) {
         || code === 10 /* LineFeed */
         || code === 13 /* CarriageReturn */);
 }
+var wordSeparators = new Set();
+'`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?'
+    .split('')
+    .forEach(function (s) { return wordSeparators.add(s.charCodeAt(0)); });
 function isAlphanumeric(code) {
     return isLower(code) || isUpper(code) || isNumber(code);
 }
@@ -220,7 +224,7 @@ export function matchesCamelCase(word, camelCaseWord) {
     return result;
 }
 // Fuzzy
-export var fuzzyContiguousFilter = or(matchesPrefix, matchesCamelCase, matchesContiguousSubString);
+var fuzzyContiguousFilter = or(matchesPrefix, matchesCamelCase, matchesContiguousSubString);
 var fuzzySeparateFilter = or(matchesPrefix, matchesCamelCase, matchesSubString);
 var fuzzyRegExpCache = new LRUCache(10000); // bounded to 10000 elements
 export function matchesFuzzy(word, wordToMatchAgainst, enableSeparateSubstringMatching) {
@@ -242,53 +246,59 @@ export function matchesFuzzy(word, wordToMatchAgainst, enableSeparateSubstringMa
     // Default Filter
     return enableSeparateSubstringMatching ? fuzzySeparateFilter(word, wordToMatchAgainst) : fuzzyContiguousFilter(word, wordToMatchAgainst);
 }
-export function anyScore(pattern, word, patternMaxWhitespaceIgnore) {
-    pattern = pattern.toLowerCase();
-    word = word.toLowerCase();
-    var matches = [];
-    var idx = 0;
-    for (var pos = 0; pos < pattern.length; ++pos) {
-        var thisIdx = word.indexOf(pattern.charAt(pos), idx);
-        if (thisIdx >= 0) {
-            matches.push(thisIdx);
-            idx = thisIdx + 1;
+export function anyScore(pattern, lowPattern, _patternPos, word, lowWord, _wordPos) {
+    var result = fuzzyScore(pattern, lowPattern, 0, word, lowWord, 0, true);
+    if (result) {
+        return result;
+    }
+    var matches = 0;
+    var score = 0;
+    var idx = _wordPos;
+    for (var patternPos = 0; patternPos < lowPattern.length && patternPos < _maxLen; ++patternPos) {
+        var wordPos = lowWord.indexOf(lowPattern.charAt(patternPos), idx);
+        if (wordPos >= 0) {
+            score += 1;
+            matches += Math.pow(2, wordPos);
+            idx = wordPos + 1;
+        }
+        else if (matches !== 0) {
+            // once we have started matching things
+            // we need to match the remaining pattern
+            // characters
+            break;
         }
     }
-    return [matches.length, matches];
+    return [score, matches, _wordPos];
 }
 //#region --- fuzzyScore ---
-export function createMatches(offsetOrScore) {
-    var ret = [];
-    if (!offsetOrScore) {
-        return ret;
+export function createMatches(score) {
+    if (typeof score === 'undefined') {
+        return [];
     }
-    var offsets;
-    if (Array.isArray(offsetOrScore[1])) {
-        offsets = offsetOrScore[1];
-    }
-    else {
-        offsets = offsetOrScore;
-    }
-    var last;
-    for (var _i = 0, offsets_1 = offsets; _i < offsets_1.length; _i++) {
-        var pos = offsets_1[_i];
-        if (last && last.end === pos) {
-            last.end += 1;
-        }
-        else {
-            last = { start: pos, end: pos + 1 };
-            ret.push(last);
+    var matches = score[1].toString(2);
+    var wordStart = score[2];
+    var res = [];
+    for (var pos = wordStart; pos < _maxLen; pos++) {
+        if (matches[matches.length - (pos + 1)] === '1') {
+            var last = res[res.length - 1];
+            if (last && last.end === pos) {
+                last.end = pos + 1;
+            }
+            else {
+                res.push({ start: pos, end: pos + 1 });
+            }
         }
     }
-    return ret;
+    return res;
 }
+var _maxLen = 128;
 function initTable() {
     var table = [];
     var row = [0];
-    for (var i = 1; i <= 100; i++) {
+    for (var i = 1; i <= _maxLen; i++) {
         row.push(-i);
     }
-    for (var i = 0; i <= 100; i++) {
+    for (var i = 0; i <= _maxLen; i++) {
         var thisRow = row.slice(0);
         thisRow[0] = -i;
         table.push(thisRow);
@@ -319,6 +329,13 @@ function printTable(table, pattern, patternLen, word, wordLen) {
     }
     return ret;
 }
+function printTables(pattern, patternStart, word, wordStart) {
+    pattern = pattern.substr(patternStart);
+    word = word.substr(wordStart);
+    console.log(printTable(_table, pattern, pattern.length, word, word.length));
+    console.log(printTable(_arrows, pattern, pattern.length, word, word.length));
+    console.log(printTable(_scores, pattern, pattern.length, word, word.length));
+}
 function isSeparatorAtPos(value, index) {
     if (index < 0 || index >= value.length) {
         return false;
@@ -334,6 +351,7 @@ function isSeparatorAtPos(value, index) {
         case 39 /* SingleQuote */:
         case 34 /* DoubleQuote */:
         case 58 /* Colon */:
+        case 36 /* DollarSign */:
             return true;
         default:
             return false;
@@ -352,136 +370,158 @@ function isWhitespaceAtPos(value, index) {
             return false;
     }
 }
-export function fuzzyScore(pattern, lowPattern, patternPos, word, lowWord, wordPos, firstMatchCanBeWeak) {
-    var patternLen = pattern.length > 100 ? 100 : pattern.length;
-    var wordLen = word.length > 100 ? 100 : word.length;
-    if (patternPos >= patternLen || wordPos >= wordLen || patternLen > wordLen) {
+function isUpperCaseAtPos(pos, word, wordLow) {
+    return word[pos] !== wordLow[pos];
+}
+export function isPatternInWord(patternLow, patternPos, patternLen, wordLow, wordPos, wordLen) {
+    while (patternPos < patternLen && wordPos < wordLen) {
+        if (patternLow[patternPos] === wordLow[wordPos]) {
+            patternPos += 1;
+        }
+        wordPos += 1;
+    }
+    return patternPos === patternLen; // pattern must be exhausted
+}
+export var FuzzyScore;
+(function (FuzzyScore) {
+    /**
+     * No matches and value `-100`
+     */
+    FuzzyScore.Default = Object.freeze([-100, 0, 0]);
+    function isDefault(score) {
+        return !score || (score[0] === -100 && score[1] === 0 && score[2] === 0);
+    }
+    FuzzyScore.isDefault = isDefault;
+})(FuzzyScore || (FuzzyScore = {}));
+export function fuzzyScore(pattern, patternLow, patternStart, word, wordLow, wordStart, firstMatchCanBeWeak) {
+    var patternLen = pattern.length > _maxLen ? _maxLen : pattern.length;
+    var wordLen = word.length > _maxLen ? _maxLen : word.length;
+    if (patternStart >= patternLen || wordStart >= wordLen || (patternLen - patternStart) > (wordLen - wordStart)) {
         return undefined;
     }
     // Run a simple check if the characters of pattern occur
     // (in order) at all in word. If that isn't the case we
     // stop because no match will be possible
-    var patternStartPos = patternPos;
-    var wordStartPos = wordPos;
-    while (patternPos < patternLen && wordPos < wordLen) {
-        if (lowPattern[patternPos] === lowWord[wordPos]) {
-            patternPos += 1;
-        }
-        wordPos += 1;
-    }
-    if (patternPos !== patternLen) {
+    if (!isPatternInWord(patternLow, patternStart, patternLen, wordLow, wordStart, wordLen)) {
         return undefined;
     }
-    patternPos = patternStartPos;
-    wordPos = wordStartPos;
-    // There will be a mach, fill in tables
-    for (patternPos = patternStartPos + 1; patternPos <= patternLen; patternPos++) {
-        for (wordPos = 1; wordPos <= wordLen; wordPos++) {
-            var score = -1;
-            var lowWordChar = lowWord[wordPos - 1];
-            if (lowPattern[patternPos - 1] === lowWordChar) {
-                if (wordPos === (patternPos - patternStartPos)) {
-                    // common prefix: `foobar <-> foobaz`
-                    if (pattern[patternPos - 1] === word[wordPos - 1]) {
-                        score = 7;
-                    }
-                    else {
-                        score = 5;
-                    }
-                }
-                else if (lowWordChar !== word[wordPos - 1] && (wordPos === 1 || lowWord[wordPos - 2] === word[wordPos - 2])) {
-                    // hitting upper-case: `foo <-> forOthers`
-                    if (pattern[patternPos - 1] === word[wordPos - 1]) {
-                        score = 7;
-                    }
-                    else {
-                        score = 5;
-                    }
-                }
-                else if (isSeparatorAtPos(lowWord, wordPos - 2) || isWhitespaceAtPos(lowWord, wordPos - 2)) {
-                    // post separator: `foo <-> bar_foo`
-                    score = 5;
-                }
-                else {
-                    score = 1;
-                }
-            }
-            _scores[patternPos][wordPos] = score;
-            var diag = _table[patternPos - 1][wordPos - 1] + (score > 1 ? 1 : score);
-            var top_1 = _table[patternPos - 1][wordPos] + -1;
-            var left = _table[patternPos][wordPos - 1] + -1;
+    var row = 1;
+    var column = 1;
+    var patternPos = patternStart;
+    var wordPos = wordStart;
+    // There will be a match, fill in tables
+    for (row = 1, patternPos = patternStart; patternPos < patternLen; row++, patternPos++) {
+        for (column = 1, wordPos = wordStart; wordPos < wordLen; column++, wordPos++) {
+            var score = _doScore(pattern, patternLow, patternPos, patternStart, word, wordLow, wordPos);
+            _scores[row][column] = score;
+            var diag = _table[row - 1][column - 1] + (score > 1 ? 1 : score);
+            var top_1 = _table[row - 1][column] + -1;
+            var left = _table[row][column - 1] + -1;
             if (left >= top_1) {
                 // left or diag
                 if (left > diag) {
-                    _table[patternPos][wordPos] = left;
-                    _arrows[patternPos][wordPos] = 4 /* Left */;
+                    _table[row][column] = left;
+                    _arrows[row][column] = 4 /* Left */;
                 }
                 else if (left === diag) {
-                    _table[patternPos][wordPos] = left;
-                    _arrows[patternPos][wordPos] = 4 /* Left */ | 2 /* Diag */;
+                    _table[row][column] = left;
+                    _arrows[row][column] = 4 /* Left */ | 2 /* Diag */;
                 }
                 else {
-                    _table[patternPos][wordPos] = diag;
-                    _arrows[patternPos][wordPos] = 2 /* Diag */;
+                    _table[row][column] = diag;
+                    _arrows[row][column] = 2 /* Diag */;
                 }
             }
             else {
                 // top or diag
                 if (top_1 > diag) {
-                    _table[patternPos][wordPos] = top_1;
-                    _arrows[patternPos][wordPos] = 1 /* Top */;
+                    _table[row][column] = top_1;
+                    _arrows[row][column] = 1 /* Top */;
                 }
                 else if (top_1 === diag) {
-                    _table[patternPos][wordPos] = top_1;
-                    _arrows[patternPos][wordPos] = 1 /* Top */ | 2 /* Diag */;
+                    _table[row][column] = top_1;
+                    _arrows[row][column] = 1 /* Top */ | 2 /* Diag */;
                 }
                 else {
-                    _table[patternPos][wordPos] = diag;
-                    _arrows[patternPos][wordPos] = 2 /* Diag */;
+                    _table[row][column] = diag;
+                    _arrows[row][column] = 2 /* Diag */;
                 }
             }
         }
     }
     if (_debug) {
-        console.log(printTable(_table, pattern, patternLen, word, wordLen));
-        console.log(printTable(_arrows, pattern, patternLen, word, wordLen));
-        console.log(printTable(_scores, pattern, patternLen, word, wordLen));
+        printTables(pattern, patternStart, word, wordStart);
     }
-    // _bucket is an array of [PrefixArray] we use to keep
-    // track of scores and matches. After calling `_findAllMatches`
-    // the best match (if available) is the first item in the array
     _matchesCount = 0;
     _topScore = -100;
-    _patternStartPos = patternStartPos;
+    _wordStart = wordStart;
     _firstMatchCanBeWeak = firstMatchCanBeWeak;
-    _findAllMatches(patternLen, wordLen, patternLen === wordLen ? 1 : 0, new LazyArray(), false);
+    _findAllMatches2(row - 1, column - 1, patternLen === wordLen ? 1 : 0, 0, false);
     if (_matchesCount === 0) {
         return undefined;
     }
-    return [_topScore, _topMatch.toArray()];
+    return [_topScore, _topMatch2, wordStart];
+}
+function _doScore(pattern, patternLow, patternPos, patternStart, word, wordLow, wordPos) {
+    if (patternLow[patternPos] !== wordLow[wordPos]) {
+        return -1;
+    }
+    if (wordPos === (patternPos - patternStart)) {
+        // common prefix: `foobar <-> foobaz`
+        //                            ^^^^^
+        if (pattern[patternPos] === word[wordPos]) {
+            return 7;
+        }
+        else {
+            return 5;
+        }
+    }
+    else if (isUpperCaseAtPos(wordPos, word, wordLow) && (wordPos === 0 || !isUpperCaseAtPos(wordPos - 1, word, wordLow))) {
+        // hitting upper-case: `foo <-> forOthers`
+        //                              ^^ ^
+        if (pattern[patternPos] === word[wordPos]) {
+            return 7;
+        }
+        else {
+            return 5;
+        }
+    }
+    else if (isSeparatorAtPos(wordLow, wordPos) && (wordPos === 0 || !isSeparatorAtPos(wordLow, wordPos - 1))) {
+        // hitting a separator: `. <-> foo.bar`
+        //                                ^
+        return 5;
+    }
+    else if (isSeparatorAtPos(wordLow, wordPos - 1) || isWhitespaceAtPos(wordLow, wordPos - 1)) {
+        // post separator: `foo <-> bar_foo`
+        //                              ^^^
+        return 5;
+    }
+    else {
+        return 1;
+    }
 }
 var _matchesCount = 0;
-var _topMatch;
+var _topMatch2 = 0;
 var _topScore = 0;
-var _patternStartPos = 0;
+var _wordStart = 0;
 var _firstMatchCanBeWeak = false;
-function _findAllMatches(patternPos, wordPos, total, matches, lastMatched) {
+function _findAllMatches2(row, column, total, matches, lastMatched) {
     if (_matchesCount >= 10 || total < -25) {
         // stop when having already 10 results, or
         // when a potential alignment as already 5 gaps
         return;
     }
     var simpleMatchCount = 0;
-    while (patternPos > _patternStartPos && wordPos > 0) {
-        var score = _scores[patternPos][wordPos];
-        var arrow = _arrows[patternPos][wordPos];
+    while (row > 0 && column > 0) {
+        var score = _scores[row][column];
+        var arrow = _arrows[row][column];
         if (arrow === 4 /* Left */) {
-            // left
-            wordPos -= 1;
+            // left -> no match, skip a word character
+            column -= 1;
             if (lastMatched) {
                 total -= 5; // new gap penalty
             }
-            else if (!matches.isEmpty()) {
+            else if (matches !== 0) {
                 total -= 1; // gap penalty after first match
             }
             lastMatched = false;
@@ -490,21 +530,22 @@ function _findAllMatches(patternPos, wordPos, total, matches, lastMatched) {
         else if (arrow & 2 /* Diag */) {
             if (arrow & 4 /* Left */) {
                 // left
-                _findAllMatches(patternPos, wordPos - 1, !matches.isEmpty() ? total - 1 : total, // gap penalty after first match
-                matches.slice(), lastMatched);
+                _findAllMatches2(row, column - 1, matches !== 0 ? total - 1 : total, // gap penalty after first match
+                matches, lastMatched);
             }
             // diag
             total += score;
-            patternPos -= 1;
-            wordPos -= 1;
-            matches.unshift(wordPos);
+            row -= 1;
+            column -= 1;
             lastMatched = true;
+            // match -> set a 1 at the word pos
+            matches += Math.pow(2, (column + _wordStart));
             // count simple matches and boost a row of
             // simple matches when they yield in a
             // strong match.
             if (score === 1) {
                 simpleMatchCount += 1;
-                if (patternPos === _patternStartPos && !_firstMatchCanBeWeak) {
+                if (row === 0 && !_firstMatchCanBeWeak) {
                     // when the first match is a weak
                     // match we discard it
                     return undefined;
@@ -520,51 +561,15 @@ function _findAllMatches(patternPos, wordPos, total, matches, lastMatched) {
             return undefined;
         }
     }
-    total -= wordPos >= 3 ? 9 : wordPos * 3; // late start penalty
+    total -= column >= 3 ? 9 : column * 3; // late start penalty
     // dynamically keep track of the current top score
     // and insert the current best score at head, the rest at tail
     _matchesCount += 1;
     if (total > _topScore) {
         _topScore = total;
-        _topMatch = matches;
+        _topMatch2 = matches;
     }
 }
-var LazyArray = /** @class */ (function () {
-    function LazyArray() {
-    }
-    LazyArray.prototype.isEmpty = function () {
-        return !this._data && (!this._parent || this._parent.isEmpty());
-    };
-    LazyArray.prototype.unshift = function (n) {
-        if (!this._data) {
-            this._data = [n];
-        }
-        else {
-            this._data.unshift(n);
-        }
-    };
-    LazyArray.prototype.slice = function () {
-        var ret = new LazyArray();
-        ret._parent = this;
-        ret._parentLen = this._data ? this._data.length : 0;
-        return ret;
-    };
-    LazyArray.prototype.toArray = function () {
-        if (!this._data) {
-            return this._parent.toArray();
-        }
-        var bucket = [];
-        var element = this;
-        while (element) {
-            if (element._parent && element._parent._data) {
-                bucket.push(element._parent._data.slice(element._parent._data.length - element._parentLen));
-            }
-            element = element._parent;
-        }
-        return Array.prototype.concat.apply(this._data, bucket);
-    };
-    return LazyArray;
-}());
 //#endregion
 //#region --- graceful ---
 export function fuzzyScoreGracefulAggressive(pattern, lowPattern, patternPos, word, lowWord, wordPos, firstMatchCanBeWeak) {

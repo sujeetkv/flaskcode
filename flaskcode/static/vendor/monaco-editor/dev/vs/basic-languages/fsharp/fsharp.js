@@ -114,9 +114,11 @@ define(["require", "exports"], function (require, exports) {
                 [/\/\/.*$/, 'comment'],
             ],
             comment: [
-                [/[^\*]+/, 'comment'],
+                [/[^*(]+/, 'comment'],
                 [/\*\)/, 'comment', '@pop'],
-                [/\*/, 'comment']
+                [/\*/, 'comment'],
+                [/\(\*\)/, 'comment'],
+                [/\(/, 'comment']
             ],
             string: [
                 [/[^\\"]+/, 'string'],

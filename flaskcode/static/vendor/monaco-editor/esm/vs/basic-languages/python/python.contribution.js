@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import { registerLanguage } from '../_.contribution.js';
-// Allow for running under nodejs/requirejs in tests
-var _monaco = (typeof monaco === 'undefined' ? self.monaco : monaco);
 registerLanguage({
     id: 'python',
     extensions: ['.py', '.rpy', '.pyw', '.cpy', '.gyp', '.gypi'],
     aliases: ['Python', 'py'],
     firstLine: '^#!/.*\\bpython[0-9.-]*\\b',
-    loader: function () { return _monaco.Promise.wrap(import('./python.js')); }
+    loader: function () { return import('./python.js'); }
 });

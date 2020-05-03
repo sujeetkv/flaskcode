@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -24,8 +24,8 @@ import { IModeService } from '../../common/services/modeService.js';
 import { ModeServiceImpl } from '../../common/services/modeServiceImpl.js';
 import { IModelService } from '../../common/services/modelService.js';
 import { ModelServiceImpl } from '../../common/services/modelServiceImpl.js';
-import { ITextResourceConfigurationService, ITextResourcePropertiesService } from '../../common/services/resourceConfiguration.js';
-import { SimpleBulkEditService, SimpleConfigurationService, SimpleDialogService, SimpleMenuService, SimpleNotificationService, SimpleProgressService, SimpleResourceConfigurationService, SimpleResourcePropertiesService, SimpleUriLabelService, SimpleWorkspaceContextService, StandaloneCommandService, StandaloneKeybindingService, StandaloneTelemetryService } from './simpleServices.js';
+import { ITextResourceConfigurationService, ITextResourcePropertiesService } from '../../common/services/textResourceConfigurationService.js';
+import { SimpleBulkEditService, SimpleConfigurationService, SimpleDialogService, SimpleNotificationService, SimpleEditorProgressService, SimpleResourceConfigurationService, SimpleResourcePropertiesService, SimpleUriLabelService, SimpleWorkspaceContextService, StandaloneCommandService, StandaloneKeybindingService, StandaloneTelemetryService, SimpleLayoutService } from './simpleServices.js';
 import { StandaloneCodeEditorServiceImpl } from './standaloneCodeServiceImpl.js';
 import { StandaloneThemeServiceImpl } from './standaloneThemeServiceImpl.js';
 import { IStandaloneThemeService } from '../common/standaloneThemeService.js';
@@ -48,11 +48,18 @@ import { ILogService, NullLogService } from '../../../platform/log/common/log.js
 import { MarkerService } from '../../../platform/markers/common/markerService.js';
 import { IMarkerService } from '../../../platform/markers/common/markers.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
-import { IProgressService } from '../../../platform/progress/common/progress.js';
-import { IStorageService, NullStorageService } from '../../../platform/storage/common/storage.js';
+import { IEditorProgressService } from '../../../platform/progress/common/progress.js';
+import { IStorageService, InMemoryStorageService } from '../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
+import { MenuService } from '../../../platform/actions/common/menuService.js';
+import { IMarkerDecorationsService } from '../../common/services/markersDecorationService.js';
+import { MarkerDecorationsService } from '../../common/services/markerDecorationsServiceImpl.js';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { ILayoutService } from '../../../platform/layout/browser/layoutService.js';
+import { getSingletonServiceDescriptors } from '../../../platform/instantiation/common/extensions.js';
+import { AccessibilityService } from '../../../platform/accessibility/common/accessibilityService.js';
 export var StaticServices;
 (function (StaticServices) {
     var _serviceCollection = new ServiceCollection();
@@ -94,6 +101,11 @@ export var StaticServices;
     function init(overrides) {
         // Create a fresh service collection
         var result = new ServiceCollection();
+        // make sure to add all services that use `registerSingleton`
+        for (var _i = 0, _a = getSingletonServiceDescriptors(); _i < _a.length; _i++) {
+            var _b = _a[_i], id = _b[0], descriptor = _b[1];
+            result.set(id, descriptor);
+        }
         // Initialize the service collection with the overrides
         for (var serviceId in overrides) {
             if (overrides.hasOwnProperty(serviceId)) {
@@ -120,13 +132,14 @@ export var StaticServices;
     StaticServices.notificationService = define(INotificationService, function () { return new SimpleNotificationService(); });
     StaticServices.markerService = define(IMarkerService, function () { return new MarkerService(); });
     StaticServices.modeService = define(IModeService, function (o) { return new ModeServiceImpl(); });
-    StaticServices.modelService = define(IModelService, function (o) { return new ModelServiceImpl(StaticServices.markerService.get(o), StaticServices.configurationService.get(o), StaticServices.resourcePropertiesService.get(o)); });
-    StaticServices.editorWorkerService = define(IEditorWorkerService, function (o) { return new EditorWorkerServiceImpl(StaticServices.modelService.get(o), StaticServices.resourceConfigurationService.get(o)); });
     StaticServices.standaloneThemeService = define(IStandaloneThemeService, function () { return new StandaloneThemeServiceImpl(); });
-    StaticServices.codeEditorService = define(ICodeEditorService, function (o) { return new StandaloneCodeEditorServiceImpl(StaticServices.standaloneThemeService.get(o)); });
-    StaticServices.progressService = define(IProgressService, function () { return new SimpleProgressService(); });
-    StaticServices.storageService = define(IStorageService, function () { return NullStorageService; });
     StaticServices.logService = define(ILogService, function () { return new NullLogService(); });
+    StaticServices.modelService = define(IModelService, function (o) { return new ModelServiceImpl(StaticServices.configurationService.get(o), StaticServices.resourcePropertiesService.get(o), StaticServices.standaloneThemeService.get(o), StaticServices.logService.get(o)); });
+    StaticServices.markerDecorationsService = define(IMarkerDecorationsService, function (o) { return new MarkerDecorationsService(StaticServices.modelService.get(o), StaticServices.markerService.get(o)); });
+    StaticServices.codeEditorService = define(ICodeEditorService, function (o) { return new StandaloneCodeEditorServiceImpl(StaticServices.standaloneThemeService.get(o)); });
+    StaticServices.editorProgressService = define(IEditorProgressService, function () { return new SimpleEditorProgressService(); });
+    StaticServices.storageService = define(IStorageService, function () { return new InMemoryStorageService(); });
+    StaticServices.editorWorkerService = define(IEditorWorkerService, function (o) { return new EditorWorkerServiceImpl(StaticServices.modelService.get(o), StaticServices.resourceConfigurationService.get(o), StaticServices.logService.get(o)); });
 })(StaticServices || (StaticServices = {}));
 var DynamicStandaloneServices = /** @class */ (function (_super) {
     __extends(DynamicStandaloneServices, _super);
@@ -151,12 +164,18 @@ var DynamicStandaloneServices = /** @class */ (function (_super) {
             return value;
         };
         var contextKeyService = ensure(IContextKeyService, function () { return _this._register(new ContextKeyService(configurationService)); });
-        ensure(IListService, function () { return new ListService(contextKeyService); });
+        ensure(IAccessibilityService, function () { return new AccessibilityService(contextKeyService, configurationService); });
+        ensure(IListService, function () { return new ListService(themeService); });
         var commandService = ensure(ICommandService, function () { return new StandaloneCommandService(_this._instantiationService); });
         var keybindingService = ensure(IKeybindingService, function () { return _this._register(new StandaloneKeybindingService(contextKeyService, commandService, telemetryService, notificationService, domElement)); });
-        var contextViewService = ensure(IContextViewService, function () { return _this._register(new ContextViewService(domElement, telemetryService, new NullLogService())); });
-        ensure(IContextMenuService, function () { return _this._register(new ContextMenuService(domElement, telemetryService, notificationService, contextViewService, keybindingService, themeService)); });
-        ensure(IMenuService, function () { return new SimpleMenuService(commandService); });
+        var layoutService = ensure(ILayoutService, function () { return new SimpleLayoutService(domElement); });
+        var contextViewService = ensure(IContextViewService, function () { return _this._register(new ContextViewService(layoutService)); });
+        ensure(IContextMenuService, function () {
+            var contextMenuService = new ContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, themeService);
+            contextMenuService.configure({ blockMouse: false }); // we do not want that in the standalone editor
+            return _this._register(contextMenuService);
+        });
+        ensure(IMenuService, function () { return new MenuService(commandService); });
         ensure(IBulkEditService, function () { return new SimpleBulkEditService(StaticServices.modelService.get(IModelService)); });
         return _this;
     }

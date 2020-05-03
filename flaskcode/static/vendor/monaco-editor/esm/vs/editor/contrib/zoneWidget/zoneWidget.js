@@ -7,7 +7,7 @@ import * as dom from '../../../base/browser/dom.js';
 import { Sash } from '../../../base/browser/ui/sash/sash.js';
 import { Color, RGBA } from '../../../base/common/color.js';
 import { IdGenerator } from '../../../base/common/idGenerator.js';
-import { dispose } from '../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
 import * as objects from '../../../base/common/objects.js';
 import { Range } from '../../common/core/range.js';
 import { ModelDecorationOptions } from '../../common/model/textModel.js';
@@ -23,6 +23,7 @@ var defaultOptions = {
 var WIDGET_ID = 'vs.editor.contrib.zoneWidget';
 var ViewZoneDelegate = /** @class */ (function () {
     function ViewZoneDelegate(domNode, afterLineNumber, afterColumn, heightInLines, onDomNodeTop, onComputedHeight) {
+        this.id = ''; // A valid zone id should be greater than 0
         this.domNode = domNode;
         this.afterLineNumber = afterLineNumber;
         this.afterColumn = afterColumn;
@@ -61,6 +62,8 @@ var Arrow = /** @class */ (function () {
         this._editor = _editor;
         this._ruleName = Arrow._IdGenerator.nextId();
         this._decorations = [];
+        this._color = null;
+        this._height = -1;
         //
     }
     Arrow.prototype.dispose = function () {
@@ -102,10 +105,15 @@ var Arrow = /** @class */ (function () {
 }());
 var ZoneWidget = /** @class */ (function () {
     function ZoneWidget(editor, options) {
-        if (options === void 0) { options = {}; }
         var _this = this;
+        if (options === void 0) { options = {}; }
+        this._arrow = null;
+        this._overlayWidget = null;
+        this._resizeSash = null;
         this._positionMarkerId = [];
-        this._disposables = [];
+        this._viewZone = null;
+        this._disposables = new DisposableStore();
+        this.container = null;
         this._isShowing = false;
         this.editor = editor;
         this.options = objects.deepClone(options);
@@ -115,7 +123,7 @@ var ZoneWidget = /** @class */ (function () {
             this.domNode.setAttribute('aria-hidden', 'true');
             this.domNode.setAttribute('role', 'presentation');
         }
-        this._disposables.push(this.editor.onDidLayoutChange(function (info) {
+        this._disposables.add(this.editor.onDidLayoutChange(function (info) {
             var width = _this._getWidth(info);
             _this.domNode.style.width = width + 'px';
             _this.domNode.style.left = _this._getLeft(info) + 'px';
@@ -124,7 +132,6 @@ var ZoneWidget = /** @class */ (function () {
     }
     ZoneWidget.prototype.dispose = function () {
         var _this = this;
-        dispose(this._disposables);
         if (this._overlayWidget) {
             this.editor.removeOverlayWidget(this._overlayWidget);
             this._overlayWidget = null;
@@ -139,6 +146,7 @@ var ZoneWidget = /** @class */ (function () {
         }
         this.editor.deltaDecorations(this._positionMarkerId, []);
         this._positionMarkerId = [];
+        this._disposables.dispose();
     };
     ZoneWidget.prototype.create = function () {
         dom.addClass(this.domNode, 'zone-widget');
@@ -150,7 +158,7 @@ var ZoneWidget = /** @class */ (function () {
         this.domNode.appendChild(this.container);
         if (this.options.showArrow) {
             this._arrow = new Arrow(this.editor);
-            this._disposables.push(this._arrow);
+            this._disposables.add(this._arrow);
         }
         this._fillContainer(this.container);
         this._initSash();
@@ -191,11 +199,15 @@ var ZoneWidget = /** @class */ (function () {
     };
     ZoneWidget.prototype._onViewZoneHeight = function (height) {
         this.domNode.style.height = height + "px";
-        var containerHeight = height - this._decoratingElementsHeight();
-        this.container.style.height = containerHeight + "px";
-        var layoutInfo = this.editor.getLayoutInfo();
-        this._doLayout(containerHeight, this._getWidth(layoutInfo));
-        this._resizeSash.layout();
+        if (this.container) {
+            var containerHeight = height - this._decoratingElementsHeight();
+            this.container.style.height = containerHeight + "px";
+            var layoutInfo = this.editor.getLayoutInfo();
+            this._doLayout(containerHeight, this._getWidth(layoutInfo));
+        }
+        if (this._resizeSash) {
+            this._resizeSash.layout();
+        }
     };
     Object.defineProperty(ZoneWidget.prototype, "position", {
         get: function () {
@@ -217,9 +229,7 @@ var ZoneWidget = /** @class */ (function () {
         configurable: true
     });
     ZoneWidget.prototype.show = function (rangeOrPos, heightInLines) {
-        var range = Range.isIRange(rangeOrPos)
-            ? rangeOrPos
-            : new Range(rangeOrPos.lineNumber, rangeOrPos.column, rangeOrPos.lineNumber, rangeOrPos.column);
+        var range = Range.isIRange(rangeOrPos) ? Range.lift(rangeOrPos) : Range.fromPositions(rangeOrPos);
         this._isShowing = true;
         this._showImpl(range, heightInLines);
         this._isShowing = false;
@@ -244,7 +254,7 @@ var ZoneWidget = /** @class */ (function () {
         }
     };
     ZoneWidget.prototype._decoratingElementsHeight = function () {
-        var lineHeight = this.editor.getConfiguration().lineHeight;
+        var lineHeight = this.editor.getOption(49 /* lineHeight */);
         var result = 0;
         if (this.options.showArrow) {
             var arrowHeight = Math.round(lineHeight / 3);
@@ -258,10 +268,7 @@ var ZoneWidget = /** @class */ (function () {
     };
     ZoneWidget.prototype._showImpl = function (where, heightInLines) {
         var _this = this;
-        var position = {
-            lineNumber: where.startLineNumber,
-            column: where.startColumn
-        };
+        var position = where.getStartPosition();
         var layoutInfo = this.editor.getLayoutInfo();
         var width = this._getWidth(layoutInfo);
         this.domNode.style.width = width + "px";
@@ -269,16 +276,16 @@ var ZoneWidget = /** @class */ (function () {
         // Render the widget as zone (rendering) and widget (lifecycle)
         var viewZoneDomNode = document.createElement('div');
         viewZoneDomNode.style.overflow = 'hidden';
-        var lineHeight = this.editor.getConfiguration().lineHeight;
+        var lineHeight = this.editor.getOption(49 /* lineHeight */);
         // adjust heightInLines to viewport
-        var maxHeightInLines = (this.editor.getLayoutInfo().height / lineHeight) * .8;
+        var maxHeightInLines = (this.editor.getLayoutInfo().height / lineHeight) * 0.8;
         if (heightInLines >= maxHeightInLines) {
             heightInLines = maxHeightInLines;
         }
         var arrowHeight = 0;
         var frameThickness = 0;
         // Render the arrow one 1/3 of an editor line height
-        if (this.options.showArrow) {
+        if (this._arrow && this.options.showArrow) {
             arrowHeight = Math.round(lineHeight / 3);
             this._arrow.height = arrowHeight;
             this._arrow.show(position);
@@ -302,30 +309,46 @@ var ZoneWidget = /** @class */ (function () {
             _this._overlayWidget = new OverlayWidgetDelegate(WIDGET_ID + _this._viewZone.id, _this.domNode);
             _this.editor.addOverlayWidget(_this._overlayWidget);
         });
-        if (this.options.showFrame) {
+        if (this.container && this.options.showFrame) {
             var width_1 = this.options.frameWidth ? this.options.frameWidth : frameThickness;
             this.container.style.borderTopWidth = width_1 + 'px';
             this.container.style.borderBottomWidth = width_1 + 'px';
         }
         var containerHeight = heightInLines * lineHeight - this._decoratingElementsHeight();
-        this.container.style.top = arrowHeight + 'px';
-        this.container.style.height = containerHeight + 'px';
-        this.container.style.overflow = 'hidden';
+        if (this.container) {
+            this.container.style.top = arrowHeight + 'px';
+            this.container.style.height = containerHeight + 'px';
+            this.container.style.overflow = 'hidden';
+        }
         this._doLayout(containerHeight, width);
         if (!this.options.keepEditorSelection) {
             this.editor.setSelection(where);
         }
         var model = this.editor.getModel();
         if (model) {
-            // Reveal the line above or below the zone widget, to get the zone widget in the viewport
-            var revealLineNumber = Math.min(model.getLineCount(), Math.max(1, where.endLineNumber + 1));
-            this.revealLine(revealLineNumber);
+            var revealLine = where.endLineNumber + 1;
+            if (revealLine <= model.getLineCount()) {
+                // reveal line below the zone widget
+                this.revealLine(revealLine, false);
+            }
+            else {
+                // reveal last line atop
+                this.revealLine(model.getLineCount(), true);
+            }
         }
     };
-    ZoneWidget.prototype.revealLine = function (lineNumber) {
-        this.editor.revealLine(lineNumber, 0 /* Smooth */);
+    ZoneWidget.prototype.revealLine = function (lineNumber, isLastLine) {
+        if (isLastLine) {
+            this.editor.revealLineInCenter(lineNumber, 0 /* Smooth */);
+        }
+        else {
+            this.editor.revealLine(lineNumber, 0 /* Smooth */);
+        }
     };
     ZoneWidget.prototype.setCssClass = function (className, classToReplace) {
+        if (!this.container) {
+            return;
+        }
         if (classToReplace) {
             this.container.classList.remove(classToReplace);
         }
@@ -351,13 +374,16 @@ var ZoneWidget = /** @class */ (function () {
     // --- sash
     ZoneWidget.prototype._initSash = function () {
         var _this = this;
-        this._resizeSash = new Sash(this.domNode, this, { orientation: 1 /* HORIZONTAL */ });
+        if (this._resizeSash) {
+            return;
+        }
+        this._resizeSash = this._disposables.add(new Sash(this.domNode, this, { orientation: 1 /* HORIZONTAL */ }));
         if (!this.options.isResizeable) {
             this._resizeSash.hide();
             this._resizeSash.state = 0 /* Disabled */;
         }
         var data;
-        this._disposables.push(this._resizeSash.onDidStart(function (e) {
+        this._disposables.add(this._resizeSash.onDidStart(function (e) {
             if (_this._viewZone) {
                 data = {
                     startY: e.startY,
@@ -365,12 +391,12 @@ var ZoneWidget = /** @class */ (function () {
                 };
             }
         }));
-        this._disposables.push(this._resizeSash.onDidEnd(function () {
+        this._disposables.add(this._resizeSash.onDidEnd(function () {
             data = undefined;
         }));
-        this._disposables.push(this._resizeSash.onDidChange(function (evt) {
+        this._disposables.add(this._resizeSash.onDidChange(function (evt) {
             if (data) {
-                var lineDelta = (evt.currentY - data.startY) / _this.editor.getConfiguration().lineHeight;
+                var lineDelta = (evt.currentY - data.startY) / _this.editor.getOption(49 /* lineHeight */);
                 var roundedLineDelta = lineDelta < 0 ? Math.ceil(lineDelta) : Math.floor(lineDelta);
                 var newHeightInLines = data.heightInLines + roundedLineDelta;
                 if (newHeightInLines > 5 && newHeightInLines < 35) {

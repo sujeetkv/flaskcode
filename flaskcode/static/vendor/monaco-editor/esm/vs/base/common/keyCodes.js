@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { illegalArgument } from './errors.js';
 var KeyCodeStrMap = /** @class */ (function () {
     function KeyCodeStrMap() {
         this._keyCodeToStr = [];
@@ -166,19 +167,22 @@ export var KeyCodeUtils;
     KeyCodeUtils.fromUserSettings = fromUserSettings;
 })(KeyCodeUtils || (KeyCodeUtils = {}));
 export function KeyChord(firstPart, secondPart) {
-    var chordPart = ((secondPart & 0x0000ffff) << 16) >>> 0;
+    var chordPart = ((secondPart & 0x0000FFFF) << 16) >>> 0;
     return (firstPart | chordPart) >>> 0;
 }
 export function createKeybinding(keybinding, OS) {
     if (keybinding === 0) {
         return null;
     }
-    var firstPart = (keybinding & 0x0000ffff) >>> 0;
-    var chordPart = (keybinding & 0xffff0000) >>> 16;
+    var firstPart = (keybinding & 0x0000FFFF) >>> 0;
+    var chordPart = (keybinding & 0xFFFF0000) >>> 16;
     if (chordPart !== 0) {
-        return new ChordKeybinding(createSimpleKeybinding(firstPart, OS), createSimpleKeybinding(chordPart, OS));
+        return new ChordKeybinding([
+            createSimpleKeybinding(firstPart, OS),
+            createSimpleKeybinding(chordPart, OS)
+        ]);
     }
-    return createSimpleKeybinding(firstPart, OS);
+    return new ChordKeybinding([createSimpleKeybinding(firstPart, OS)]);
 }
 export function createSimpleKeybinding(keybinding, OS) {
     var ctrlCmd = (keybinding & 2048 /* CtrlCmd */ ? true : false);
@@ -192,7 +196,6 @@ export function createSimpleKeybinding(keybinding, OS) {
 }
 var SimpleKeybinding = /** @class */ (function () {
     function SimpleKeybinding(ctrlKey, shiftKey, altKey, metaKey, keyCode) {
-        this.type = 1 /* Simple */;
         this.ctrlKey = ctrlKey;
         this.shiftKey = shiftKey;
         this.altKey = altKey;
@@ -200,9 +203,6 @@ var SimpleKeybinding = /** @class */ (function () {
         this.keyCode = keyCode;
     }
     SimpleKeybinding.prototype.equals = function (other) {
-        if (other.type !== 1 /* Simple */) {
-            return false;
-        }
         return (this.ctrlKey === other.ctrlKey
             && this.shiftKey === other.shiftKey
             && this.altKey === other.altKey
@@ -215,6 +215,9 @@ var SimpleKeybinding = /** @class */ (function () {
             || this.keyCode === 57 /* Meta */
             || this.keyCode === 6 /* Alt */
             || this.keyCode === 4 /* Shift */);
+    };
+    SimpleKeybinding.prototype.toChord = function () {
+        return new ChordKeybinding([this]);
     };
     /**
      * Does this keybinding refer to the key code of a modifier and it also has the modifier flag?
@@ -229,11 +232,26 @@ var SimpleKeybinding = /** @class */ (function () {
 }());
 export { SimpleKeybinding };
 var ChordKeybinding = /** @class */ (function () {
-    function ChordKeybinding(firstPart, chordPart) {
-        this.type = 2 /* Chord */;
-        this.firstPart = firstPart;
-        this.chordPart = chordPart;
+    function ChordKeybinding(parts) {
+        if (parts.length === 0) {
+            throw illegalArgument("parts");
+        }
+        this.parts = parts;
     }
+    ChordKeybinding.prototype.equals = function (other) {
+        if (other === null) {
+            return false;
+        }
+        if (this.parts.length !== other.parts.length) {
+            return false;
+        }
+        for (var i = 0; i < this.parts.length; i++) {
+            if (!this.parts[i].equals(other.parts[i])) {
+                return false;
+            }
+        }
+        return true;
+    };
     return ChordKeybinding;
 }());
 export { ChordKeybinding };

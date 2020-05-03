@@ -2,6 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = function (d, b) {
+        extendStatics = Object.setPrototypeOf ||
+            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        return extendStatics(d, b);
+    };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -15,7 +28,7 @@ import { TimeoutTimer, createCancelablePromise } from '../../../base/common/asyn
 import { RGBA } from '../../../base/common/color.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { hash } from '../../../base/common/hash.js';
-import { dispose } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { registerEditorContribution } from '../../browser/editorExtensions.js';
 import { ICodeEditorService } from '../../browser/services/codeEditorService.js';
 import { Range } from '../../common/core/range.js';
@@ -24,25 +37,25 @@ import { ColorProviderRegistry } from '../../common/modes.js';
 import { getColors } from './color.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 var MAX_DECORATORS = 500;
-var ColorDetector = /** @class */ (function () {
+var ColorDetector = /** @class */ (function (_super) {
+    __extends(ColorDetector, _super);
     function ColorDetector(_editor, _codeEditorService, _configurationService) {
-        var _this = this;
-        this._editor = _editor;
-        this._codeEditorService = _codeEditorService;
-        this._configurationService = _configurationService;
-        this._globalToDispose = [];
-        this._localToDispose = [];
-        this._decorationsIds = [];
-        this._colorDatas = new Map();
-        this._colorDecoratorIds = [];
-        this._decorationsTypes = {};
-        this._globalToDispose.push(_editor.onDidChangeModel(function (e) {
+        var _this = _super.call(this) || this;
+        _this._editor = _editor;
+        _this._codeEditorService = _codeEditorService;
+        _this._configurationService = _configurationService;
+        _this._localToDispose = _this._register(new DisposableStore());
+        _this._decorationsIds = [];
+        _this._colorDatas = new Map();
+        _this._colorDecoratorIds = [];
+        _this._decorationsTypes = new Set();
+        _this._register(_editor.onDidChangeModel(function (e) {
             _this._isEnabled = _this.isEnabled();
             _this.onModelChanged();
         }));
-        this._globalToDispose.push(_editor.onDidChangeModelLanguage(function (e) { return _this.onModelChanged(); }));
-        this._globalToDispose.push(ColorProviderRegistry.onDidChange(function (e) { return _this.onModelChanged(); }));
-        this._globalToDispose.push(_editor.onDidChangeConfiguration(function (e) {
+        _this._register(_editor.onDidChangeModelLanguage(function (e) { return _this.onModelChanged(); }));
+        _this._register(ColorProviderRegistry.onDidChange(function (e) { return _this.onModelChanged(); }));
+        _this._register(_editor.onDidChangeConfiguration(function (e) {
             var prevIsEnabled = _this._isEnabled;
             _this._isEnabled = _this.isEnabled();
             if (prevIsEnabled !== _this._isEnabled) {
@@ -54,10 +67,11 @@ var ColorDetector = /** @class */ (function () {
                 }
             }
         }));
-        this._timeoutTimer = null;
-        this._computePromise = null;
-        this._isEnabled = this.isEnabled();
-        this.onModelChanged();
+        _this._timeoutTimer = null;
+        _this._computePromise = null;
+        _this._isEnabled = _this.isEnabled();
+        _this.onModelChanged();
+        return _this;
     }
     ColorDetector.prototype.isEnabled = function () {
         var model = this._editor.getModel();
@@ -73,10 +87,7 @@ var ColorDetector = /** @class */ (function () {
                 return colorDecorators['enable'];
             }
         }
-        return this._editor.getConfiguration().contribInfo.colorDecorators;
-    };
-    ColorDetector.prototype.getId = function () {
-        return ColorDetector.ID;
+        return this._editor.getOption(12 /* colorDecorators */);
     };
     ColorDetector.get = function (editor) {
         return editor.getContribution(this.ID);
@@ -84,7 +95,7 @@ var ColorDetector = /** @class */ (function () {
     ColorDetector.prototype.dispose = function () {
         this.stop();
         this.removeAllDecorations();
-        this._globalToDispose = dispose(this._globalToDispose);
+        _super.prototype.dispose.call(this);
     };
     ColorDetector.prototype.onModelChanged = function () {
         var _this = this;
@@ -96,7 +107,7 @@ var ColorDetector = /** @class */ (function () {
         if (!model || !ColorProviderRegistry.has(model)) {
             return;
         }
-        this._localToDispose.push(this._editor.onDidChangeModelContent(function (e) {
+        this._localToDispose.add(this._editor.onDidChangeModelContent(function (e) {
             if (!_this._timeoutTimer) {
                 _this._timeoutTimer = new TimeoutTimer();
                 _this._timeoutTimer.cancelAndSet(function () {
@@ -131,7 +142,7 @@ var ColorDetector = /** @class */ (function () {
             this._computePromise.cancel();
             this._computePromise = null;
         }
-        this._localToDispose = dispose(this._localToDispose);
+        this._localToDispose.clear();
     };
     ColorDetector.prototype.updateDecorations = function (colorDatas) {
         var _this = this;
@@ -149,6 +160,7 @@ var ColorDetector = /** @class */ (function () {
         this._decorationsIds.forEach(function (id, i) { return _this._colorDatas.set(id, colorDatas[i]); });
     };
     ColorDetector.prototype.updateColorDecorators = function (colorData) {
+        var _this = this;
         var decorations = [];
         var newDecorationsTypes = {};
         for (var i = 0; i < colorData.length && decorations.length < MAX_DECORATORS; i++) {
@@ -157,7 +169,7 @@ var ColorDetector = /** @class */ (function () {
             var subKey = hash(rgba).toString(16);
             var color = "rgba(" + rgba.r + ", " + rgba.g + ", " + rgba.b + ", " + rgba.a + ")";
             var key = 'colorBox-' + subKey;
-            if (!this._decorationsTypes[key] && !newDecorationsTypes[key]) {
+            if (!this._decorationsTypes.has(key) && !newDecorationsTypes[key]) {
                 this._codeEditorService.registerDecorationType(key, {
                     before: {
                         contentText: ' ',
@@ -172,7 +184,7 @@ var ColorDetector = /** @class */ (function () {
                             border: 'solid 0.1em #eee'
                         }
                     }
-                });
+                }, undefined, this._editor);
             }
             newDecorationsTypes[key] = true;
             decorations.push({
@@ -185,19 +197,20 @@ var ColorDetector = /** @class */ (function () {
                 options: this._codeEditorService.resolveDecorationOptions(key, true)
             });
         }
-        for (var subType in this._decorationsTypes) {
+        this._decorationsTypes.forEach(function (subType) {
             if (!newDecorationsTypes[subType]) {
-                this._codeEditorService.removeDecorationType(subType);
+                _this._codeEditorService.removeDecorationType(subType);
             }
-        }
+        });
         this._colorDecoratorIds = this._editor.deltaDecorations(this._colorDecoratorIds, decorations);
     };
     ColorDetector.prototype.removeAllDecorations = function () {
+        var _this = this;
         this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, []);
         this._colorDecoratorIds = this._editor.deltaDecorations(this._colorDecoratorIds, []);
-        for (var subType in this._decorationsTypes) {
-            this._codeEditorService.removeDecorationType(subType);
-        }
+        this._decorationsTypes.forEach(function (subType) {
+            _this._codeEditorService.removeDecorationType(subType);
+        });
     };
     ColorDetector.prototype.getColorData = function (position) {
         var _this = this;
@@ -220,6 +233,6 @@ var ColorDetector = /** @class */ (function () {
         __param(2, IConfigurationService)
     ], ColorDetector);
     return ColorDetector;
-}());
+}(Disposable));
 export { ColorDetector };
-registerEditorContribution(ColorDetector);
+registerEditorContribution(ColorDetector.ID, ColorDetector);

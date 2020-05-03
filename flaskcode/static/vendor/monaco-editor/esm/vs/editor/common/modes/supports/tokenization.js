@@ -164,7 +164,7 @@ var TokenTheme = /** @class */ (function () {
     return TokenTheme;
 }());
 export { TokenTheme };
-var STANDARD_TOKEN_TYPE_REGEXP = /\b(comment|string|regex)\b/;
+var STANDARD_TOKEN_TYPE_REGEXP = /\b(comment|string|regex|regexp)\b/;
 export function toStandardTokenType(tokenType) {
     var m = tokenType.match(STANDARD_TOKEN_TYPE_REGEXP);
     if (!m) {
@@ -176,6 +176,8 @@ export function toStandardTokenType(tokenType) {
         case 'string':
             return 2 /* String */;
         case 'regex':
+            return 4 /* RegEx */;
+        case 'regexp':
             return 4 /* RegEx */;
     }
     throw new Error('Unexpected match for standard token type!');

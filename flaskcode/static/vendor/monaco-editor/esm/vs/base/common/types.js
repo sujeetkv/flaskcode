@@ -73,6 +73,11 @@ export function isUndefined(obj) {
 export function isUndefinedOrNull(obj) {
     return isUndefined(obj) || obj === null;
 }
+export function assertType(condition, type) {
+    if (!condition) {
+        throw new Error(type ? "Unexpected type, expected '" + type + "'" : 'Unexpected type');
+    }
+}
 var hasOwnProperty = Object.prototype.hasOwnProperty;
 /**
  * @returns whether the provided parameter is an empty JavaScript Object or not.
@@ -107,8 +112,13 @@ export function validateConstraint(arg, constraint) {
         }
     }
     else if (isFunction(constraint)) {
-        if (arg instanceof constraint) {
-            return;
+        try {
+            if (arg instanceof constraint) {
+                return;
+            }
+        }
+        catch (_a) {
+            // ignore
         }
         if (!isUndefinedOrNull(arg) && arg.constructor === constraint) {
             return;
@@ -119,16 +129,48 @@ export function validateConstraint(arg, constraint) {
         throw new Error("argument does not match one of these constraints: arg instanceof constraint, arg.constructor === constraint, nor constraint(arg) === true");
     }
 }
-/**
- * Creates a new object of the provided class and will call the constructor with
- * any additional argument supplied.
- */
-export function create(ctor) {
-    var args = [];
-    for (var _i = 1; _i < arguments.length; _i++) {
-        args[_i - 1] = arguments[_i];
+export function getAllPropertyNames(obj) {
+    var res = [];
+    var proto = Object.getPrototypeOf(obj);
+    while (Object.prototype !== proto) {
+        res = res.concat(Object.getOwnPropertyNames(proto));
+        proto = Object.getPrototypeOf(proto);
     }
-    var obj = Object.create(ctor.prototype);
-    ctor.apply(obj, args);
-    return obj;
+    return res;
+}
+export function getAllMethodNames(obj) {
+    var methods = [];
+    for (var _i = 0, _a = getAllPropertyNames(obj); _i < _a.length; _i++) {
+        var prop = _a[_i];
+        if (typeof obj[prop] === 'function') {
+            methods.push(prop);
+        }
+    }
+    return methods;
+}
+export function createProxyObject(methodNames, invoke) {
+    var createProxyMethod = function (method) {
+        return function () {
+            var args = Array.prototype.slice.call(arguments, 0);
+            return invoke(method, args);
+        };
+    };
+    var result = {};
+    for (var _i = 0, methodNames_1 = methodNames; _i < methodNames_1.length; _i++) {
+        var methodName = methodNames_1[_i];
+        result[methodName] = createProxyMethod(methodName);
+    }
+    return result;
+}
+/**
+ * Converts null to undefined, passes all other values through.
+ */
+export function withNullAsUndefined(x) {
+    return x === null ? undefined : x;
+}
+/**
+ * Converts undefined to null, passes all other values through.
+ */
+export function withUndefinedAsNull(x) {
+    return typeof x === 'undefined' ? null : x;
 }

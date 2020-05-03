@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import { registerLanguage } from '../_.contribution.js';
-// Allow for running under nodejs/requirejs in tests
-var _monaco = (typeof monaco === 'undefined' ? self.monaco : monaco);
 registerLanguage({
     id: 'vb',
     extensions: ['.vb'],
     aliases: ['Visual Basic', 'vb'],
-    loader: function () { return _monaco.Promise.wrap(import('./vb.js')); }
+    loader: function () { return import('./vb.js'); }
 });

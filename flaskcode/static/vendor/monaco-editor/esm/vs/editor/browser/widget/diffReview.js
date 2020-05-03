@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -26,6 +26,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { Configuration } from '../config/configuration.js';
 import { EditorAction, registerEditorAction } from '../editorExtensions.js';
 import { ICodeEditorService } from '../services/codeEditorService.js';
+import { EditorFontLigatures } from '../../common/config/editorOptions.js';
 import { LineTokens } from '../../common/core/lineTokens.js';
 import { Position } from '../../common/core/position.js';
 import { editorLineNumbers } from '../../common/view/editorColorRegistry.js';
@@ -73,7 +74,7 @@ var DiffReview = /** @class */ (function (_super) {
         _this._actionBar = _this._register(new ActionBar(_this.actionBarContainer.domNode));
         _this._actionBar.push(new Action('diffreview.close', nls.localize('label.close', "Close"), 'close-diff-review', true, function () {
             _this.hide();
-            return null;
+            return Promise.resolve(null);
         }), { label: false, icon: true });
         _this.domNode = createFastDomNode(document.createElement('div'));
         _this.domNode.setClassName('diff-review monaco-editor-background');
@@ -424,8 +425,8 @@ var DiffReview = /** @class */ (function (_super) {
         return 0;
     };
     DiffReview.prototype._render = function () {
-        var originalOpts = this._diffEditor.getOriginalEditor().getConfiguration();
-        var modifiedOpts = this._diffEditor.getModifiedEditor().getConfiguration();
+        var originalOptions = this._diffEditor.getOriginalEditor().getOptions();
+        var modifiedOptions = this._diffEditor.getModifiedEditor().getOptions();
         var originalModel = this._diffEditor.getOriginalEditor().getModel();
         var modifiedModel = this._diffEditor.getModifiedEditor().getModel();
         var originalModelOpts = originalModel.getOptions();
@@ -436,8 +437,7 @@ var DiffReview = /** @class */ (function (_super) {
             this.scrollbar.scanDomNode();
             return;
         }
-        var pos = this._diffEditor.getPosition();
-        var diffIndex = this._findDiffIndex(pos);
+        var diffIndex = this._findDiffIndex(this._diffEditor.getPosition());
         if (this._diffs[diffIndex] === this._currentDiff) {
             return;
         }
@@ -446,7 +446,7 @@ var DiffReview = /** @class */ (function (_super) {
         var container = document.createElement('div');
         container.className = 'diff-review-table';
         container.setAttribute('role', 'list');
-        Configuration.applyFontInfoSlow(container, modifiedOpts.fontInfo);
+        Configuration.applyFontInfoSlow(container, modifiedOptions.get(34 /* fontInfo */));
         var minOriginalLine = 0;
         var maxOriginalLine = 0;
         var minModifiedLine = 0;
@@ -509,7 +509,7 @@ var DiffReview = /** @class */ (function (_super) {
         var modLine = minModifiedLine;
         for (var i = 0, len = diffs.length; i < len; i++) {
             var diffEntry = diffs[i];
-            DiffReview._renderSection(container, diffEntry, modLine, this._width, originalOpts, originalModel, originalModelOpts, modifiedOpts, modifiedModel, modifiedModelOpts);
+            DiffReview._renderSection(container, diffEntry, modLine, this._width, originalOptions, originalModel, originalModelOpts, modifiedOptions, modifiedModel, modifiedModelOpts);
             if (diffEntry.modifiedLineStart !== 0) {
                 modLine = diffEntry.modifiedLineEnd;
             }
@@ -518,7 +518,7 @@ var DiffReview = /** @class */ (function (_super) {
         this._content.domNode.appendChild(container);
         this.scrollbar.scanDomNode();
     };
-    DiffReview._renderSection = function (dest, diffEntry, modLine, width, originalOpts, originalModel, originalModelOpts, modifiedOpts, modifiedModel, modifiedModelOpts) {
+    DiffReview._renderSection = function (dest, diffEntry, modLine, width, originalOptions, originalModel, originalModelOpts, modifiedOptions, modifiedModel, modifiedModelOpts) {
         var type = diffEntry.getType();
         var rowClassName = 'diff-review-row';
         var lineNumbersExtraClassName = '';
@@ -540,8 +540,10 @@ var DiffReview = /** @class */ (function (_super) {
         var modifiedLineStart = diffEntry.modifiedLineStart;
         var modifiedLineEnd = diffEntry.modifiedLineEnd;
         var cnt = Math.max(modifiedLineEnd - modifiedLineStart, originalLineEnd - originalLineStart);
-        var originalLineNumbersWidth = originalOpts.layoutInfo.glyphMarginWidth + originalOpts.layoutInfo.lineNumbersWidth;
-        var modifiedLineNumbersWidth = 10 + modifiedOpts.layoutInfo.glyphMarginWidth + modifiedOpts.layoutInfo.lineNumbersWidth;
+        var originalLayoutInfo = originalOptions.get(107 /* layoutInfo */);
+        var originalLineNumbersWidth = originalLayoutInfo.glyphMarginWidth + originalLayoutInfo.lineNumbersWidth;
+        var modifiedLayoutInfo = modifiedOptions.get(107 /* layoutInfo */);
+        var modifiedLineNumbersWidth = 10 + modifiedLayoutInfo.glyphMarginWidth + modifiedLayoutInfo.lineNumbersWidth;
         for (var i = 0; i <= cnt; i++) {
             var originalLine = (originalLineStart === 0 ? 0 : originalLineStart + i);
             var modifiedLine = (modifiedLineStart === 0 ? 0 : modifiedLineStart + i);
@@ -564,7 +566,7 @@ var DiffReview = /** @class */ (function (_super) {
                 originalLineNumber.appendChild(document.createTextNode(String(originalLine)));
             }
             else {
-                originalLineNumber.innerHTML = '&nbsp;';
+                originalLineNumber.innerHTML = '&#160;';
             }
             cell.appendChild(originalLineNumber);
             var modifiedLineNumber = document.createElement('span');
@@ -576,26 +578,26 @@ var DiffReview = /** @class */ (function (_super) {
                 modifiedLineNumber.appendChild(document.createTextNode(String(modifiedLine)));
             }
             else {
-                modifiedLineNumber.innerHTML = '&nbsp;';
+                modifiedLineNumber.innerHTML = '&#160;';
             }
             cell.appendChild(modifiedLineNumber);
             var spacer = document.createElement('span');
             spacer.className = spacerClassName;
-            spacer.innerHTML = '&nbsp;&nbsp;';
+            spacer.innerHTML = '&#160;&#160;';
             cell.appendChild(spacer);
             var lineContent = void 0;
             if (modifiedLine !== 0) {
-                cell.insertAdjacentHTML('beforeend', this._renderLine(modifiedModel, modifiedOpts, modifiedModelOpts.tabSize, modifiedLine));
+                cell.insertAdjacentHTML('beforeend', this._renderLine(modifiedModel, modifiedOptions, modifiedModelOpts.tabSize, modifiedLine));
                 lineContent = modifiedModel.getLineContent(modifiedLine);
             }
             else {
-                cell.insertAdjacentHTML('beforeend', this._renderLine(originalModel, originalOpts, originalModelOpts.tabSize, originalLine));
+                cell.insertAdjacentHTML('beforeend', this._renderLine(originalModel, originalOptions, originalModelOpts.tabSize, originalLine));
                 lineContent = originalModel.getLineContent(originalLine);
             }
             if (lineContent.length === 0) {
                 lineContent = nls.localize('blankLine', "blank");
             }
-            var ariaLabel = void 0;
+            var ariaLabel = '';
             switch (type) {
                 case 0 /* Equal */:
                     ariaLabel = nls.localize('equalLine', "original {0}, modified {1}: {2}", originalLine, modifiedLine, lineContent);
@@ -611,8 +613,9 @@ var DiffReview = /** @class */ (function (_super) {
             dest.appendChild(row);
         }
     };
-    DiffReview._renderLine = function (model, config, tabSize, lineNumber) {
+    DiffReview._renderLine = function (model, options, tabSize, lineNumber) {
         var lineContent = model.getLineContent(lineNumber);
+        var fontInfo = options.get(34 /* fontInfo */);
         var defaultMetadata = ((0 /* None */ << 11 /* FONT_STYLE_OFFSET */)
             | (1 /* DefaultForeground */ << 14 /* FOREGROUND_OFFSET */)
             | (2 /* DefaultBackground */ << 23 /* BACKGROUND_OFFSET */)) >>> 0;
@@ -622,7 +625,7 @@ var DiffReview = /** @class */ (function (_super) {
         var lineTokens = new LineTokens(tokens, lineContent);
         var isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, model.mightContainNonBasicASCII());
         var containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
-        var r = renderViewLine(new RenderLineInput((config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations), config.fontInfo.canUseHalfwidthRightwardsArrow, lineContent, false, isBasicASCII, containsRTL, 0, lineTokens, [], tabSize, config.fontInfo.spaceWidth, config.viewInfo.stopRenderingLineAfter, config.viewInfo.renderWhitespace, config.viewInfo.renderControlCharacters, config.viewInfo.fontLigatures));
+        var r = renderViewLine(new RenderLineInput((fontInfo.isMonospace && !options.get(23 /* disableMonospaceOptimizations */)), fontInfo.canUseHalfwidthRightwardsArrow, lineContent, false, isBasicASCII, containsRTL, 0, lineTokens, [], tabSize, 0, fontInfo.spaceWidth, fontInfo.middotWidth, options.get(88 /* stopRenderingLineAfter */), options.get(74 /* renderWhitespace */), options.get(69 /* renderControlCharacters */), options.get(35 /* fontLigatures */) !== EditorFontLigatures.OFF, null));
         return r.html;
     };
     return DiffReview;

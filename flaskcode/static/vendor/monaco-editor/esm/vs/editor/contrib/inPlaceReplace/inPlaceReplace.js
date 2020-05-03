@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -48,25 +48,26 @@ var InPlaceReplaceController = /** @class */ (function () {
     };
     InPlaceReplaceController.prototype.dispose = function () {
     };
-    InPlaceReplaceController.prototype.getId = function () {
-        return InPlaceReplaceController.ID;
-    };
     InPlaceReplaceController.prototype.run = function (source, up) {
         var _this = this;
         // cancel any pending request
         if (this.currentRequest) {
             this.currentRequest.cancel();
         }
-        var selection = this.editor.getSelection();
+        var editorSelection = this.editor.getSelection();
         var model = this.editor.getModel();
-        var modelURI = model.uri;
+        if (!model || !editorSelection) {
+            return undefined;
+        }
+        var selection = editorSelection;
         if (selection.startLineNumber !== selection.endLineNumber) {
             // Can't accept multiline selection
-            return null;
+            return undefined;
         }
         var state = new EditorState(this.editor, 1 /* Value */ | 4 /* Position */);
+        var modelURI = model.uri;
         if (!this.editorWorkerService.canNavigateValueSet(modelURI)) {
-            return undefined;
+            return Promise.resolve(undefined);
         }
         this.currentRequest = createCancelablePromise(function (token) { return _this.editorWorkerService.navigateValueSet(modelURI, selection, up); });
         return this.currentRequest.then(function (result) {
@@ -137,7 +138,7 @@ var InPlaceReplaceUp = /** @class */ (function (_super) {
     InPlaceReplaceUp.prototype.run = function (accessor, editor) {
         var controller = InPlaceReplaceController.get(editor);
         if (!controller) {
-            return undefined;
+            return Promise.resolve(undefined);
         }
         return controller.run(this.id, true);
     };
@@ -161,13 +162,13 @@ var InPlaceReplaceDown = /** @class */ (function (_super) {
     InPlaceReplaceDown.prototype.run = function (accessor, editor) {
         var controller = InPlaceReplaceController.get(editor);
         if (!controller) {
-            return undefined;
+            return Promise.resolve(undefined);
         }
         return controller.run(this.id, false);
     };
     return InPlaceReplaceDown;
 }(EditorAction));
-registerEditorContribution(InPlaceReplaceController);
+registerEditorContribution(InPlaceReplaceController.ID, InPlaceReplaceController);
 registerEditorAction(InPlaceReplaceUp);
 registerEditorAction(InPlaceReplaceDown);
 registerThemingParticipant(function (theme, collector) {

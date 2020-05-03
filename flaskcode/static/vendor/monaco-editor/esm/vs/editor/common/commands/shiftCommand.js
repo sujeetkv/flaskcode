@@ -7,26 +7,56 @@ import { CursorColumns } from '../controller/cursorCommon.js';
 import { Range } from '../core/range.js';
 import { Selection } from '../core/selection.js';
 import { LanguageConfigurationRegistry } from '../modes/languageConfigurationRegistry.js';
+var repeatCache = Object.create(null);
+export function cachedStringRepeat(str, count) {
+    if (!repeatCache[str]) {
+        repeatCache[str] = ['', str];
+    }
+    var cache = repeatCache[str];
+    for (var i = cache.length; i <= count; i++) {
+        cache[i] = cache[i - 1] + str;
+    }
+    return cache[count];
+}
 var ShiftCommand = /** @class */ (function () {
     function ShiftCommand(range, opts) {
         this._opts = opts;
         this._selection = range;
+        this._selectionId = null;
         this._useLastEditRangeForCursorEndPosition = false;
         this._selectionStartColumnStaysPut = false;
     }
-    ShiftCommand.unshiftIndentCount = function (line, column, tabSize) {
+    ShiftCommand.unshiftIndent = function (line, column, tabSize, indentSize, insertSpaces) {
         // Determine the visible column where the content starts
         var contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(line, column, tabSize);
-        var desiredTabStop = CursorColumns.prevTabStop(contentStartVisibleColumn, tabSize);
-        // The `desiredTabStop` is a multiple of `tabSize` => determine the number of indents
-        return desiredTabStop / tabSize;
+        if (insertSpaces) {
+            var indent = cachedStringRepeat(' ', indentSize);
+            var desiredTabStop = CursorColumns.prevIndentTabStop(contentStartVisibleColumn, indentSize);
+            var indentCount = desiredTabStop / indentSize; // will be an integer
+            return cachedStringRepeat(indent, indentCount);
+        }
+        else {
+            var indent = '\t';
+            var desiredTabStop = CursorColumns.prevRenderTabStop(contentStartVisibleColumn, tabSize);
+            var indentCount = desiredTabStop / tabSize; // will be an integer
+            return cachedStringRepeat(indent, indentCount);
+        }
     };
-    ShiftCommand.shiftIndentCount = function (line, column, tabSize) {
+    ShiftCommand.shiftIndent = function (line, column, tabSize, indentSize, insertSpaces) {
         // Determine the visible column where the content starts
         var contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(line, column, tabSize);
-        var desiredTabStop = CursorColumns.nextTabStop(contentStartVisibleColumn, tabSize);
-        // The `desiredTabStop` is a multiple of `tabSize` => determine the number of indents
-        return desiredTabStop / tabSize;
+        if (insertSpaces) {
+            var indent = cachedStringRepeat(' ', indentSize);
+            var desiredTabStop = CursorColumns.nextIndentTabStop(contentStartVisibleColumn, indentSize);
+            var indentCount = desiredTabStop / indentSize; // will be an integer
+            return cachedStringRepeat(indent, indentCount);
+        }
+        else {
+            var indent = '\t';
+            var desiredTabStop = CursorColumns.nextRenderTabStop(contentStartVisibleColumn, tabSize);
+            var indentCount = desiredTabStop / tabSize; // will be an integer
+            return cachedStringRepeat(indent, indentCount);
+        }
     };
     ShiftCommand.prototype._addEditOperation = function (builder, range, text) {
         if (this._useLastEditRangeForCursorEndPosition) {
@@ -42,8 +72,7 @@ var ShiftCommand = /** @class */ (function () {
         if (this._selection.endColumn === 1 && startLine !== endLine) {
             endLine = endLine - 1;
         }
-        var tabSize = this._opts.tabSize;
-        var oneIndent = this._opts.oneIndent;
+        var _a = this._opts, tabSize = _a.tabSize, indentSize = _a.indentSize, insertSpaces = _a.insertSpaces;
         var shouldIndentEmptyLines = (startLine === endLine);
         // if indenting or outdenting on a whitespace only line
         if (this._selection.isEmpty()) {
@@ -52,8 +81,6 @@ var ShiftCommand = /** @class */ (function () {
             }
         }
         if (this._opts.useTabStops) {
-            // indents[i] represents i * oneIndent
-            var indents = ['', oneIndent];
             // keep track of previous line's "miss-alignment"
             var previousLineExtraSpaces = 0, extraSpaces = 0;
             for (var lineNumber = startLine; lineNumber <= endLine; lineNumber++, previousLineExtraSpaces = extraSpaces) {
@@ -74,15 +101,15 @@ var ShiftCommand = /** @class */ (function () {
                 }
                 if (lineNumber > 1) {
                     var contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(lineText, indentationEndIndex + 1, tabSize);
-                    if (contentStartVisibleColumn % tabSize !== 0) {
+                    if (contentStartVisibleColumn % indentSize !== 0) {
                         // The current line is "miss-aligned", so let's see if this is expected...
                         // This can only happen when it has trailing commas in the indent
                         if (model.isCheapToTokenize(lineNumber - 1)) {
-                            var enterAction = LanguageConfigurationRegistry.getRawEnterActionAtPosition(model, lineNumber - 1, model.getLineMaxColumn(lineNumber - 1));
+                            var enterAction = LanguageConfigurationRegistry.getEnterAction(this._opts.autoIndent, model, new Range(lineNumber - 1, model.getLineMaxColumn(lineNumber - 1), lineNumber - 1, model.getLineMaxColumn(lineNumber - 1)));
                             if (enterAction) {
                                 extraSpaces = previousLineExtraSpaces;
                                 if (enterAction.appendText) {
-                                    for (var j = 0, lenJ = enterAction.appendText.length; j < lenJ && extraSpaces < tabSize; j++) {
+                                    for (var j = 0, lenJ = enterAction.appendText.length; j < lenJ && extraSpaces < indentSize; j++) {
                                         if (enterAction.appendText.charCodeAt(j) === 32 /* Space */) {
                                             extraSpaces++;
                                         }
@@ -109,25 +136,22 @@ var ShiftCommand = /** @class */ (function () {
                     // line with no leading whitespace => nothing to do
                     continue;
                 }
-                var desiredIndentCount = void 0;
+                var desiredIndent = void 0;
                 if (this._opts.isUnshift) {
-                    desiredIndentCount = ShiftCommand.unshiftIndentCount(lineText, indentationEndIndex + 1, tabSize);
+                    desiredIndent = ShiftCommand.unshiftIndent(lineText, indentationEndIndex + 1, tabSize, indentSize, insertSpaces);
                 }
                 else {
-                    desiredIndentCount = ShiftCommand.shiftIndentCount(lineText, indentationEndIndex + 1, tabSize);
+                    desiredIndent = ShiftCommand.shiftIndent(lineText, indentationEndIndex + 1, tabSize, indentSize, insertSpaces);
                 }
-                // Fill `indents`, as needed
-                for (var j = indents.length; j <= desiredIndentCount; j++) {
-                    indents[j] = indents[j - 1] + oneIndent;
-                }
-                this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), indents[desiredIndentCount]);
-                if (lineNumber === startLine) {
+                this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), desiredIndent);
+                if (lineNumber === startLine && !this._selection.isEmpty()) {
                     // Force the startColumn to stay put because we're inserting after it
                     this._selectionStartColumnStaysPut = (this._selection.startColumn <= indentationEndIndex + 1);
                 }
             }
         }
         else {
+            var oneIndent = (insertSpaces ? cachedStringRepeat(' ', indentSize) : '\t');
             for (var lineNumber = startLine; lineNumber <= endLine; lineNumber++) {
                 var lineText = model.getLineContent(lineNumber);
                 var indentationEndIndex = strings.firstNonWhitespaceIndex(lineText);
@@ -148,7 +172,7 @@ var ShiftCommand = /** @class */ (function () {
                     continue;
                 }
                 if (this._opts.isUnshift) {
-                    indentationEndIndex = Math.min(indentationEndIndex, tabSize);
+                    indentationEndIndex = Math.min(indentationEndIndex, indentSize);
                     for (var i = 0; i < indentationEndIndex; i++) {
                         var chr = lineText.charCodeAt(i);
                         if (chr === 9 /* Tab */) {
@@ -160,7 +184,7 @@ var ShiftCommand = /** @class */ (function () {
                 }
                 else {
                     this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, 1), oneIndent);
-                    if (lineNumber === startLine) {
+                    if (lineNumber === startLine && !this._selection.isEmpty()) {
                         // Force the startColumn to stay put because we're inserting after it
                         this._selectionStartColumnStaysPut = (this._selection.startColumn === 1);
                     }

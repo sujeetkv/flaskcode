@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -34,14 +34,14 @@ import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 var ContextMenuService = /** @class */ (function (_super) {
     __extends(ContextMenuService, _super);
-    function ContextMenuService(container, telemetryService, notificationService, contextViewService, keybindingService, themeService) {
+    function ContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, themeService) {
         var _this = _super.call(this) || this;
         _this._onDidContextMenu = _this._register(new Emitter());
-        _this.contextMenuHandler = _this._register(new ContextMenuHandler(container, contextViewService, telemetryService, notificationService, keybindingService, themeService));
+        _this.contextMenuHandler = new ContextMenuHandler(contextViewService, telemetryService, notificationService, keybindingService, themeService);
         return _this;
     }
-    ContextMenuService.prototype.dispose = function () {
-        this.contextMenuHandler.dispose();
+    ContextMenuService.prototype.configure = function (options) {
+        this.contextMenuHandler.configure(options);
     };
     // ContextMenu
     ContextMenuService.prototype.showContextMenu = function (delegate) {
@@ -49,11 +49,11 @@ var ContextMenuService = /** @class */ (function (_super) {
         this._onDidContextMenu.fire();
     };
     ContextMenuService = __decorate([
-        __param(1, ITelemetryService),
-        __param(2, INotificationService),
-        __param(3, IContextViewService),
-        __param(4, IKeybindingService),
-        __param(5, IThemeService)
+        __param(0, ITelemetryService),
+        __param(1, INotificationService),
+        __param(2, IContextViewService),
+        __param(3, IKeybindingService),
+        __param(4, IThemeService)
     ], ContextMenuService);
     return ContextMenuService;
 }(Disposable));

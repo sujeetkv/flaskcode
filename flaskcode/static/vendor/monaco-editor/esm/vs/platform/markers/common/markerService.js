@@ -5,7 +5,7 @@
 import { isFalsyOrEmpty } from '../../../base/common/arrays.js';
 import { Schemas } from '../../../base/common/network.js';
 import { isEmptyObject } from '../../../base/common/types.js';
-import { Emitter, debounceEvent } from '../../../base/common/event.js';
+import { Event, Emitter } from '../../../base/common/event.js';
 import { MarkerSeverity } from './markers.js';
 var MapMap;
 (function (MapMap) {
@@ -105,7 +105,7 @@ var MarkerStats = /** @class */ (function () {
 var MarkerService = /** @class */ (function () {
     function MarkerService() {
         this._onMarkerChanged = new Emitter();
-        this._onMarkerChangedEvent = debounceEvent(this._onMarkerChanged.event, MarkerService._debouncer, 0);
+        this._onMarkerChangedEvent = Event.debounce(this._onMarkerChanged.event, MarkerService._debouncer, 0);
         this._byResource = Object.create(null);
         this._byOwner = Object.create(null);
         this._stats = new MarkerStats(this);
@@ -121,11 +121,9 @@ var MarkerService = /** @class */ (function () {
         configurable: true
     });
     MarkerService.prototype.remove = function (owner, resources) {
-        if (!isFalsyOrEmpty(resources)) {
-            for (var _i = 0, resources_2 = resources; _i < resources_2.length; _i++) {
-                var resource = resources_2[_i];
-                this.changeOne(owner, resource, []);
-            }
+        for (var _i = 0, _a = resources || []; _i < _a.length; _i++) {
+            var resource = _a[_i];
+            this.changeOne(owner, resource, []);
         }
     };
     MarkerService.prototype.changeOne = function (owner, resource, markerData) {
@@ -168,7 +166,7 @@ var MarkerService = /** @class */ (function () {
         return {
             resource: resource,
             owner: owner,
-            code: code || undefined,
+            code: code,
             severity: severity,
             message: message,
             source: source,
@@ -248,7 +246,7 @@ var MarkerService = /** @class */ (function () {
         }
     };
     MarkerService._accept = function (marker, severities) {
-        return severities === void 0 || (severities & marker.severity) === marker.severity;
+        return severities === undefined || (severities & marker.severity) === marker.severity;
     };
     MarkerService._debouncer = function (last, event) {
         if (!last) {
@@ -257,7 +255,7 @@ var MarkerService = /** @class */ (function () {
         }
         for (var _i = 0, event_1 = event; _i < event_1.length; _i++) {
             var uri = event_1[_i];
-            if (MarkerService._dedupeMap[uri.toString()] === void 0) {
+            if (MarkerService._dedupeMap[uri.toString()] === undefined) {
                 MarkerService._dedupeMap[uri.toString()] = true;
                 last.push(uri);
             }

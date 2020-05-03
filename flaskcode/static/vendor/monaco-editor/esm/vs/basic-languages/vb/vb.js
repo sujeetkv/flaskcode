@@ -124,7 +124,7 @@ export var language = {
             [/next(?!\w)/, { token: 'keyword.tag-for' }],
             [/loop(?!\w)/, { token: 'keyword.tag-do' }],
             // usual ending tags
-            [/end\s+(?!for|do)([a-zA-Z_]\w*)/, { token: 'keyword.tag-$1' }],
+            [/end\s+(?!for|do)(addhandler|class|enum|event|function|get|if|interface|module|namespace|operator|property|raiseevent|removehandler|select|set|structure|sub|synclock|try|while|with|using)/, { token: 'keyword.tag-$1' }],
             // identifiers, tagwords, and keywords
             [/[a-zA-Z_]\w*/, {
                     cases: {
@@ -147,7 +147,6 @@ export var language = {
             [/[{}()\[\]]/, '@brackets'],
             [/@symbols/, 'delimiter'],
             // strings
-            [/"([^"\\]|\\.)*$/, 'string.invalid'],
             [/"/, 'string', '@string'],
         ],
         whitespace: [

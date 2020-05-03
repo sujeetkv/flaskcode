@@ -9,7 +9,7 @@ var WorkerManager = /** @class */ (function () {
         var _this = this;
         this._defaults = defaults;
         this._worker = null;
-        this._idleCheckInterval = setInterval(function () { return _this._checkIfIdle(); }, 30 * 1000);
+        this._idleCheckInterval = window.setInterval(function () { return _this._checkIfIdle(); }, 30 * 1000);
         this._lastUsedTime = 0;
         this._configChangeListener = this._defaults.onDidChange(function () { return _this._stopWorker(); });
     }

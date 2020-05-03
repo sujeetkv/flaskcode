@@ -37,6 +37,7 @@ define(["require", "exports"], function (require, exports) {
             'struct',
             'function',
             'modifier',
+            'constructor',
             //Built-in types
             'address',
             'string',

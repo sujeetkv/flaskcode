@@ -8,6 +8,7 @@ import * as languageFeatures from './languageFeatures.js';
 import { createTokenizationSupport } from './tokenization.js';
 export function setupMode(defaults) {
     var disposables = [];
+    var providers = [];
     var client = new WorkerManager(defaults);
     disposables.push(client);
     var worker = function () {
@@ -17,17 +18,59 @@ export function setupMode(defaults) {
         }
         return client.getLanguageServiceWorker.apply(client, uris);
     };
-    var languageId = defaults.languageId;
-    disposables.push(monaco.languages.registerCompletionItemProvider(languageId, new languageFeatures.CompletionAdapter(worker)));
-    disposables.push(monaco.languages.registerHoverProvider(languageId, new languageFeatures.HoverAdapter(worker)));
-    disposables.push(monaco.languages.registerDocumentSymbolProvider(languageId, new languageFeatures.DocumentSymbolAdapter(worker)));
-    disposables.push(monaco.languages.registerDocumentFormattingEditProvider(languageId, new languageFeatures.DocumentFormattingEditProvider(worker)));
-    disposables.push(monaco.languages.registerDocumentRangeFormattingEditProvider(languageId, new languageFeatures.DocumentRangeFormattingEditProvider(worker)));
-    disposables.push(new languageFeatures.DiagnosticsAdapter(languageId, worker, defaults));
-    disposables.push(monaco.languages.setTokensProvider(languageId, createTokenizationSupport(true)));
-    disposables.push(monaco.languages.setLanguageConfiguration(languageId, richEditConfiguration));
-    disposables.push(monaco.languages.registerColorProvider(languageId, new languageFeatures.DocumentColorAdapter(worker)));
-    disposables.push(monaco.languages.registerFoldingRangeProvider(languageId, new languageFeatures.FoldingRangeAdapter(worker)));
+    function registerProviders() {
+        var languageId = defaults.languageId, modeConfiguration = defaults.modeConfiguration;
+        disposeAll(providers);
+        if (modeConfiguration.documentFormattingEdits) {
+            providers.push(monaco.languages.registerDocumentFormattingEditProvider(languageId, new languageFeatures.DocumentFormattingEditProvider(worker)));
+        }
+        if (modeConfiguration.documentRangeFormattingEdits) {
+            providers.push(monaco.languages.registerDocumentRangeFormattingEditProvider(languageId, new languageFeatures.DocumentRangeFormattingEditProvider(worker)));
+        }
+        if (modeConfiguration.completionItems) {
+            providers.push(monaco.languages.registerCompletionItemProvider(languageId, new languageFeatures.CompletionAdapter(worker)));
+        }
+        if (modeConfiguration.hovers) {
+            providers.push(monaco.languages.registerHoverProvider(languageId, new languageFeatures.HoverAdapter(worker)));
+        }
+        if (modeConfiguration.documentSymbols) {
+            providers.push(monaco.languages.registerDocumentSymbolProvider(languageId, new languageFeatures.DocumentSymbolAdapter(worker)));
+        }
+        if (modeConfiguration.tokens) {
+            providers.push(monaco.languages.setTokensProvider(languageId, createTokenizationSupport(true)));
+        }
+        if (modeConfiguration.colors) {
+            providers.push(monaco.languages.registerColorProvider(languageId, new languageFeatures.DocumentColorAdapter(worker)));
+        }
+        if (modeConfiguration.foldingRanges) {
+            providers.push(monaco.languages.registerFoldingRangeProvider(languageId, new languageFeatures.FoldingRangeAdapter(worker)));
+        }
+        if (modeConfiguration.diagnostics) {
+            providers.push(new languageFeatures.DiagnosticsAdapter(languageId, worker, defaults));
+        }
+        if (modeConfiguration.selectionRanges) {
+            providers.push(monaco.languages.registerSelectionRangeProvider(languageId, new languageFeatures.SelectionRangeAdapter(worker)));
+        }
+    }
+    registerProviders();
+    disposables.push(monaco.languages.setLanguageConfiguration(defaults.languageId, richEditConfiguration));
+    var modeConfiguration = defaults.modeConfiguration;
+    defaults.onDidChange(function (newDefaults) {
+        if (newDefaults.modeConfiguration !== modeConfiguration) {
+            modeConfiguration = newDefaults.modeConfiguration;
+            registerProviders();
+        }
+    });
+    disposables.push(asDisposable(providers));
+    return asDisposable(disposables);
+}
+function asDisposable(disposables) {
+    return { dispose: function () { return disposeAll(disposables); } };
+}
+function disposeAll(disposables) {
+    while (disposables.length) {
+        disposables.pop().dispose();
+    }
 }
 var richEditConfiguration = {
     wordPattern: /(-?\d*\.\d\w*)|([^\[\{\]\}\:\"\,\s]+)/g,

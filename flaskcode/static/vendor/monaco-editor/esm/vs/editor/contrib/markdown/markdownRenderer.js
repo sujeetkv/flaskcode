@@ -2,6 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = function (d, b) {
+        extendStatics = Object.setPrototypeOf ||
+            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        return extendStatics(d, b);
+    };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -11,24 +24,26 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { renderMarkdown } from '../../../base/browser/htmlContentRenderer.js';
+import { renderMarkdown } from '../../../base/browser/markdownRenderer.js';
 import { IOpenerService, NullOpenerService } from '../../../platform/opener/common/opener.js';
 import { IModeService } from '../../common/services/modeService.js';
-import { URI } from '../../../base/common/uri.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { tokenizeToString } from '../../common/modes/textToHtmlTokenizer.js';
 import { optional } from '../../../platform/instantiation/common/instantiation.js';
 import { Emitter } from '../../../base/common/event.js';
-import { dispose } from '../../../base/common/lifecycle.js';
+import { DisposableStore, Disposable } from '../../../base/common/lifecycle.js';
 import { TokenizationRegistry } from '../../common/modes.js';
-var MarkdownRenderer = /** @class */ (function () {
+var MarkdownRenderer = /** @class */ (function (_super) {
+    __extends(MarkdownRenderer, _super);
     function MarkdownRenderer(_editor, _modeService, _openerService) {
         if (_openerService === void 0) { _openerService = NullOpenerService; }
-        this._editor = _editor;
-        this._modeService = _modeService;
-        this._openerService = _openerService;
-        this._onDidRenderCodeBlock = new Emitter();
-        this.onDidRenderCodeBlock = this._onDidRenderCodeBlock.event;
+        var _this = _super.call(this) || this;
+        _this._editor = _editor;
+        _this._modeService = _modeService;
+        _this._openerService = _openerService;
+        _this._onDidRenderCodeBlock = _this._register(new Emitter());
+        _this.onDidRenderCodeBlock = _this._onDidRenderCodeBlock.event;
+        return _this;
     }
     MarkdownRenderer.prototype.getOptions = function (disposeables) {
         var _this = this;
@@ -55,29 +70,20 @@ var MarkdownRenderer = /** @class */ (function () {
                     }
                     return tokenizeToString(value, undefined);
                 }).then(function (code) {
-                    return "<span style=\"font-family: " + _this._editor.getConfiguration().fontInfo.fontFamily + "\">" + code + "</span>";
+                    return "<span style=\"font-family: " + _this._editor.getOption(34 /* fontInfo */).fontFamily + "\">" + code + "</span>";
                 });
             },
             codeBlockRenderCallback: function () { return _this._onDidRenderCodeBlock.fire(); },
             actionHandler: {
                 callback: function (content) {
-                    var uri;
-                    try {
-                        uri = URI.parse(content);
-                    }
-                    catch (_a) {
-                        // ignore
-                    }
-                    if (uri && _this._openerService) {
-                        _this._openerService.open(uri).catch(onUnexpectedError);
-                    }
+                    _this._openerService.open(content, { fromUserGesture: true }).catch(onUnexpectedError);
                 },
                 disposeables: disposeables
             }
         };
     };
     MarkdownRenderer.prototype.render = function (markdown) {
-        var disposeables = [];
+        var disposeables = new DisposableStore();
         var element;
         if (!markdown) {
             element = document.createElement('span');
@@ -87,7 +93,7 @@ var MarkdownRenderer = /** @class */ (function () {
         }
         return {
             element: element,
-            dispose: function () { return dispose(disposeables); }
+            dispose: function () { return disposeables.dispose(); }
         };
     };
     MarkdownRenderer = __decorate([
@@ -95,5 +101,5 @@ var MarkdownRenderer = /** @class */ (function () {
         __param(2, optional(IOpenerService))
     ], MarkdownRenderer);
     return MarkdownRenderer;
-}());
+}(Disposable));
 export { MarkdownRenderer };

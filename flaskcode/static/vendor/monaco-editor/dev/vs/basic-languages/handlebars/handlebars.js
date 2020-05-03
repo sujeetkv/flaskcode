@@ -186,6 +186,7 @@ define(["require", "exports"], function (require, exports) {
                 { include: 'handlebarsRoot' }
             ],
             handlebarsRoot: [
+                [/"[^"]*"/, 'string.handlebars'],
                 [/[#/][^\s}]+/, 'keyword.helper.handlebars'],
                 [/else\b/, 'keyword.helper.handlebars'],
                 [/[\s]+/],

@@ -97,7 +97,7 @@ var RangeUtil = /** @class */ (function () {
         if (startChildIndex !== endChildIndex) {
             if (endChildIndex > 0 && endOffset === 0) {
                 endChildIndex--;
-                endOffset = Number.MAX_VALUE;
+                endOffset = 1073741824 /* MAX_SAFE_SMALL_INTEGER */;
             }
         }
         var startElement = domNode.children[startChildIndex].firstChild;

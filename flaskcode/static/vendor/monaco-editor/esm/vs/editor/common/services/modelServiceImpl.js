@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -24,36 +24,32 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import * as nls from '../../../nls.js';
-import { isFalsyOrEmpty } from '../../../base/common/arrays.js';
 import { Emitter } from '../../../base/common/event.js';
-import { MarkdownString } from '../../../base/common/htmlContent.js';
-import { Disposable, dispose } from '../../../base/common/lifecycle.js';
-import * as network from '../../../base/common/network.js';
-import { basename } from '../../../base/common/paths.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import * as platform from '../../../base/common/platform.js';
+import * as errors from '../../../base/common/errors.js';
 import { EDITOR_MODEL_DEFAULTS } from '../config/editorOptions.js';
-import { Range } from '../core/range.js';
-import { OverviewRulerLane } from '../model.js';
 import { TextModel } from '../model/textModel.js';
+import { DocumentSemanticTokensProviderRegistry, TokenMetadata } from '../modes.js';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from '../modes/modesRegistry.js';
-import { ITextResourcePropertiesService } from './resourceConfiguration.js';
-import { overviewRulerError, overviewRulerInfo, overviewRulerWarning } from '../view/editorColorRegistry.js';
+import { ITextResourcePropertiesService } from './textResourceConfigurationService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { IMarkerService, MarkerSeverity } from '../../../platform/markers/common/markers.js';
-import { themeColorFromId } from '../../../platform/theme/common/themeService.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { SparseEncodedTokens, MultilineTokens2 } from '../model/tokensStore.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { ILogService, LogLevel } from '../../../platform/log/common/log.js';
 function MODEL_ID(resource) {
     return resource.toString();
 }
 var ModelData = /** @class */ (function () {
     function ModelData(model, onWillDispose, onDidChangeLanguage) {
+        this._modelEventListeners = new DisposableStore();
         this.model = model;
         this._languageSelection = null;
         this._languageSelectionListener = null;
-        this._markerDecorations = [];
-        this._modelEventListeners = [];
-        this._modelEventListeners.push(model.onWillDispose(function () { return onWillDispose(model); }));
-        this._modelEventListeners.push(model.onDidChangeLanguage(function (e) { return onDidChangeLanguage(model, e); }));
+        this._modelEventListeners.add(model.onWillDispose(function () { return onWillDispose(model); }));
+        this._modelEventListeners.add(model.onDidChangeLanguage(function (e) { return onDidChangeLanguage(model, e); }));
     }
     ModelData.prototype._disposeLanguageSelection = function () {
         if (this._languageSelectionListener) {
@@ -66,12 +62,8 @@ var ModelData = /** @class */ (function () {
         }
     };
     ModelData.prototype.dispose = function () {
-        this._markerDecorations = this.model.deltaDecorations(this._markerDecorations, []);
-        this._modelEventListeners = dispose(this._modelEventListeners);
+        this._modelEventListeners.dispose();
         this._disposeLanguageSelection();
-    };
-    ModelData.prototype.acceptMarkerDecorations = function (newDecorations) {
-        this._markerDecorations = this.model.deltaDecorations(this._markerDecorations, newDecorations);
     };
     ModelData.prototype.setLanguage = function (languageSelection) {
         var _this = this;
@@ -82,151 +74,10 @@ var ModelData = /** @class */ (function () {
     };
     return ModelData;
 }());
-var ModelMarkerHandler = /** @class */ (function () {
-    function ModelMarkerHandler() {
-    }
-    ModelMarkerHandler.setMarkers = function (modelData, markerService) {
-        // Limit to the first 500 errors/warnings
-        var markers = markerService.read({ resource: modelData.model.uri, take: 500 });
-        var newModelDecorations = markers.map(function (marker) {
-            return {
-                range: ModelMarkerHandler._createDecorationRange(modelData.model, marker),
-                options: ModelMarkerHandler._createDecorationOption(marker)
-            };
-        });
-        modelData.acceptMarkerDecorations(newModelDecorations);
-    };
-    ModelMarkerHandler._createDecorationRange = function (model, rawMarker) {
-        var ret = Range.lift(rawMarker);
-        if (rawMarker.severity === MarkerSeverity.Hint) {
-            if (!rawMarker.tags || rawMarker.tags.indexOf(1 /* Unnecessary */) === -1) {
-                // * never render hints on multiple lines
-                // * make enough space for three dots
-                ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn + 2);
-            }
-        }
-        ret = model.validateRange(ret);
-        if (ret.isEmpty()) {
-            var word = model.getWordAtPosition(ret.getStartPosition());
-            if (word) {
-                ret = new Range(ret.startLineNumber, word.startColumn, ret.endLineNumber, word.endColumn);
-            }
-            else {
-                var maxColumn = model.getLineLastNonWhitespaceColumn(ret.startLineNumber) ||
-                    model.getLineMaxColumn(ret.startLineNumber);
-                if (maxColumn === 1) {
-                    // empty line
-                    // console.warn('marker on empty line:', marker);
-                }
-                else if (ret.endColumn >= maxColumn) {
-                    // behind eol
-                    ret = new Range(ret.startLineNumber, maxColumn - 1, ret.endLineNumber, maxColumn);
-                }
-                else {
-                    // extend marker to width = 1
-                    ret = new Range(ret.startLineNumber, ret.startColumn, ret.endLineNumber, ret.endColumn + 1);
-                }
-            }
-        }
-        else if (rawMarker.endColumn === Number.MAX_VALUE && rawMarker.startColumn === 1 && ret.startLineNumber === ret.endLineNumber) {
-            var minColumn = model.getLineFirstNonWhitespaceColumn(rawMarker.startLineNumber);
-            if (minColumn < ret.endColumn) {
-                ret = new Range(ret.startLineNumber, minColumn, ret.endLineNumber, ret.endColumn);
-                rawMarker.startColumn = minColumn;
-            }
-        }
-        return ret;
-    };
-    ModelMarkerHandler._createDecorationOption = function (marker) {
-        var className;
-        var color = undefined;
-        var zIndex;
-        var inlineClassName = undefined;
-        switch (marker.severity) {
-            case MarkerSeverity.Hint:
-                if (marker.tags && marker.tags.indexOf(1 /* Unnecessary */) >= 0) {
-                    className = "squiggly-unnecessary" /* EditorUnnecessaryDecoration */;
-                }
-                else {
-                    className = "squiggly-hint" /* EditorHintDecoration */;
-                }
-                zIndex = 0;
-                break;
-            case MarkerSeverity.Warning:
-                className = "squiggly-warning" /* EditorWarningDecoration */;
-                color = themeColorFromId(overviewRulerWarning);
-                zIndex = 20;
-                break;
-            case MarkerSeverity.Info:
-                className = "squiggly-info" /* EditorInfoDecoration */;
-                color = themeColorFromId(overviewRulerInfo);
-                zIndex = 10;
-                break;
-            case MarkerSeverity.Error:
-            default:
-                className = "squiggly-error" /* EditorErrorDecoration */;
-                color = themeColorFromId(overviewRulerError);
-                zIndex = 30;
-                break;
-        }
-        if (marker.tags) {
-            if (marker.tags.indexOf(1 /* Unnecessary */) !== -1) {
-                inlineClassName = "squiggly-inline-unnecessary" /* EditorUnnecessaryInlineDecoration */;
-            }
-        }
-        var hoverMessage = null;
-        var message = marker.message, source = marker.source, relatedInformation = marker.relatedInformation, code = marker.code;
-        if (typeof message === 'string') {
-            message = message.trim();
-            if (source) {
-                if (/\n/g.test(message)) {
-                    if (code) {
-                        message = nls.localize('diagAndSourceAndCodeMultiline', "[{0}]\n{1} [{2}]", source, message, code);
-                    }
-                    else {
-                        message = nls.localize('diagAndSourceMultiline', "[{0}]\n{1}", source, message);
-                    }
-                }
-                else {
-                    if (code) {
-                        message = nls.localize('diagAndSourceAndCode', "[{0}] {1} [{2}]", source, message, code);
-                    }
-                    else {
-                        message = nls.localize('diagAndSource', "[{0}] {1}", source, message);
-                    }
-                }
-            }
-            hoverMessage = new MarkdownString().appendCodeblock('_', message);
-            if (!isFalsyOrEmpty(relatedInformation)) {
-                hoverMessage.appendMarkdown('\n');
-                for (var _i = 0, _a = relatedInformation; _i < _a.length; _i++) {
-                    var _b = _a[_i], message_1 = _b.message, resource = _b.resource, startLineNumber = _b.startLineNumber, startColumn = _b.startColumn;
-                    hoverMessage.appendMarkdown("* [" + basename(resource.path) + "(" + startLineNumber + ", " + startColumn + ")](" + resource.toString(false) + "#" + startLineNumber + "," + startColumn + "): ");
-                    hoverMessage.appendText("" + message_1);
-                    hoverMessage.appendMarkdown('\n');
-                }
-                hoverMessage.appendMarkdown('\n');
-            }
-        }
-        return {
-            stickiness: 1 /* NeverGrowsWhenTypingAtEdges */,
-            className: className,
-            hoverMessage: hoverMessage,
-            showIfCollapsed: true,
-            overviewRuler: {
-                color: color,
-                position: OverviewRulerLane.Right
-            },
-            zIndex: zIndex,
-            inlineClassName: inlineClassName,
-        };
-    };
-    return ModelMarkerHandler;
-}());
 var DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? 1 /* LF */ : 2 /* CRLF */;
 var ModelServiceImpl = /** @class */ (function (_super) {
     __extends(ModelServiceImpl, _super);
-    function ModelServiceImpl(markerService, configurationService, resourcePropertiesService) {
+    function ModelServiceImpl(configurationService, resourcePropertiesService, themeService, logService) {
         var _this = _super.call(this) || this;
         _this._onModelAdded = _this._register(new Emitter());
         _this.onModelAdded = _this._onModelAdded.event;
@@ -234,16 +85,13 @@ var ModelServiceImpl = /** @class */ (function (_super) {
         _this.onModelRemoved = _this._onModelRemoved.event;
         _this._onModelModeChanged = _this._register(new Emitter());
         _this.onModelModeChanged = _this._onModelModeChanged.event;
-        _this._markerService = markerService;
         _this._configurationService = configurationService;
         _this._resourcePropertiesService = resourcePropertiesService;
         _this._models = {};
         _this._modelCreationOptionsByLanguageAndResource = Object.create(null);
-        if (_this._markerService) {
-            _this._markerServiceSubscription = _this._markerService.onMarkerChanged(_this._handleMarkerChange, _this);
-        }
         _this._configurationServiceSubscription = _this._configurationService.onDidChangeConfiguration(function (e) { return _this._updateModelOptions(); });
         _this._updateModelOptions();
+        _this._register(new SemanticColoringFeature(_this, themeService, configurationService, logService));
         return _this;
     }
     ModelServiceImpl._readModelOptions = function (config, isForSimpleWidget) {
@@ -255,6 +103,16 @@ var ModelServiceImpl = /** @class */ (function (_super) {
             }
             if (tabSize < 1) {
                 tabSize = 1;
+            }
+        }
+        var indentSize = tabSize;
+        if (config.editor && typeof config.editor.indentSize !== 'undefined' && config.editor.indentSize !== 'tabSize') {
+            var parsedIndentSize = parseInt(config.editor.indentSize, 10);
+            if (!isNaN(parsedIndentSize)) {
+                indentSize = parsedIndentSize;
+            }
+            if (indentSize < 1) {
+                indentSize = 1;
             }
         }
         var insertSpaces = EDITOR_MODEL_DEFAULTS.insertSpaces;
@@ -284,6 +142,7 @@ var ModelServiceImpl = /** @class */ (function (_super) {
         return {
             isForSimpleWidget: isForSimpleWidget,
             tabSize: tabSize,
+            indentSize: indentSize,
             insertSpaces: insertSpaces,
             detectIndentation: detectIndentation,
             defaultEOL: newDefaultEOL,
@@ -317,10 +176,14 @@ var ModelServiceImpl = /** @class */ (function (_super) {
         }
     };
     ModelServiceImpl._setModelOptionsForModel = function (model, newOptions, currentOptions) {
+        if (currentOptions && currentOptions.defaultEOL !== newOptions.defaultEOL && model.getLineCount() === 1) {
+            model.setEOL(newOptions.defaultEOL === 1 /* LF */ ? 0 /* LF */ : 1 /* CRLF */);
+        }
         if (currentOptions
             && (currentOptions.detectIndentation === newOptions.detectIndentation)
             && (currentOptions.insertSpaces === newOptions.insertSpaces)
             && (currentOptions.tabSize === newOptions.tabSize)
+            && (currentOptions.indentSize === newOptions.indentSize)
             && (currentOptions.trimAutoWhitespace === newOptions.trimAutoWhitespace)) {
             // Same indent opts, no need to touch the model
             return;
@@ -335,40 +198,14 @@ var ModelServiceImpl = /** @class */ (function (_super) {
             model.updateOptions({
                 insertSpaces: newOptions.insertSpaces,
                 tabSize: newOptions.tabSize,
+                indentSize: newOptions.indentSize,
                 trimAutoWhitespace: newOptions.trimAutoWhitespace
             });
         }
     };
     ModelServiceImpl.prototype.dispose = function () {
-        if (this._markerServiceSubscription) {
-            this._markerServiceSubscription.dispose();
-        }
         this._configurationServiceSubscription.dispose();
         _super.prototype.dispose.call(this);
-    };
-    ModelServiceImpl.prototype._handleMarkerChange = function (changedResources) {
-        var _this = this;
-        changedResources.forEach(function (resource) {
-            var modelId = MODEL_ID(resource);
-            var modelData = _this._models[modelId];
-            if (!modelData) {
-                return;
-            }
-            ModelMarkerHandler.setMarkers(modelData, _this._markerService);
-        });
-    };
-    ModelServiceImpl.prototype._cleanUp = function (model) {
-        var _this = this;
-        // clean up markers for internal, transient models
-        if (model.uri.scheme === network.Schemas.inMemory
-            || model.uri.scheme === network.Schemas.internal
-            || model.uri.scheme === network.Schemas.vscode) {
-            if (this._markerService) {
-                this._markerService.read({ resource: model.uri }).map(function (marker) { return marker.owner; }).forEach(function (owner) { return _this._markerService.remove(owner, [model.uri]); });
-            }
-        }
-        // clean up cache
-        delete this._modelCreationOptionsByLanguageAndResource[model.getLanguageIdentifier().language + model.uri];
     };
     // --- begin IModelService
     ModelServiceImpl.prototype._createModelData = function (value, languageIdentifier, resource, isForSimpleWidget) {
@@ -394,10 +231,6 @@ var ModelServiceImpl = /** @class */ (function (_super) {
         }
         else {
             modelData = this._createModelData(value, PLAINTEXT_LANGUAGE_IDENTIFIER, resource, isForSimpleWidget);
-        }
-        // handle markers (marker service => model)
-        if (this._markerService) {
-            ModelMarkerHandler.setMarkers(modelData, this._markerService);
         }
         this._onModelAdded.fire(modelData.model);
         return modelData.model;
@@ -435,7 +268,8 @@ var ModelServiceImpl = /** @class */ (function (_super) {
         var modelData = this._models[modelId];
         delete this._models[modelId];
         modelData.dispose();
-        this._cleanUp(model);
+        // clean up cache
+        delete this._modelCreationOptionsByLanguageAndResource[model.getLanguageIdentifier().language + model.uri];
         this._onModelRemoved.fire(model);
     };
     ModelServiceImpl.prototype._onDidChangeLanguage = function (model, e) {
@@ -447,10 +281,471 @@ var ModelServiceImpl = /** @class */ (function (_super) {
         this._onModelModeChanged.fire({ model: model, oldModeId: oldModeId });
     };
     ModelServiceImpl = __decorate([
-        __param(0, IMarkerService),
-        __param(1, IConfigurationService),
-        __param(2, ITextResourcePropertiesService)
+        __param(0, IConfigurationService),
+        __param(1, ITextResourcePropertiesService),
+        __param(2, IThemeService),
+        __param(3, ILogService)
     ], ModelServiceImpl);
     return ModelServiceImpl;
 }(Disposable));
 export { ModelServiceImpl };
+var SemanticColoringFeature = /** @class */ (function (_super) {
+    __extends(SemanticColoringFeature, _super);
+    function SemanticColoringFeature(modelService, themeService, configurationService, logService) {
+        var _this = _super.call(this) || this;
+        _this._configurationService = configurationService;
+        _this._watchers = Object.create(null);
+        _this._semanticStyling = _this._register(new SemanticStyling(themeService, logService));
+        var isSemanticColoringEnabled = function (model) {
+            var options = configurationService.getValue(SemanticColoringFeature.SETTING_ID, { overrideIdentifier: model.getLanguageIdentifier().language, resource: model.uri });
+            return options && options.enabled;
+        };
+        var register = function (model) {
+            _this._watchers[model.uri.toString()] = new ModelSemanticColoring(model, themeService, _this._semanticStyling);
+        };
+        var deregister = function (model, modelSemanticColoring) {
+            modelSemanticColoring.dispose();
+            delete _this._watchers[model.uri.toString()];
+        };
+        _this._register(modelService.onModelAdded(function (model) {
+            if (isSemanticColoringEnabled(model)) {
+                register(model);
+            }
+        }));
+        _this._register(modelService.onModelRemoved(function (model) {
+            var curr = _this._watchers[model.uri.toString()];
+            if (curr) {
+                deregister(model, curr);
+            }
+        }));
+        _this._configurationService.onDidChangeConfiguration(function (e) {
+            if (e.affectsConfiguration(SemanticColoringFeature.SETTING_ID)) {
+                for (var _i = 0, _a = modelService.getModels(); _i < _a.length; _i++) {
+                    var model = _a[_i];
+                    var curr = _this._watchers[model.uri.toString()];
+                    if (isSemanticColoringEnabled(model)) {
+                        if (!curr) {
+                            register(model);
+                        }
+                    }
+                    else {
+                        if (curr) {
+                            deregister(model, curr);
+                        }
+                    }
+                }
+            }
+        });
+        return _this;
+    }
+    SemanticColoringFeature.SETTING_ID = 'editor.semanticHighlighting';
+    return SemanticColoringFeature;
+}(Disposable));
+var SemanticStyling = /** @class */ (function (_super) {
+    __extends(SemanticStyling, _super);
+    function SemanticStyling(_themeService, _logService) {
+        var _this = _super.call(this) || this;
+        _this._themeService = _themeService;
+        _this._logService = _logService;
+        _this._caches = new WeakMap();
+        if (_this._themeService) {
+            // workaround for tests which use undefined... :/
+            _this._register(_this._themeService.onThemeChange(function () {
+                _this._caches = new WeakMap();
+            }));
+        }
+        return _this;
+    }
+    SemanticStyling.prototype.get = function (provider) {
+        if (!this._caches.has(provider)) {
+            this._caches.set(provider, new SemanticColoringProviderStyling(provider.getLegend(), this._themeService, this._logService));
+        }
+        return this._caches.get(provider);
+    };
+    return SemanticStyling;
+}(Disposable));
+var HashTableEntry = /** @class */ (function () {
+    function HashTableEntry(tokenTypeIndex, tokenModifierSet, metadata) {
+        this.tokenTypeIndex = tokenTypeIndex;
+        this.tokenModifierSet = tokenModifierSet;
+        this.metadata = metadata;
+        this.next = null;
+    }
+    return HashTableEntry;
+}());
+var HashTable = /** @class */ (function () {
+    function HashTable() {
+        this._elementsCount = 0;
+        this._currentLengthIndex = 0;
+        this._currentLength = HashTable._SIZES[this._currentLengthIndex];
+        this._growCount = Math.round(this._currentLengthIndex + 1 < HashTable._SIZES.length ? 2 / 3 * this._currentLength : 0);
+        this._elements = [];
+        HashTable._nullOutEntries(this._elements, this._currentLength);
+    }
+    HashTable._nullOutEntries = function (entries, length) {
+        for (var i = 0; i < length; i++) {
+            entries[i] = null;
+        }
+    };
+    HashTable.prototype._hashFunc = function (tokenTypeIndex, tokenModifierSet) {
+        return ((((tokenTypeIndex << 5) - tokenTypeIndex) + tokenModifierSet) | 0) % this._currentLength; // tokenTypeIndex * 31 + tokenModifierSet, keep as int32
+    };
+    HashTable.prototype.get = function (tokenTypeIndex, tokenModifierSet) {
+        var hash = this._hashFunc(tokenTypeIndex, tokenModifierSet);
+        var p = this._elements[hash];
+        while (p) {
+            if (p.tokenTypeIndex === tokenTypeIndex && p.tokenModifierSet === tokenModifierSet) {
+                return p;
+            }
+            p = p.next;
+        }
+        return null;
+    };
+    HashTable.prototype.add = function (tokenTypeIndex, tokenModifierSet, metadata) {
+        this._elementsCount++;
+        if (this._growCount !== 0 && this._elementsCount >= this._growCount) {
+            // expand!
+            var oldElements = this._elements;
+            this._currentLengthIndex++;
+            this._currentLength = HashTable._SIZES[this._currentLengthIndex];
+            this._growCount = Math.round(this._currentLengthIndex + 1 < HashTable._SIZES.length ? 2 / 3 * this._currentLength : 0);
+            this._elements = [];
+            HashTable._nullOutEntries(this._elements, this._currentLength);
+            for (var _i = 0, oldElements_1 = oldElements; _i < oldElements_1.length; _i++) {
+                var first = oldElements_1[_i];
+                var p = first;
+                while (p) {
+                    var oldNext = p.next;
+                    p.next = null;
+                    this._add(p);
+                    p = oldNext;
+                }
+            }
+        }
+        this._add(new HashTableEntry(tokenTypeIndex, tokenModifierSet, metadata));
+    };
+    HashTable.prototype._add = function (element) {
+        var hash = this._hashFunc(element.tokenTypeIndex, element.tokenModifierSet);
+        element.next = this._elements[hash];
+        this._elements[hash] = element;
+    };
+    HashTable._SIZES = [3, 7, 13, 31, 61, 127, 251, 509, 1021, 2039, 4093, 8191, 16381, 32749, 65521, 131071, 262139, 524287, 1048573, 2097143];
+    return HashTable;
+}());
+var SemanticColoringProviderStyling = /** @class */ (function () {
+    function SemanticColoringProviderStyling(_legend, _themeService, _logService) {
+        this._legend = _legend;
+        this._themeService = _themeService;
+        this._logService = _logService;
+        this._hashTable = new HashTable();
+    }
+    SemanticColoringProviderStyling.prototype.getMetadata = function (tokenTypeIndex, tokenModifierSet) {
+        var entry = this._hashTable.get(tokenTypeIndex, tokenModifierSet);
+        var metadata;
+        if (entry) {
+            metadata = entry.metadata;
+        }
+        else {
+            var tokenType = this._legend.tokenTypes[tokenTypeIndex];
+            var tokenModifiers = [];
+            var modifierSet = tokenModifierSet;
+            for (var modifierIndex = 0; modifierSet > 0 && modifierIndex < this._legend.tokenModifiers.length; modifierIndex++) {
+                if (modifierSet & 1) {
+                    tokenModifiers.push(this._legend.tokenModifiers[modifierIndex]);
+                }
+                modifierSet = modifierSet >> 1;
+            }
+            var tokenStyle = this._themeService.getTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
+            if (typeof tokenStyle === 'undefined') {
+                metadata = 2147483647 /* NO_STYLING */;
+            }
+            else {
+                metadata = 0;
+                if (typeof tokenStyle.italic !== 'undefined') {
+                    var italicBit = (tokenStyle.italic ? 1 /* Italic */ : 0) << 11 /* FONT_STYLE_OFFSET */;
+                    metadata |= italicBit | 1 /* SEMANTIC_USE_ITALIC */;
+                }
+                if (typeof tokenStyle.bold !== 'undefined') {
+                    var boldBit = (tokenStyle.bold ? 2 /* Bold */ : 0) << 11 /* FONT_STYLE_OFFSET */;
+                    metadata |= boldBit | 2 /* SEMANTIC_USE_BOLD */;
+                }
+                if (typeof tokenStyle.underline !== 'undefined') {
+                    var underlineBit = (tokenStyle.underline ? 4 /* Underline */ : 0) << 11 /* FONT_STYLE_OFFSET */;
+                    metadata |= underlineBit | 4 /* SEMANTIC_USE_UNDERLINE */;
+                }
+                if (tokenStyle.foreground) {
+                    var foregroundBits = (tokenStyle.foreground) << 14 /* FOREGROUND_OFFSET */;
+                    metadata |= foregroundBits | 8 /* SEMANTIC_USE_FOREGROUND */;
+                }
+                if (metadata === 0) {
+                    // Nothing!
+                    metadata = 2147483647 /* NO_STYLING */;
+                }
+            }
+            this._hashTable.add(tokenTypeIndex, tokenModifierSet, metadata);
+        }
+        if (this._logService.getLevel() === LogLevel.Trace) {
+            var type = this._legend.tokenTypes[tokenTypeIndex];
+            var modifiers = tokenModifierSet ? ' ' + this._legend.tokenModifiers.filter(function (_, i) { return tokenModifierSet & (1 << i); }).join(' ') : '';
+            this._logService.trace("tokenStyleMetadata " + (entry ? '[CACHED] ' : '') + type + modifiers + ": foreground " + TokenMetadata.getForeground(metadata) + ", fontStyle " + TokenMetadata.getFontStyle(metadata).toString(2));
+        }
+        return metadata;
+    };
+    return SemanticColoringProviderStyling;
+}());
+var SemanticTokensResponse = /** @class */ (function () {
+    function SemanticTokensResponse(_provider, resultId, data) {
+        this._provider = _provider;
+        this.resultId = resultId;
+        this.data = data;
+    }
+    SemanticTokensResponse.prototype.dispose = function () {
+        this._provider.releaseDocumentSemanticTokens(this.resultId);
+    };
+    return SemanticTokensResponse;
+}());
+var ModelSemanticColoring = /** @class */ (function (_super) {
+    __extends(ModelSemanticColoring, _super);
+    function ModelSemanticColoring(model, themeService, stylingProvider) {
+        var _this = _super.call(this) || this;
+        _this._isDisposed = false;
+        _this._model = model;
+        _this._semanticStyling = stylingProvider;
+        _this._fetchSemanticTokens = _this._register(new RunOnceScheduler(function () { return _this._fetchSemanticTokensNow(); }, 300));
+        _this._currentResponse = null;
+        _this._currentRequestCancellationTokenSource = null;
+        _this._register(_this._model.onDidChangeContent(function (e) {
+            if (!_this._fetchSemanticTokens.isScheduled()) {
+                _this._fetchSemanticTokens.schedule();
+            }
+        }));
+        _this._register(DocumentSemanticTokensProviderRegistry.onDidChange(function (e) { return _this._fetchSemanticTokens.schedule(); }));
+        if (themeService) {
+            // workaround for tests which use undefined... :/
+            _this._register(themeService.onThemeChange(function (_) {
+                // clear out existing tokens
+                _this._setSemanticTokens(null, null, null, []);
+                _this._fetchSemanticTokens.schedule();
+            }));
+        }
+        _this._fetchSemanticTokens.schedule(0);
+        return _this;
+    }
+    ModelSemanticColoring.prototype.dispose = function () {
+        if (this._currentResponse) {
+            this._currentResponse.dispose();
+            this._currentResponse = null;
+        }
+        if (this._currentRequestCancellationTokenSource) {
+            this._currentRequestCancellationTokenSource.cancel();
+            this._currentRequestCancellationTokenSource = null;
+        }
+        this._setSemanticTokens(null, null, null, []);
+        this._isDisposed = true;
+        _super.prototype.dispose.call(this);
+    };
+    ModelSemanticColoring.prototype._fetchSemanticTokensNow = function () {
+        var _this = this;
+        if (this._currentRequestCancellationTokenSource) {
+            // there is already a request running, let it finish...
+            return;
+        }
+        var provider = this._getSemanticColoringProvider();
+        if (!provider) {
+            return;
+        }
+        this._currentRequestCancellationTokenSource = new CancellationTokenSource();
+        var pendingChanges = [];
+        var contentChangeListener = this._model.onDidChangeContent(function (e) {
+            pendingChanges.push(e);
+        });
+        var styling = this._semanticStyling.get(provider);
+        var lastResultId = this._currentResponse ? this._currentResponse.resultId || null : null;
+        var request = Promise.resolve(provider.provideDocumentSemanticTokens(this._model, lastResultId, this._currentRequestCancellationTokenSource.token));
+        request.then(function (res) {
+            _this._currentRequestCancellationTokenSource = null;
+            contentChangeListener.dispose();
+            _this._setSemanticTokens(provider, res || null, styling, pendingChanges);
+        }, function (err) {
+            if (!err || typeof err.message !== 'string' || err.message.indexOf('busy') === -1) {
+                errors.onUnexpectedError(err);
+            }
+            // Semantic tokens eats up all errors and considers errors to mean that the result is temporarily not available
+            // The API does not have a special error kind to express this...
+            _this._currentRequestCancellationTokenSource = null;
+            contentChangeListener.dispose();
+            if (pendingChanges.length > 0) {
+                // More changes occurred while the request was running
+                if (!_this._fetchSemanticTokens.isScheduled()) {
+                    _this._fetchSemanticTokens.schedule();
+                }
+            }
+        });
+    };
+    ModelSemanticColoring._isSemanticTokens = function (v) {
+        return v && !!(v.data);
+    };
+    ModelSemanticColoring._isSemanticTokensEdits = function (v) {
+        return v && Array.isArray(v.edits);
+    };
+    ModelSemanticColoring._copy = function (src, srcOffset, dest, destOffset, length) {
+        for (var i = 0; i < length; i++) {
+            dest[destOffset + i] = src[srcOffset + i];
+        }
+    };
+    ModelSemanticColoring.prototype._setSemanticTokens = function (provider, tokens, styling, pendingChanges) {
+        var currentResponse = this._currentResponse;
+        if (this._currentResponse) {
+            this._currentResponse.dispose();
+            this._currentResponse = null;
+        }
+        if (this._isDisposed) {
+            // disposed!
+            if (provider && tokens) {
+                provider.releaseDocumentSemanticTokens(tokens.resultId);
+            }
+            return;
+        }
+        if (!provider || !tokens || !styling) {
+            this._model.setSemanticTokens(null);
+            return;
+        }
+        if (ModelSemanticColoring._isSemanticTokensEdits(tokens)) {
+            if (!currentResponse) {
+                // not possible!
+                this._model.setSemanticTokens(null);
+                return;
+            }
+            if (tokens.edits.length === 0) {
+                // nothing to do!
+                tokens = {
+                    resultId: tokens.resultId,
+                    data: currentResponse.data
+                };
+            }
+            else {
+                var deltaLength = 0;
+                for (var _i = 0, _a = tokens.edits; _i < _a.length; _i++) {
+                    var edit = _a[_i];
+                    deltaLength += (edit.data ? edit.data.length : 0) - edit.deleteCount;
+                }
+                var srcData = currentResponse.data;
+                var destData = new Uint32Array(srcData.length + deltaLength);
+                var srcLastStart = srcData.length;
+                var destLastStart = destData.length;
+                for (var i = tokens.edits.length - 1; i >= 0; i--) {
+                    var edit = tokens.edits[i];
+                    var copyCount = srcLastStart - (edit.start + edit.deleteCount);
+                    if (copyCount > 0) {
+                        ModelSemanticColoring._copy(srcData, srcLastStart - copyCount, destData, destLastStart - copyCount, copyCount);
+                        destLastStart -= copyCount;
+                    }
+                    if (edit.data) {
+                        ModelSemanticColoring._copy(edit.data, 0, destData, destLastStart - edit.data.length, edit.data.length);
+                        destLastStart -= edit.data.length;
+                    }
+                    srcLastStart = edit.start;
+                }
+                if (srcLastStart > 0) {
+                    ModelSemanticColoring._copy(srcData, 0, destData, 0, srcLastStart);
+                }
+                tokens = {
+                    resultId: tokens.resultId,
+                    data: destData
+                };
+            }
+        }
+        if (ModelSemanticColoring._isSemanticTokens(tokens)) {
+            this._currentResponse = new SemanticTokensResponse(provider, tokens.resultId, tokens.data);
+            var srcData = tokens.data;
+            var tokenCount = (tokens.data.length / 5) | 0;
+            var tokensPerArea = Math.max(Math.ceil(tokenCount / 1024 /* DesiredMaxAreas */), 400 /* DesiredTokensPerArea */);
+            var result = [];
+            var tokenIndex = 0;
+            var lastLineNumber = 1;
+            var lastStartCharacter = 0;
+            while (tokenIndex < tokenCount) {
+                var tokenStartIndex = tokenIndex;
+                var tokenEndIndex = Math.min(tokenStartIndex + tokensPerArea, tokenCount);
+                // Keep tokens on the same line in the same area...
+                if (tokenEndIndex < tokenCount) {
+                    var smallTokenEndIndex = tokenEndIndex;
+                    while (smallTokenEndIndex - 1 > tokenStartIndex && srcData[5 * smallTokenEndIndex] === 0) {
+                        smallTokenEndIndex--;
+                    }
+                    if (smallTokenEndIndex - 1 === tokenStartIndex) {
+                        // there are so many tokens on this line that our area would be empty, we must now go right
+                        var bigTokenEndIndex = tokenEndIndex;
+                        while (bigTokenEndIndex + 1 < tokenCount && srcData[5 * bigTokenEndIndex] === 0) {
+                            bigTokenEndIndex++;
+                        }
+                        tokenEndIndex = bigTokenEndIndex;
+                    }
+                    else {
+                        tokenEndIndex = smallTokenEndIndex;
+                    }
+                }
+                var destData = new Uint32Array((tokenEndIndex - tokenStartIndex) * 4);
+                var destOffset = 0;
+                var areaLine = 0;
+                while (tokenIndex < tokenEndIndex) {
+                    var srcOffset = 5 * tokenIndex;
+                    var deltaLine = srcData[srcOffset];
+                    var deltaCharacter = srcData[srcOffset + 1];
+                    var lineNumber = lastLineNumber + deltaLine;
+                    var startCharacter = (deltaLine === 0 ? lastStartCharacter + deltaCharacter : deltaCharacter);
+                    var length_1 = srcData[srcOffset + 2];
+                    var tokenTypeIndex = srcData[srcOffset + 3];
+                    var tokenModifierSet = srcData[srcOffset + 4];
+                    var metadata = styling.getMetadata(tokenTypeIndex, tokenModifierSet);
+                    if (metadata !== 2147483647 /* NO_STYLING */) {
+                        if (areaLine === 0) {
+                            areaLine = lineNumber;
+                        }
+                        destData[destOffset] = lineNumber - areaLine;
+                        destData[destOffset + 1] = startCharacter;
+                        destData[destOffset + 2] = startCharacter + length_1;
+                        destData[destOffset + 3] = metadata;
+                        destOffset += 4;
+                    }
+                    lastLineNumber = lineNumber;
+                    lastStartCharacter = startCharacter;
+                    tokenIndex++;
+                }
+                if (destOffset !== destData.length) {
+                    destData = destData.subarray(0, destOffset);
+                }
+                var tokens_1 = new MultilineTokens2(areaLine, new SparseEncodedTokens(destData));
+                result.push(tokens_1);
+            }
+            // Adjust incoming semantic tokens
+            if (pendingChanges.length > 0) {
+                // More changes occurred while the request was running
+                // We need to:
+                // 1. Adjust incoming semantic tokens
+                // 2. Request them again
+                for (var _b = 0, pendingChanges_1 = pendingChanges; _b < pendingChanges_1.length; _b++) {
+                    var change = pendingChanges_1[_b];
+                    for (var _c = 0, result_1 = result; _c < result_1.length; _c++) {
+                        var area = result_1[_c];
+                        for (var _d = 0, _e = change.changes; _d < _e.length; _d++) {
+                            var singleChange = _e[_d];
+                            area.applyEdit(singleChange.range, singleChange.text);
+                        }
+                    }
+                }
+                if (!this._fetchSemanticTokens.isScheduled()) {
+                    this._fetchSemanticTokens.schedule();
+                }
+            }
+            this._model.setSemanticTokens(result);
+            return;
+        }
+        this._model.setSemanticTokens(null);
+    };
+    ModelSemanticColoring.prototype._getSemanticColoringProvider = function () {
+        var result = DocumentSemanticTokensProviderRegistry.ordered(this._model);
+        return (result.length > 0 ? result[0] : null);
+    };
+    return ModelSemanticColoring;
+}(Disposable));

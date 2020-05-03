@@ -8,26 +8,29 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
     };
 })();
-import { StandardMouseWheelEvent } from '../../mouseEvent.js';
+import { StandardWheelEvent } from '../../mouseEvent.js';
 import { AbstractScrollbar } from './abstractScrollbar.js';
 import { ARROW_IMG_SIZE } from './scrollbarArrow.js';
 import { ScrollbarState } from './scrollbarState.js';
 var VerticalScrollbar = /** @class */ (function (_super) {
     __extends(VerticalScrollbar, _super);
     function VerticalScrollbar(scrollable, options, host) {
-        var _this = _super.call(this, {
+        var _this = this;
+        var scrollDimensions = scrollable.getScrollDimensions();
+        var scrollPosition = scrollable.getCurrentScrollPosition();
+        _this = _super.call(this, {
             lazyRender: options.lazyRender,
             host: host,
             scrollbarState: new ScrollbarState((options.verticalHasArrows ? options.arrowSize : 0), (options.vertical === 2 /* Hidden */ ? 0 : options.verticalScrollbarSize), 
             // give priority to vertical scroll bar over horizontal and let it scroll all the way to the bottom
-            0),
+            0, scrollDimensions.height, scrollDimensions.scrollHeight, scrollPosition.scrollTop),
             visibility: options.vertical,
             extraScrollbarClassName: 'vertical',
             scrollable: scrollable
@@ -39,21 +42,21 @@ var VerticalScrollbar = /** @class */ (function (_super) {
                 className: 'up-arrow',
                 top: arrowDelta,
                 left: scrollbarDelta,
-                bottom: void 0,
-                right: void 0,
+                bottom: undefined,
+                right: undefined,
                 bgWidth: options.verticalScrollbarSize,
                 bgHeight: options.arrowSize,
-                onActivate: function () { return _this._host.onMouseWheel(new StandardMouseWheelEvent(null, 0, 1)); },
+                onActivate: function () { return _this._host.onMouseWheel(new StandardWheelEvent(null, 0, 1)); },
             });
             _this._createArrow({
                 className: 'down-arrow',
-                top: void 0,
+                top: undefined,
                 left: scrollbarDelta,
                 bottom: arrowDelta,
-                right: void 0,
+                right: undefined,
                 bgWidth: options.verticalScrollbarSize,
                 bgHeight: options.arrowSize,
-                onActivate: function () { return _this._host.onMouseWheel(new StandardMouseWheelEvent(null, 0, -1)); },
+                onActivate: function () { return _this._host.onMouseWheel(new StandardWheelEvent(null, 0, -1)); },
             });
         }
         _this._createSlider(0, Math.floor((options.verticalScrollbarSize - options.verticalSliderSize) / 2), options.verticalSliderSize, undefined);

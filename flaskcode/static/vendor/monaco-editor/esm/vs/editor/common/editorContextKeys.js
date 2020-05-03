@@ -5,6 +5,7 @@
 import { RawContextKey } from '../../platform/contextkey/common/contextkey.js';
 export var EditorContextKeys;
 (function (EditorContextKeys) {
+    EditorContextKeys.editorSimpleInput = new RawContextKey('editorSimpleInput', false);
     /**
      * A context key that is set when the editor's text has focus (cursor is blinking).
      */
@@ -34,6 +35,7 @@ export var EditorContextKeys;
     EditorContextKeys.hasCodeActionsProvider = new RawContextKey('editorHasCodeActionsProvider', false);
     EditorContextKeys.hasCodeLensProvider = new RawContextKey('editorHasCodeLensProvider', false);
     EditorContextKeys.hasDefinitionProvider = new RawContextKey('editorHasDefinitionProvider', false);
+    EditorContextKeys.hasDeclarationProvider = new RawContextKey('editorHasDeclarationProvider', false);
     EditorContextKeys.hasImplementationProvider = new RawContextKey('editorHasImplementationProvider', false);
     EditorContextKeys.hasTypeDefinitionProvider = new RawContextKey('editorHasTypeDefinitionProvider', false);
     EditorContextKeys.hasHoverProvider = new RawContextKey('editorHasHoverProvider', false);
@@ -41,7 +43,10 @@ export var EditorContextKeys;
     EditorContextKeys.hasDocumentSymbolProvider = new RawContextKey('editorHasDocumentSymbolProvider', false);
     EditorContextKeys.hasReferenceProvider = new RawContextKey('editorHasReferenceProvider', false);
     EditorContextKeys.hasRenameProvider = new RawContextKey('editorHasRenameProvider', false);
+    EditorContextKeys.hasSignatureHelpProvider = new RawContextKey('editorHasSignatureHelpProvider', false);
+    // -- mode context keys: formatting
     EditorContextKeys.hasDocumentFormattingProvider = new RawContextKey('editorHasDocumentFormattingProvider', false);
     EditorContextKeys.hasDocumentSelectionFormattingProvider = new RawContextKey('editorHasDocumentSelectionFormattingProvider', false);
-    EditorContextKeys.hasSignatureHelpProvider = new RawContextKey('editorHasSignatureHelpProvider', false);
+    EditorContextKeys.hasMultipleDocumentFormattingProvider = new RawContextKey('editorHasMultipleDocumentFormattingProvider', false);
+    EditorContextKeys.hasMultipleDocumentSelectionFormattingProvider = new RawContextKey('editorHasMultipleDocumentSelectionFormattingProvider', false);
 })(EditorContextKeys || (EditorContextKeys = {}));

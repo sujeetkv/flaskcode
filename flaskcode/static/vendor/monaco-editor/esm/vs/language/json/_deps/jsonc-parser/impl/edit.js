@@ -9,6 +9,7 @@ export function removeProperty(text, path, formattingOptions) {
     return setProperty(text, path, void 0, formattingOptions);
 }
 export function setProperty(text, originalPath, value, formattingOptions, getInsertionIndex) {
+    var _a;
     var path = originalPath.slice();
     var errors = [];
     var root = parseTree(text, errors);
@@ -131,7 +132,6 @@ export function setProperty(text, originalPath, value, formattingOptions, getIns
     else {
         throw new Error("Can not add " + (typeof lastSegment !== 'number' ? 'index' : 'property') + " to parent of type " + parent.type);
     }
-    var _a;
 }
 function withFormatting(text, edit, formattingOptions) {
     // apply the edit
@@ -166,4 +166,3 @@ export function applyEdit(text, edit) {
 export function isWS(text, offset) {
     return '\r\n \t'.indexOf(text.charAt(offset)) !== -1;
 }
-//# sourceMappingURL=edit.js.map

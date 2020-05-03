@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as nls from '../../../nls.js';
-import { basename, dirname } from '../../../base/common/paths.js';
+import * as path from '../../../base/common/path.js';
+import { dirname } from '../../../base/common/resources.js';
 import { Text } from './snippetParser.js';
-import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad } from '../../../base/common/strings.js';
+import { LanguageConfigurationRegistry } from '../../common/modes/languageConfigurationRegistry.js';
+import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad, endsWith } from '../../../base/common/strings.js';
+import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION } from '../../../platform/workspaces/common/workspaces.js';
+import { normalizeDriveLetter } from '../../../base/common/labels.js';
 var CompositeSnippetVariableResolver = /** @class */ (function () {
     function CompositeSnippetVariableResolver(_delegates) {
         this._delegates = _delegates;
@@ -15,7 +19,7 @@ var CompositeSnippetVariableResolver = /** @class */ (function () {
         for (var _i = 0, _a = this._delegates; _i < _a.length; _i++) {
             var delegate = _a[_i];
             var value = delegate.resolve(variable);
-            if (value !== void 0) {
+            if (value !== undefined) {
                 return value;
             }
         }
@@ -34,7 +38,7 @@ var SelectionBasedVariableResolver = /** @class */ (function () {
         var name = variable.name;
         if (name === 'SELECTION' || name === 'TM_SELECTED_TEXT') {
             var value = this._model.getValueInRange(this._selection) || undefined;
-            if (value && this._selection.startLineNumber !== this._selection.endLineNumber) {
+            if (value && this._selection.startLineNumber !== this._selection.endLineNumber && variable.snippet) {
                 // Selection is a multiline string which we indentation we now
                 // need to adjust. We compare the indentation of this variable
                 // with the indentation at the editor position and add potential
@@ -78,17 +82,18 @@ var SelectionBasedVariableResolver = /** @class */ (function () {
 }());
 export { SelectionBasedVariableResolver };
 var ModelBasedVariableResolver = /** @class */ (function () {
-    function ModelBasedVariableResolver(_model) {
+    function ModelBasedVariableResolver(_labelService, _model) {
+        this._labelService = _labelService;
         this._model = _model;
         //
     }
     ModelBasedVariableResolver.prototype.resolve = function (variable) {
         var name = variable.name;
         if (name === 'TM_FILENAME') {
-            return basename(this._model.uri.fsPath);
+            return path.basename(this._model.uri.fsPath);
         }
         else if (name === 'TM_FILENAME_BASE') {
-            var name_1 = basename(this._model.uri.fsPath);
+            var name_1 = path.basename(this._model.uri.fsPath);
             var idx = name_1.lastIndexOf('.');
             if (idx <= 0) {
                 return name_1;
@@ -97,12 +102,14 @@ var ModelBasedVariableResolver = /** @class */ (function () {
                 return name_1.slice(0, idx);
             }
         }
-        else if (name === 'TM_DIRECTORY') {
-            var dir = dirname(this._model.uri.fsPath);
-            return dir !== '.' ? dir : '';
+        else if (name === 'TM_DIRECTORY' && this._labelService) {
+            if (path.dirname(this._model.uri.fsPath) === '.') {
+                return '';
+            }
+            return this._labelService.getUriLabel(dirname(this._model.uri));
         }
-        else if (name === 'TM_FILEPATH') {
-            return this._model.uri.fsPath;
+        else if (name === 'TM_FILEPATH' && this._labelService) {
+            return this._labelService.getUriLabel(this._model.uri);
         }
         return undefined;
     };
@@ -110,31 +117,61 @@ var ModelBasedVariableResolver = /** @class */ (function () {
 }());
 export { ModelBasedVariableResolver };
 var ClipboardBasedVariableResolver = /** @class */ (function () {
-    function ClipboardBasedVariableResolver(_clipboardService, _selectionIdx, _selectionCount) {
-        this._clipboardService = _clipboardService;
+    function ClipboardBasedVariableResolver(_readClipboardText, _selectionIdx, _selectionCount, _spread) {
+        this._readClipboardText = _readClipboardText;
         this._selectionIdx = _selectionIdx;
         this._selectionCount = _selectionCount;
+        this._spread = _spread;
         //
     }
     ClipboardBasedVariableResolver.prototype.resolve = function (variable) {
-        if (variable.name !== 'CLIPBOARD' || !this._clipboardService) {
+        if (variable.name !== 'CLIPBOARD') {
             return undefined;
         }
-        var text = this._clipboardService.readText();
-        if (!text) {
+        var clipboardText = this._readClipboardText();
+        if (!clipboardText) {
             return undefined;
         }
-        var lines = text.split(/\r\n|\n|\r/).filter(function (s) { return !isFalsyOrWhitespace(s); });
-        if (lines.length === this._selectionCount) {
-            return lines[this._selectionIdx];
+        // `spread` is assigning each cursor a line of the clipboard
+        // text whenever there the line count equals the cursor count
+        // and when enabled
+        if (this._spread) {
+            var lines = clipboardText.split(/\r\n|\n|\r/).filter(function (s) { return !isFalsyOrWhitespace(s); });
+            if (lines.length === this._selectionCount) {
+                return lines[this._selectionIdx];
+            }
         }
-        else {
-            return text;
-        }
+        return clipboardText;
     };
     return ClipboardBasedVariableResolver;
 }());
 export { ClipboardBasedVariableResolver };
+var CommentBasedVariableResolver = /** @class */ (function () {
+    function CommentBasedVariableResolver(_model) {
+        this._model = _model;
+        //
+    }
+    CommentBasedVariableResolver.prototype.resolve = function (variable) {
+        var name = variable.name;
+        var language = this._model.getLanguageIdentifier();
+        var config = LanguageConfigurationRegistry.getComments(language.id);
+        if (!config) {
+            return undefined;
+        }
+        if (name === 'LINE_COMMENT') {
+            return config.lineCommentToken || undefined;
+        }
+        else if (name === 'BLOCK_COMMENT_START') {
+            return config.blockCommentStartToken || undefined;
+        }
+        else if (name === 'BLOCK_COMMENT_END') {
+            return config.blockCommentEndToken || undefined;
+        }
+        return undefined;
+    };
+    return CommentBasedVariableResolver;
+}());
+export { CommentBasedVariableResolver };
 var TimeBasedVariableResolver = /** @class */ (function () {
     function TimeBasedVariableResolver() {
     }
@@ -173,6 +210,9 @@ var TimeBasedVariableResolver = /** @class */ (function () {
         else if (name === 'CURRENT_MONTH_NAME_SHORT') {
             return TimeBasedVariableResolver.monthNamesShort[new Date().getMonth()];
         }
+        else if (name === 'CURRENT_SECONDS_UNIX') {
+            return String(Math.floor(Date.now() / 1000));
+        }
         return undefined;
     };
     TimeBasedVariableResolver.dayNames = [nls.localize('Sunday', "Sunday"), nls.localize('Monday', "Monday"), nls.localize('Tuesday', "Tuesday"), nls.localize('Wednesday', "Wednesday"), nls.localize('Thursday', "Thursday"), nls.localize('Friday', "Friday"), nls.localize('Saturday', "Saturday")];
@@ -182,3 +222,64 @@ var TimeBasedVariableResolver = /** @class */ (function () {
     return TimeBasedVariableResolver;
 }());
 export { TimeBasedVariableResolver };
+var WorkspaceBasedVariableResolver = /** @class */ (function () {
+    function WorkspaceBasedVariableResolver(_workspaceService) {
+        this._workspaceService = _workspaceService;
+        //
+    }
+    WorkspaceBasedVariableResolver.prototype.resolve = function (variable) {
+        if (!this._workspaceService) {
+            return undefined;
+        }
+        var workspaceIdentifier = toWorkspaceIdentifier(this._workspaceService.getWorkspace());
+        if (!workspaceIdentifier) {
+            return undefined;
+        }
+        if (variable.name === 'WORKSPACE_NAME') {
+            return this._resolveWorkspaceName(workspaceIdentifier);
+        }
+        else if (variable.name === 'WORKSPACE_FOLDER') {
+            return this._resoveWorkspacePath(workspaceIdentifier);
+        }
+        return undefined;
+    };
+    WorkspaceBasedVariableResolver.prototype._resolveWorkspaceName = function (workspaceIdentifier) {
+        if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
+            return path.basename(workspaceIdentifier.path);
+        }
+        var filename = path.basename(workspaceIdentifier.configPath.path);
+        if (endsWith(filename, WORKSPACE_EXTENSION)) {
+            filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+        }
+        return filename;
+    };
+    WorkspaceBasedVariableResolver.prototype._resoveWorkspacePath = function (workspaceIdentifier) {
+        if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
+            return normalizeDriveLetter(workspaceIdentifier.fsPath);
+        }
+        var filename = path.basename(workspaceIdentifier.configPath.path);
+        var folderpath = workspaceIdentifier.configPath.fsPath;
+        if (endsWith(folderpath, filename)) {
+            folderpath = folderpath.substr(0, folderpath.length - filename.length - 1);
+        }
+        return (folderpath ? normalizeDriveLetter(folderpath) : '/');
+    };
+    return WorkspaceBasedVariableResolver;
+}());
+export { WorkspaceBasedVariableResolver };
+var RandomBasedVariableResolver = /** @class */ (function () {
+    function RandomBasedVariableResolver() {
+    }
+    RandomBasedVariableResolver.prototype.resolve = function (variable) {
+        var name = variable.name;
+        if (name === 'RANDOM') {
+            return Math.random().toString().slice(-6);
+        }
+        else if (name === 'RANDOM_HEX') {
+            return Math.random().toString(16).slice(-6);
+        }
+        return undefined;
+    };
+    return RandomBasedVariableResolver;
+}());
+export { RandomBasedVariableResolver };

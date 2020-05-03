@@ -79,6 +79,34 @@ export var Location;
     Location.is = is;
 })(Location || (Location = {}));
 /**
+ * The LocationLink namespace provides helper functions to work with
+ * [LocationLink](#LocationLink) literals.
+ */
+export var LocationLink;
+(function (LocationLink) {
+    /**
+     * Creates a LocationLink literal.
+     * @param targetUri The definition's uri.
+     * @param targetRange The full range of the definition.
+     * @param targetSelectionRange The span of the symbol definition at the target.
+     * @param originSelectionRange The span of the symbol being defined in the originating source file.
+     */
+    function create(targetUri, targetRange, targetSelectionRange, originSelectionRange) {
+        return { targetUri: targetUri, targetRange: targetRange, targetSelectionRange: targetSelectionRange, originSelectionRange: originSelectionRange };
+    }
+    LocationLink.create = create;
+    /**
+     * Checks whether the given literal conforms to the [LocationLink](#LocationLink) interface.
+     */
+    function is(value) {
+        var candidate = value;
+        return Is.defined(candidate) && Range.is(candidate.targetRange) && Is.string(candidate.targetUri)
+            && (Range.is(candidate.targetSelectionRange) || Is.undefined(candidate.targetSelectionRange))
+            && (Range.is(candidate.originSelectionRange) || Is.undefined(candidate.originSelectionRange));
+    }
+    LocationLink.is = is;
+})(LocationLink || (LocationLink = {}));
+/**
  * The Color namespace provides helper functions to work with
  * [Color](#Color) literals.
  */
@@ -265,6 +293,27 @@ export var DiagnosticSeverity;
     DiagnosticSeverity.Hint = 4;
 })(DiagnosticSeverity || (DiagnosticSeverity = {}));
 /**
+ * The diagnostic tags.
+ *
+ * @since 3.15.0
+ */
+export var DiagnosticTag;
+(function (DiagnosticTag) {
+    /**
+     * Unused or unnecessary code.
+     *
+     * Clients are allowed to render diagnostics with this tag faded out instead of having
+     * an error squiggle.
+     */
+    DiagnosticTag.Unnecessary = 1;
+    /**
+     * Deprecated or obsolete code.
+     *
+     * Clients are allowed to rendered diagnostics with this tag strike through.
+     */
+    DiagnosticTag.Deprecated = 2;
+})(DiagnosticTag || (DiagnosticTag = {}));
+/**
  * The Diagnostic namespace provides helper functions to work with
  * [Diagnostic](#Diagnostic) literals.
  */
@@ -396,13 +445,84 @@ export var TextDocumentEdit;
     }
     TextDocumentEdit.is = is;
 })(TextDocumentEdit || (TextDocumentEdit = {}));
+export var CreateFile;
+(function (CreateFile) {
+    function create(uri, options) {
+        var result = {
+            kind: 'create',
+            uri: uri
+        };
+        if (options !== void 0 && (options.overwrite !== void 0 || options.ignoreIfExists !== void 0)) {
+            result.options = options;
+        }
+        return result;
+    }
+    CreateFile.create = create;
+    function is(value) {
+        var candidate = value;
+        return candidate && candidate.kind === 'create' && Is.string(candidate.uri) &&
+            (candidate.options === void 0 ||
+                ((candidate.options.overwrite === void 0 || Is.boolean(candidate.options.overwrite)) && (candidate.options.ignoreIfExists === void 0 || Is.boolean(candidate.options.ignoreIfExists))));
+    }
+    CreateFile.is = is;
+})(CreateFile || (CreateFile = {}));
+export var RenameFile;
+(function (RenameFile) {
+    function create(oldUri, newUri, options) {
+        var result = {
+            kind: 'rename',
+            oldUri: oldUri,
+            newUri: newUri
+        };
+        if (options !== void 0 && (options.overwrite !== void 0 || options.ignoreIfExists !== void 0)) {
+            result.options = options;
+        }
+        return result;
+    }
+    RenameFile.create = create;
+    function is(value) {
+        var candidate = value;
+        return candidate && candidate.kind === 'rename' && Is.string(candidate.oldUri) && Is.string(candidate.newUri) &&
+            (candidate.options === void 0 ||
+                ((candidate.options.overwrite === void 0 || Is.boolean(candidate.options.overwrite)) && (candidate.options.ignoreIfExists === void 0 || Is.boolean(candidate.options.ignoreIfExists))));
+    }
+    RenameFile.is = is;
+})(RenameFile || (RenameFile = {}));
+export var DeleteFile;
+(function (DeleteFile) {
+    function create(uri, options) {
+        var result = {
+            kind: 'delete',
+            uri: uri
+        };
+        if (options !== void 0 && (options.recursive !== void 0 || options.ignoreIfNotExists !== void 0)) {
+            result.options = options;
+        }
+        return result;
+    }
+    DeleteFile.create = create;
+    function is(value) {
+        var candidate = value;
+        return candidate && candidate.kind === 'delete' && Is.string(candidate.uri) &&
+            (candidate.options === void 0 ||
+                ((candidate.options.recursive === void 0 || Is.boolean(candidate.options.recursive)) && (candidate.options.ignoreIfNotExists === void 0 || Is.boolean(candidate.options.ignoreIfNotExists))));
+    }
+    DeleteFile.is = is;
+})(DeleteFile || (DeleteFile = {}));
 export var WorkspaceEdit;
 (function (WorkspaceEdit) {
     function is(value) {
         var candidate = value;
         return candidate &&
             (candidate.changes !== void 0 || candidate.documentChanges !== void 0) &&
-            (candidate.documentChanges === void 0 || Is.typedArray(candidate.documentChanges, TextDocumentEdit.is));
+            (candidate.documentChanges === void 0 || candidate.documentChanges.every(function (change) {
+                if (Is.string(change.kind)) {
+                    return CreateFile.is(change) || RenameFile.is(change) || DeleteFile.is(change);
+                }
+                else {
+                    return TextDocumentEdit.is(change);
+                }
+            }));
     }
     WorkspaceEdit.is = is;
 })(WorkspaceEdit || (WorkspaceEdit = {}));
@@ -440,9 +560,11 @@ var WorkspaceChange = /** @class */ (function () {
         if (workspaceEdit) {
             this._workspaceEdit = workspaceEdit;
             if (workspaceEdit.documentChanges) {
-                workspaceEdit.documentChanges.forEach(function (textDocumentEdit) {
-                    var textEditChange = new TextEditChangeImpl(textDocumentEdit.edits);
-                    _this._textEditChanges[textDocumentEdit.textDocument.uri] = textEditChange;
+                workspaceEdit.documentChanges.forEach(function (change) {
+                    if (TextDocumentEdit.is(change)) {
+                        var textEditChange = new TextEditChangeImpl(change.edits);
+                        _this._textEditChanges[change.textDocument.uri] = textEditChange;
+                    }
                 });
             }
             else if (workspaceEdit.changes) {
@@ -472,7 +594,7 @@ var WorkspaceChange = /** @class */ (function () {
                 };
             }
             if (!this._workspaceEdit.documentChanges) {
-                throw new Error('Workspace edit is not configured for versioned document changes.');
+                throw new Error('Workspace edit is not configured for document changes.');
             }
             var textDocument = key;
             var result = this._textEditChanges[textDocument.uri];
@@ -505,6 +627,23 @@ var WorkspaceChange = /** @class */ (function () {
                 this._textEditChanges[key] = result;
             }
             return result;
+        }
+    };
+    WorkspaceChange.prototype.createFile = function (uri, options) {
+        this.checkDocumentChanges();
+        this._workspaceEdit.documentChanges.push(CreateFile.create(uri, options));
+    };
+    WorkspaceChange.prototype.renameFile = function (oldUri, newUri, options) {
+        this.checkDocumentChanges();
+        this._workspaceEdit.documentChanges.push(RenameFile.create(oldUri, newUri, options));
+    };
+    WorkspaceChange.prototype.deleteFile = function (uri, options) {
+        this.checkDocumentChanges();
+        this._workspaceEdit.documentChanges.push(DeleteFile.create(uri, options));
+    };
+    WorkspaceChange.prototype.checkDocumentChanges = function () {
+        if (!this._workspaceEdit || !this._workspaceEdit.documentChanges) {
+            throw new Error('Workspace edit is not configured for document changes.');
         }
     };
     return WorkspaceChange;
@@ -553,7 +692,7 @@ export var VersionedTextDocumentIdentifier;
      */
     function is(value) {
         var candidate = value;
-        return Is.defined(candidate) && Is.string(candidate.uri) && Is.number(candidate.version);
+        return Is.defined(candidate) && Is.string(candidate.uri) && (candidate.version === null || Is.number(candidate.version));
     }
     VersionedTextDocumentIdentifier.is = is;
 })(VersionedTextDocumentIdentifier || (VersionedTextDocumentIdentifier = {}));
@@ -676,6 +815,19 @@ export var InsertTextFormat;
     InsertTextFormat.Snippet = 2;
 })(InsertTextFormat || (InsertTextFormat = {}));
 /**
+ * Completion item tags are extra annotations that tweak the rendering of a completion
+ * item.
+ *
+ * @since 3.15.0
+ */
+export var CompletionItemTag;
+(function (CompletionItemTag) {
+    /**
+     * Render a completion as obsolete, usually using a strike-out.
+     */
+    CompletionItemTag.Deprecated = 1;
+})(CompletionItemTag || (CompletionItemTag = {}));
+/**
  * The CompletionItem namespace provides functions to deal with
  * completion items.
  */
@@ -715,7 +867,7 @@ export var MarkedString;
      * @param plainText The plain text.
      */
     function fromPlainText(plainText) {
-        return plainText.replace(/[\\`*_{}[\]()#+\-.!]/g, "\\$&"); // escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
+        return plainText.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&'); // escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
     }
     MarkedString.fromPlainText = fromPlainText;
     /**
@@ -734,7 +886,7 @@ export var Hover;
      */
     function is(value) {
         var candidate = value;
-        return Is.objectLiteral(candidate) && (MarkupContent.is(candidate.contents) ||
+        return !!candidate && Is.objectLiteral(candidate) && (MarkupContent.is(candidate.contents) ||
             MarkedString.is(candidate.contents) ||
             Is.typedArray(candidate.contents, MarkedString.is)) && (value.range === void 0 || Range.is(value.range));
     }
@@ -756,7 +908,6 @@ export var ParameterInformation;
         return documentation ? { label: label, documentation: documentation } : { label: label };
     }
     ParameterInformation.create = create;
-    ;
 })(ParameterInformation || (ParameterInformation = {}));
 /**
  * The SignatureInformation namespace provides helper functions to work with
@@ -852,6 +1003,17 @@ export var SymbolKind;
     SymbolKind.Operator = 25;
     SymbolKind.TypeParameter = 26;
 })(SymbolKind || (SymbolKind = {}));
+/**
+ * Symbol tags are extra annotations that tweak the rendering of a symbol.
+ * @since 3.15
+ */
+export var SymbolTag;
+(function (SymbolTag) {
+    /**
+     * Render a symbol as obsolete, usually using a strike-out.
+     */
+    SymbolTag.Deprecated = 1;
+})(SymbolTag || (SymbolTag = {}));
 export var SymbolInformation;
 (function (SymbolInformation) {
     /**
@@ -876,18 +1038,7 @@ export var SymbolInformation;
     }
     SymbolInformation.create = create;
 })(SymbolInformation || (SymbolInformation = {}));
-/**
- * Represents programming constructs like variables, classes, interfaces etc.
- * that appear in a document. Document symbols can be hierarchical and they
- * have two ranges: one that encloses its definition and one that points to
- * its most interesting range, e.g. the range of an identifier.
- */
-var DocumentSymbol = /** @class */ (function () {
-    function DocumentSymbol() {
-    }
-    return DocumentSymbol;
-}());
-export { DocumentSymbol };
+export var DocumentSymbol;
 (function (DocumentSymbol) {
     /**
      * Creates a new symbol information literal.
@@ -932,6 +1083,10 @@ export { DocumentSymbol };
  */
 export var CodeActionKind;
 (function (CodeActionKind) {
+    /**
+     * Empty kind.
+     */
+    CodeActionKind.Empty = '';
     /**
      * Base kind for quickfix actions: 'quickfix'
      */
@@ -986,6 +1141,15 @@ export var CodeActionKind;
      * Base kind for an organize imports source action: `source.organizeImports`
      */
     CodeActionKind.SourceOrganizeImports = 'source.organizeImports';
+    /**
+     * Base kind for auto-fix source actions: `source.fixAll`.
+     *
+     * Fix all actions automatically fix errors that have a clear fix that do not require user input.
+     * They should not suppress errors or perform unsafe fixes such as generating new types or classes.
+     *
+     * @since 3.15.0
+     */
+    CodeActionKind.SourceFixAll = 'source.fixAll';
 })(CodeActionKind || (CodeActionKind = {}));
 /**
  * The CodeActionContext namespace provides helper functions to work with
@@ -1023,7 +1187,7 @@ export var CodeAction;
         else {
             result.edit = commandOrEdit;
         }
-        if (kind !== void null) {
+        if (kind !== void 0) {
             result.kind = kind;
         }
         return result;
@@ -1036,6 +1200,7 @@ export var CodeAction;
             (candidate.kind === void 0 || Is.string(candidate.kind)) &&
             (candidate.edit !== void 0 || candidate.command !== void 0) &&
             (candidate.command === void 0 || Command.is(candidate.command)) &&
+            (candidate.isPreferred === void 0 || Is.boolean(candidate.isPreferred)) &&
             (candidate.edit === void 0 || WorkspaceEdit.is(candidate.edit));
     }
     CodeAction.is = is;
@@ -1051,8 +1216,9 @@ export var CodeLens;
      */
     function create(range, data) {
         var result = { range: range };
-        if (Is.defined(data))
+        if (Is.defined(data)) {
             result.data = data;
+        }
         return result;
     }
     CodeLens.create = create;
@@ -1088,19 +1254,10 @@ export var FormattingOptions;
     FormattingOptions.is = is;
 })(FormattingOptions || (FormattingOptions = {}));
 /**
- * A document link is a range in a text document that links to an internal or external resource, like another
- * text document or a web site.
- */
-var DocumentLink = /** @class */ (function () {
-    function DocumentLink() {
-    }
-    return DocumentLink;
-}());
-export { DocumentLink };
-/**
  * The DocumentLink namespace provides helper functions to work with
  * [DocumentLink](#DocumentLink) literals.
  */
+export var DocumentLink;
 (function (DocumentLink) {
     /**
      * Creates a new DocumentLink literal.
@@ -1118,7 +1275,31 @@ export { DocumentLink };
     }
     DocumentLink.is = is;
 })(DocumentLink || (DocumentLink = {}));
+/**
+ * The SelectionRange namespace provides helper function to work with
+ * SelectionRange literals.
+ */
+export var SelectionRange;
+(function (SelectionRange) {
+    /**
+     * Creates a new SelectionRange
+     * @param range the range.
+     * @param parent an optional parent.
+     */
+    function create(range, parent) {
+        return { range: range, parent: parent };
+    }
+    SelectionRange.create = create;
+    function is(value) {
+        var candidate = value;
+        return candidate !== undefined && Range.is(candidate.range) && (candidate.parent === undefined || SelectionRange.is(candidate.parent));
+    }
+    SelectionRange.is = is;
+})(SelectionRange || (SelectionRange = {}));
 export var EOL = ['\n', '\r\n', '\r'];
+/**
+ * @deprecated Use the text document from the new vscode-languageserver-textdocument package.
+ */
 export var TextDocument;
 (function (TextDocument) {
     /**
@@ -1158,7 +1339,7 @@ export var TextDocument;
                 text = text.substring(0, startOffset) + e.newText + text.substring(endOffset, text.length);
             }
             else {
-                throw new Error('Ovelapping edit');
+                throw new Error('Overlapping edit');
             }
             lastModifiedOffset = startOffset;
         }
@@ -1198,32 +1379,13 @@ export var TextDocument;
         return data;
     }
 })(TextDocument || (TextDocument = {}));
-/**
- * Represents reasons why a text document is saved.
- */
-export var TextDocumentSaveReason;
-(function (TextDocumentSaveReason) {
-    /**
-     * Manually triggered, e.g. by the user pressing save, by starting debugging,
-     * or by an API call.
-     */
-    TextDocumentSaveReason.Manual = 1;
-    /**
-     * Automatic after a delay.
-     */
-    TextDocumentSaveReason.AfterDelay = 2;
-    /**
-     * When the editor lost focus.
-     */
-    TextDocumentSaveReason.FocusOut = 3;
-})(TextDocumentSaveReason || (TextDocumentSaveReason = {}));
 var FullTextDocument = /** @class */ (function () {
     function FullTextDocument(uri, languageId, version, content) {
         this._uri = uri;
         this._languageId = languageId;
         this._version = version;
         this._content = content;
-        this._lineOffsets = null;
+        this._lineOffsets = undefined;
     }
     Object.defineProperty(FullTextDocument.prototype, "uri", {
         get: function () {
@@ -1257,10 +1419,10 @@ var FullTextDocument = /** @class */ (function () {
     FullTextDocument.prototype.update = function (event, version) {
         this._content = event.text;
         this._version = version;
-        this._lineOffsets = null;
+        this._lineOffsets = undefined;
     };
     FullTextDocument.prototype.getLineOffsets = function () {
-        if (this._lineOffsets === null) {
+        if (this._lineOffsets === undefined) {
             var lineOffsets = [];
             var text = this._content;
             var isLineStart = true;

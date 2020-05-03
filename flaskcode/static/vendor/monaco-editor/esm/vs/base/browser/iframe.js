@@ -88,8 +88,8 @@ var IframeUtils = /** @class */ (function () {
         }
         var top = 0, left = 0;
         var windowChain = this.getSameOriginWindowChain();
-        for (var i = 0; i < windowChain.length; i++) {
-            var windowChainEl = windowChain[i];
+        for (var _i = 0, windowChain_1 = windowChain; _i < windowChain_1.length; _i++) {
+            var windowChainEl = windowChain_1[_i];
             if (windowChainEl.window === ancestorWindow) {
                 break;
             }

@@ -7,10 +7,11 @@ import '../../editor/editor.api.js';
 var Emitter = monaco.Emitter;
 // --- JSON configuration and defaults ---------
 var LanguageServiceDefaultsImpl = /** @class */ (function () {
-    function LanguageServiceDefaultsImpl(languageId, diagnosticsOptions) {
+    function LanguageServiceDefaultsImpl(languageId, diagnosticsOptions, modeConfiguration) {
         this._onDidChange = new Emitter();
         this._languageId = languageId;
         this.setDiagnosticsOptions(diagnosticsOptions);
+        this.setModeConfiguration(modeConfiguration);
     }
     Object.defineProperty(LanguageServiceDefaultsImpl.prototype, "onDidChange", {
         get: function () {
@@ -26,6 +27,13 @@ var LanguageServiceDefaultsImpl = /** @class */ (function () {
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(LanguageServiceDefaultsImpl.prototype, "modeConfiguration", {
+        get: function () {
+            return this._modeConfiguration;
+        },
+        enumerable: true,
+        configurable: true
+    });
     Object.defineProperty(LanguageServiceDefaultsImpl.prototype, "diagnosticsOptions", {
         get: function () {
             return this._diagnosticsOptions;
@@ -37,6 +45,11 @@ var LanguageServiceDefaultsImpl = /** @class */ (function () {
         this._diagnosticsOptions = options || Object.create(null);
         this._onDidChange.fire(this);
     };
+    LanguageServiceDefaultsImpl.prototype.setModeConfiguration = function (modeConfiguration) {
+        this._modeConfiguration = modeConfiguration || Object.create(null);
+        this._onDidChange.fire(this);
+    };
+    ;
     return LanguageServiceDefaultsImpl;
 }());
 export { LanguageServiceDefaultsImpl };
@@ -46,21 +59,33 @@ var diagnosticDefault = {
     schemas: [],
     enableSchemaRequest: false
 };
-var jsonDefaults = new LanguageServiceDefaultsImpl('json', diagnosticDefault);
+var modeConfigurationDefault = {
+    documentFormattingEdits: true,
+    documentRangeFormattingEdits: true,
+    completionItems: true,
+    hovers: true,
+    documentSymbols: true,
+    tokens: true,
+    colors: true,
+    foldingRanges: true,
+    diagnostics: true,
+    selectionRanges: true
+};
+var jsonDefaults = new LanguageServiceDefaultsImpl('json', diagnosticDefault, modeConfigurationDefault);
 // Export API
 function createAPI() {
     return {
-        jsonDefaults: jsonDefaults,
+        jsonDefaults: jsonDefaults
     };
 }
 monaco.languages.json = createAPI();
 // --- Registration to monaco editor ---
 function getMode() {
-    return monaco.Promise.wrap(import('./jsonMode.js'));
+    return import('./jsonMode.js');
 }
 monaco.languages.register({
     id: 'json',
-    extensions: ['.json', '.bowerrc', '.jshintrc', '.jscsrc', '.eslintrc', '.babelrc'],
+    extensions: ['.json', '.bowerrc', '.jshintrc', '.jscsrc', '.eslintrc', '.babelrc', '.har'],
     aliases: ['JSON', 'json'],
     mimetypes: ['application/json'],
 });

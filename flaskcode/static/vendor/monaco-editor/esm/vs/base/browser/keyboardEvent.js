@@ -166,6 +166,7 @@ var shiftKeyMod = 1024 /* Shift */;
 var metaKeyMod = (platform.isMacintosh ? 2048 /* CtrlCmd */ : 256 /* WinCtrl */);
 var StandardKeyboardEvent = /** @class */ (function () {
     function StandardKeyboardEvent(source) {
+        this._standardKeyboardEventBrand = true;
         var e = source;
         this.browserEvent = e;
         this.target = e.target;

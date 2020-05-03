@@ -2,14 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 var __extends = (this && this.__extends) || (function () {
     var extendStatics = function (d, b) {
         extendStatics = Object.setPrototypeOf ||
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -17,14 +16,17 @@ var __extends = (this && this.__extends) || (function () {
     };
 })();
 import * as Json from './../../jsonc-parser/main.js';
-import * as objects from '../utils/objects.js';
-import { ErrorCode } from '../jsonLanguageTypes.js';
+import { isNumber, equals, isBoolean, isString, isDefined } from '../utils/objects.js';
+import { ErrorCode, Diagnostic, DiagnosticSeverity, Range } from '../jsonLanguageTypes.js';
 import * as nls from './../../../fillers/vscode-nls.js';
-import Uri from './../../vscode-uri/index.js';
-import { Diagnostic, DiagnosticSeverity, Range } from './../../vscode-languageserver-types/main.js';
 var localize = nls.loadMessageBundle();
-var colorHexPattern = /^#([0-9A-Fa-f]{3,4}|([0-9A-Fa-f]{2}){3,4})$/;
-var emailPattern = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+var formats = {
+    'color-hex': { errorMessage: localize('colorHexFormatWarning', 'Invalid color format. Use #RGB, #RGBA, #RRGGBB or #RRGGBBAA.'), pattern: /^#([0-9A-Fa-f]{3,4}|([0-9A-Fa-f]{2}){3,4})$/ },
+    'date-time': { errorMessage: localize('dateTimeFormatWarning', 'String is not a RFC3339 date-time.'), pattern: /^(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9]|60)(\.[0-9]+)?(Z|(\+|-)([01][0-9]|2[0-3]):([0-5][0-9]))$/i },
+    'date': { errorMessage: localize('dateFormatWarning', 'String is not a RFC3339 date.'), pattern: /^(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/i },
+    'time': { errorMessage: localize('timeFormatWarning', 'String is not a RFC3339 time.'), pattern: /^([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9]|60)(\.[0-9]+)?(Z|(\+|-)([01][0-9]|2[0-3]):([0-5][0-9]))$/i },
+    'email': { errorMessage: localize('emailFormatWarning', 'String is not an e-mail address.'), pattern: /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/ }
+};
 var ASTNodeImpl = /** @class */ (function () {
     function ASTNodeImpl(parent, offset, length) {
         this.offset = offset;
@@ -144,7 +146,7 @@ var ObjectASTNodeImpl = /** @class */ (function (_super) {
 }(ASTNodeImpl));
 export { ObjectASTNodeImpl };
 export function asSchema(schema) {
-    if (typeof schema === 'boolean') {
+    if (isBoolean(schema)) {
         return schema ? {} : { "not": {} };
     }
     return schema;
@@ -205,10 +207,10 @@ var ValidationResult = /** @class */ (function () {
         return !!this.problems.length;
     };
     ValidationResult.prototype.mergeAll = function (validationResults) {
-        var _this = this;
-        validationResults.forEach(function (validationResult) {
-            _this.merge(validationResult);
-        });
+        for (var _i = 0, validationResults_1 = validationResults; _i < validationResults_1.length; _i++) {
+            var validationResult = validationResults_1[_i];
+            this.merge(validationResult);
+        }
     };
     ValidationResult.prototype.merge = function (validationResult) {
         this.problems = this.problems.concat(validationResult.problems);
@@ -365,9 +367,10 @@ function validate(node, schema, validationResult, matchingSchemas) {
             }
         }
         if (Array.isArray(schema.allOf)) {
-            schema.allOf.forEach(function (subSchemaRef) {
+            for (var _i = 0, _a = schema.allOf; _i < _a.length; _i++) {
+                var subSchemaRef = _a[_i];
                 validate(node, asSchema(subSchemaRef), validationResult, matchingSchemas);
-            });
+            }
         }
         var notSchema = asSchema(schema.not);
         if (notSchema) {
@@ -381,16 +384,18 @@ function validate(node, schema, validationResult, matchingSchemas) {
                     message: localize('notSchemaWarning', "Matches a schema that is not allowed.")
                 });
             }
-            subMatchingSchemas.schemas.forEach(function (ms) {
+            for (var _b = 0, _c = subMatchingSchemas.schemas; _b < _c.length; _b++) {
+                var ms = _c[_b];
                 ms.inverted = !ms.inverted;
                 matchingSchemas.add(ms);
-            });
+            }
         }
         var testAlternatives = function (alternatives, maxOneMatch) {
             var matches = [];
             // remember the best match that is used for error messages
             var bestMatch = null;
-            alternatives.forEach(function (subSchemaRef) {
+            for (var _i = 0, alternatives_1 = alternatives; _i < alternatives_1.length; _i++) {
+                var subSchemaRef = alternatives_1[_i];
                 var subSchema = asSchema(subSchemaRef);
                 var subValidationResult = new ValidationResult();
                 var subMatchingSchemas = matchingSchemas.newSub();
@@ -421,7 +426,7 @@ function validate(node, schema, validationResult, matchingSchemas) {
                         }
                     }
                 }
-            });
+            }
             if (matches.length > 1 && maxOneMatch) {
                 validationResult.problems.push({
                     location: { offset: node.offset, length: 1 },
@@ -444,10 +449,9 @@ function validate(node, schema, validationResult, matchingSchemas) {
             testAlternatives(schema.oneOf, true);
         }
         var testBranch = function (schema) {
-            var subSchema = asSchema(schema);
             var subValidationResult = new ValidationResult();
             var subMatchingSchemas = matchingSchemas.newSub();
-            validate(node, subSchema, subValidationResult, subMatchingSchemas);
+            validate(node, asSchema(schema), subValidationResult, subMatchingSchemas);
             validationResult.merge(subValidationResult);
             validationResult.propertiesMatches += subValidationResult.propertiesMatches;
             validationResult.propertiesValueMatches += subValidationResult.propertiesValueMatches;
@@ -458,6 +462,7 @@ function validate(node, schema, validationResult, matchingSchemas) {
             var subValidationResult = new ValidationResult();
             var subMatchingSchemas = matchingSchemas.newSub();
             validate(node, subSchema, subValidationResult, subMatchingSchemas);
+            matchingSchemas.merge(subMatchingSchemas);
             if (!subValidationResult.hasProblems()) {
                 if (thenSchema) {
                     testBranch(thenSchema);
@@ -467,15 +472,16 @@ function validate(node, schema, validationResult, matchingSchemas) {
                 testBranch(elseSchema);
             }
         };
-        if (schema.if) {
-            testCondition(schema.if, schema.then, schema.else);
+        var ifSchema = asSchema(schema.if);
+        if (ifSchema) {
+            testCondition(ifSchema, asSchema(schema.then), asSchema(schema.else));
         }
         if (Array.isArray(schema.enum)) {
             var val = getNodeValue(node);
             var enumValueMatch = false;
-            for (var _i = 0, _a = schema.enum; _i < _a.length; _i++) {
-                var e = _a[_i];
-                if (objects.equals(val, e)) {
+            for (var _d = 0, _e = schema.enum; _d < _e.length; _d++) {
+                var e = _e[_d];
+                if (equals(val, e)) {
                     enumValueMatch = true;
                     break;
                 }
@@ -491,9 +497,9 @@ function validate(node, schema, validationResult, matchingSchemas) {
                 });
             }
         }
-        if (schema.const) {
+        if (isDefined(schema.const)) {
             var val = getNodeValue(node);
-            if (!objects.equals(val, schema.const)) {
+            if (!equals(val, schema.const)) {
                 validationResult.problems.push({
                     location: { offset: node.offset, length: node.length },
                     severity: DiagnosticSeverity.Warning,
@@ -517,7 +523,7 @@ function validate(node, schema, validationResult, matchingSchemas) {
     }
     function _validateNumberNode(node, schema, validationResult, matchingSchemas) {
         var val = node.value;
-        if (typeof schema.multipleOf === 'number') {
+        if (isNumber(schema.multipleOf)) {
             if (val % schema.multipleOf !== 0) {
                 validationResult.problems.push({
                     location: { offset: node.offset, length: node.length },
@@ -527,22 +533,22 @@ function validate(node, schema, validationResult, matchingSchemas) {
             }
         }
         function getExclusiveLimit(limit, exclusive) {
-            if (typeof exclusive === 'number') {
+            if (isNumber(exclusive)) {
                 return exclusive;
             }
-            if (typeof exclusive === 'boolean' && exclusive) {
+            if (isBoolean(exclusive) && exclusive) {
                 return limit;
             }
             return void 0;
         }
         function getLimit(limit, exclusive) {
-            if (typeof exclusive !== 'boolean' || !exclusive) {
+            if (!isBoolean(exclusive) || !exclusive) {
                 return limit;
             }
             return void 0;
         }
         var exclusiveMinimum = getExclusiveLimit(schema.minimum, schema.exclusiveMinimum);
-        if (typeof exclusiveMinimum === 'number' && val <= exclusiveMinimum) {
+        if (isNumber(exclusiveMinimum) && val <= exclusiveMinimum) {
             validationResult.problems.push({
                 location: { offset: node.offset, length: node.length },
                 severity: DiagnosticSeverity.Warning,
@@ -550,7 +556,7 @@ function validate(node, schema, validationResult, matchingSchemas) {
             });
         }
         var exclusiveMaximum = getExclusiveLimit(schema.maximum, schema.exclusiveMaximum);
-        if (typeof exclusiveMaximum === 'number' && val >= exclusiveMaximum) {
+        if (isNumber(exclusiveMaximum) && val >= exclusiveMaximum) {
             validationResult.problems.push({
                 location: { offset: node.offset, length: node.length },
                 severity: DiagnosticSeverity.Warning,
@@ -558,7 +564,7 @@ function validate(node, schema, validationResult, matchingSchemas) {
             });
         }
         var minimum = getLimit(schema.minimum, schema.exclusiveMinimum);
-        if (typeof minimum === 'number' && val < minimum) {
+        if (isNumber(minimum) && val < minimum) {
             validationResult.problems.push({
                 location: { offset: node.offset, length: node.length },
                 severity: DiagnosticSeverity.Warning,
@@ -566,7 +572,7 @@ function validate(node, schema, validationResult, matchingSchemas) {
             });
         }
         var maximum = getLimit(schema.maximum, schema.exclusiveMaximum);
-        if (typeof maximum === 'number' && val > maximum) {
+        if (isNumber(maximum) && val > maximum) {
             validationResult.problems.push({
                 location: { offset: node.offset, length: node.length },
                 severity: DiagnosticSeverity.Warning,
@@ -575,21 +581,21 @@ function validate(node, schema, validationResult, matchingSchemas) {
         }
     }
     function _validateStringNode(node, schema, validationResult, matchingSchemas) {
-        if (schema.minLength && node.value.length < schema.minLength) {
+        if (isNumber(schema.minLength) && node.value.length < schema.minLength) {
             validationResult.problems.push({
                 location: { offset: node.offset, length: node.length },
                 severity: DiagnosticSeverity.Warning,
                 message: localize('minLengthWarning', 'String is shorter than the minimum length of {0}.', schema.minLength)
             });
         }
-        if (schema.maxLength && node.value.length > schema.maxLength) {
+        if (isNumber(schema.maxLength) && node.value.length > schema.maxLength) {
             validationResult.problems.push({
                 location: { offset: node.offset, length: node.length },
                 severity: DiagnosticSeverity.Warning,
                 message: localize('maxLengthWarning', 'String is longer than the maximum length of {0}.', schema.maxLength)
             });
         }
-        if (schema.pattern) {
+        if (isString(schema.pattern)) {
             var regex = new RegExp(schema.pattern);
             if (!regex.test(node.value)) {
                 validationResult.problems.push({
@@ -609,14 +615,12 @@ function validate(node, schema, validationResult, matchingSchemas) {
                             errorMessage = localize('uriEmpty', 'URI expected.');
                         }
                         else {
-                            try {
-                                var uri = Uri.parse(node.value);
-                                if (!uri.scheme && schema.format === 'uri') {
-                                    errorMessage = localize('uriSchemeMissing', 'URI with a scheme is expected.');
-                                }
+                            var match = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/.exec(node.value);
+                            if (!match) {
+                                errorMessage = localize('uriMissing', 'URI is expected.');
                             }
-                            catch (e) {
-                                errorMessage = e.message;
+                            else if (!match[2] && schema.format === 'uri') {
+                                errorMessage = localize('uriSchemeMissing', 'URI with a scheme is expected.');
                             }
                         }
                         if (errorMessage) {
@@ -628,36 +632,28 @@ function validate(node, schema, validationResult, matchingSchemas) {
                         }
                     }
                     break;
-                case 'email':
-                    {
-                        if (!node.value.match(emailPattern)) {
-                            validationResult.problems.push({
-                                location: { offset: node.offset, length: node.length },
-                                severity: DiagnosticSeverity.Warning,
-                                message: schema.patternErrorMessage || schema.errorMessage || localize('emailFormatWarning', 'String is not an e-mail address.')
-                            });
-                        }
-                    }
-                    break;
                 case 'color-hex':
-                    {
-                        if (!node.value.match(colorHexPattern)) {
-                            validationResult.problems.push({
-                                location: { offset: node.offset, length: node.length },
-                                severity: DiagnosticSeverity.Warning,
-                                message: schema.patternErrorMessage || schema.errorMessage || localize('colorHexFormatWarning', 'Invalid color format. Use #RGB, #RGBA, #RRGGBB or #RRGGBBAA.')
-                            });
-                        }
+                case 'date-time':
+                case 'date':
+                case 'time':
+                case 'email':
+                    var format = formats[schema.format];
+                    if (!node.value || !format.pattern.exec(node.value)) {
+                        validationResult.problems.push({
+                            location: { offset: node.offset, length: node.length },
+                            severity: DiagnosticSeverity.Warning,
+                            message: schema.patternErrorMessage || schema.errorMessage || format.errorMessage
+                        });
                     }
-                    break;
                 default:
             }
         }
     }
     function _validateArrayNode(node, schema, validationResult, matchingSchemas) {
         if (Array.isArray(schema.items)) {
-            var subSchemas_1 = schema.items;
-            subSchemas_1.forEach(function (subSchemaRef, index) {
+            var subSchemas = schema.items;
+            for (var index = 0; index < subSchemas.length; index++) {
+                var subSchemaRef = subSchemas[index];
                 var subSchema = asSchema(subSchemaRef);
                 var itemValidationResult = new ValidationResult();
                 var item = node.items[index];
@@ -665,13 +661,13 @@ function validate(node, schema, validationResult, matchingSchemas) {
                     validate(item, subSchema, itemValidationResult, matchingSchemas);
                     validationResult.mergePropertyMatch(itemValidationResult);
                 }
-                else if (node.items.length >= subSchemas_1.length) {
+                else if (node.items.length >= subSchemas.length) {
                     validationResult.propertiesValueMatches++;
                 }
-            });
-            if (node.items.length > subSchemas_1.length) {
+            }
+            if (node.items.length > subSchemas.length) {
                 if (typeof schema.additionalItems === 'object') {
-                    for (var i = subSchemas_1.length; i < node.items.length; i++) {
+                    for (var i = subSchemas.length; i < node.items.length; i++) {
                         var itemValidationResult = new ValidationResult();
                         validate(node.items[i], schema.additionalItems, itemValidationResult, matchingSchemas);
                         validationResult.mergePropertyMatch(itemValidationResult);
@@ -681,19 +677,20 @@ function validate(node, schema, validationResult, matchingSchemas) {
                     validationResult.problems.push({
                         location: { offset: node.offset, length: node.length },
                         severity: DiagnosticSeverity.Warning,
-                        message: localize('additionalItemsWarning', 'Array has too many items according to schema. Expected {0} or fewer.', subSchemas_1.length)
+                        message: localize('additionalItemsWarning', 'Array has too many items according to schema. Expected {0} or fewer.', subSchemas.length)
                     });
                 }
             }
         }
         else {
-            var itemSchema_1 = asSchema(schema.items);
-            if (itemSchema_1) {
-                node.items.forEach(function (item) {
+            var itemSchema = asSchema(schema.items);
+            if (itemSchema) {
+                for (var _i = 0, _a = node.items; _i < _a.length; _i++) {
+                    var item = _a[_i];
                     var itemValidationResult = new ValidationResult();
-                    validate(item, itemSchema_1, itemValidationResult, matchingSchemas);
+                    validate(item, itemSchema, itemValidationResult, matchingSchemas);
                     validationResult.mergePropertyMatch(itemValidationResult);
-                });
+                }
             }
         }
         var containsSchema = asSchema(schema.contains);
@@ -711,14 +708,14 @@ function validate(node, schema, validationResult, matchingSchemas) {
                 });
             }
         }
-        if (schema.minItems && node.items.length < schema.minItems) {
+        if (isNumber(schema.minItems) && node.items.length < schema.minItems) {
             validationResult.problems.push({
                 location: { offset: node.offset, length: node.length },
                 severity: DiagnosticSeverity.Warning,
                 message: localize('minItemsWarning', 'Array has too few items. Expected {0} or more.', schema.minItems)
             });
         }
-        if (schema.maxItems && node.items.length > schema.maxItems) {
+        if (isNumber(schema.maxItems) && node.items.length > schema.maxItems) {
             validationResult.problems.push({
                 location: { offset: node.offset, length: node.length },
                 severity: DiagnosticSeverity.Warning,
@@ -742,13 +739,15 @@ function validate(node, schema, validationResult, matchingSchemas) {
     function _validateObjectNode(node, schema, validationResult, matchingSchemas) {
         var seenKeys = Object.create(null);
         var unprocessedProperties = [];
-        node.properties.forEach(function (node) {
-            var key = node.keyNode.value;
-            seenKeys[key] = node.valueNode;
+        for (var _i = 0, _a = node.properties; _i < _a.length; _i++) {
+            var propertyNode = _a[_i];
+            var key = propertyNode.keyNode.value;
+            seenKeys[key] = propertyNode.valueNode;
             unprocessedProperties.push(key);
-        });
+        }
         if (Array.isArray(schema.required)) {
-            schema.required.forEach(function (propertyName) {
+            for (var _b = 0, _c = schema.required; _b < _c.length; _b++) {
+                var propertyName = _c[_b];
                 if (!seenKeys[propertyName]) {
                     var keyNode = node.parent && node.parent.type === 'property' && node.parent.keyNode;
                     var location = keyNode ? { offset: keyNode.offset, length: keyNode.length } : { offset: node.offset, length: 1 };
@@ -758,7 +757,7 @@ function validate(node, schema, validationResult, matchingSchemas) {
                         message: localize('MissingRequiredPropWarning', 'Missing property "{0}".', propertyName)
                     });
                 }
-            });
+            }
         }
         var propertyProcessed = function (prop) {
             var index = unprocessedProperties.indexOf(prop);
@@ -768,12 +767,13 @@ function validate(node, schema, validationResult, matchingSchemas) {
             }
         };
         if (schema.properties) {
-            Object.keys(schema.properties).forEach(function (propertyName) {
+            for (var _d = 0, _e = Object.keys(schema.properties); _d < _e.length; _d++) {
+                var propertyName = _e[_d];
                 propertyProcessed(propertyName);
                 var propertySchema = schema.properties[propertyName];
                 var child = seenKeys[propertyName];
                 if (child) {
-                    if (typeof propertySchema === 'boolean') {
+                    if (isBoolean(propertySchema)) {
                         if (!propertySchema) {
                             var propertyNode = child.parent;
                             validationResult.problems.push({
@@ -793,18 +793,20 @@ function validate(node, schema, validationResult, matchingSchemas) {
                         validationResult.mergePropertyMatch(propertyValidationResult);
                     }
                 }
-            });
+            }
         }
         if (schema.patternProperties) {
-            Object.keys(schema.patternProperties).forEach(function (propertyPattern) {
+            for (var _f = 0, _g = Object.keys(schema.patternProperties); _f < _g.length; _f++) {
+                var propertyPattern = _g[_f];
                 var regex = new RegExp(propertyPattern);
-                unprocessedProperties.slice(0).forEach(function (propertyName) {
+                for (var _h = 0, _j = unprocessedProperties.slice(0); _h < _j.length; _h++) {
+                    var propertyName = _j[_h];
                     if (regex.test(propertyName)) {
                         propertyProcessed(propertyName);
                         var child = seenKeys[propertyName];
                         if (child) {
                             var propertySchema = schema.patternProperties[propertyPattern];
-                            if (typeof propertySchema === 'boolean') {
+                            if (isBoolean(propertySchema)) {
                                 if (!propertySchema) {
                                     var propertyNode = child.parent;
                                     validationResult.problems.push({
@@ -825,22 +827,24 @@ function validate(node, schema, validationResult, matchingSchemas) {
                             }
                         }
                     }
-                });
-            });
+                }
+            }
         }
         if (typeof schema.additionalProperties === 'object') {
-            unprocessedProperties.forEach(function (propertyName) {
+            for (var _k = 0, unprocessedProperties_1 = unprocessedProperties; _k < unprocessedProperties_1.length; _k++) {
+                var propertyName = unprocessedProperties_1[_k];
                 var child = seenKeys[propertyName];
                 if (child) {
                     var propertyValidationResult = new ValidationResult();
                     validate(child, schema.additionalProperties, propertyValidationResult, matchingSchemas);
                     validationResult.mergePropertyMatch(propertyValidationResult);
                 }
-            });
+            }
         }
         else if (schema.additionalProperties === false) {
             if (unprocessedProperties.length > 0) {
-                unprocessedProperties.forEach(function (propertyName) {
+                for (var _l = 0, unprocessedProperties_2 = unprocessedProperties; _l < unprocessedProperties_2.length; _l++) {
+                    var propertyName = unprocessedProperties_2[_l];
                     var child = seenKeys[propertyName];
                     if (child) {
                         var propertyNode = child.parent;
@@ -850,10 +854,10 @@ function validate(node, schema, validationResult, matchingSchemas) {
                             message: schema.errorMessage || localize('DisallowedExtraPropWarning', 'Property {0} is not allowed.', propertyName)
                         });
                     }
-                });
+                }
             }
         }
-        if (schema.maxProperties) {
+        if (isNumber(schema.maxProperties)) {
             if (node.properties.length > schema.maxProperties) {
                 validationResult.problems.push({
                     location: { offset: node.offset, length: node.length },
@@ -862,7 +866,7 @@ function validate(node, schema, validationResult, matchingSchemas) {
                 });
             }
         }
-        if (schema.minProperties) {
+        if (isNumber(schema.minProperties)) {
             if (node.properties.length < schema.minProperties) {
                 validationResult.problems.push({
                     location: { offset: node.offset, length: node.length },
@@ -872,12 +876,14 @@ function validate(node, schema, validationResult, matchingSchemas) {
             }
         }
         if (schema.dependencies) {
-            Object.keys(schema.dependencies).forEach(function (key) {
+            for (var _m = 0, _o = Object.keys(schema.dependencies); _m < _o.length; _m++) {
+                var key = _o[_m];
                 var prop = seenKeys[key];
                 if (prop) {
                     var propertyDep = schema.dependencies[key];
                     if (Array.isArray(propertyDep)) {
-                        propertyDep.forEach(function (requiredProp) {
+                        for (var _p = 0, propertyDep_1 = propertyDep; _p < propertyDep_1.length; _p++) {
+                            var requiredProp = propertyDep_1[_p];
                             if (!seenKeys[requiredProp]) {
                                 validationResult.problems.push({
                                     location: { offset: node.offset, length: node.length },
@@ -888,7 +894,7 @@ function validate(node, schema, validationResult, matchingSchemas) {
                             else {
                                 validationResult.propertiesValueMatches++;
                             }
-                        });
+                        }
                     }
                     else {
                         var propertySchema = asSchema(propertyDep);
@@ -899,16 +905,17 @@ function validate(node, schema, validationResult, matchingSchemas) {
                         }
                     }
                 }
-            });
+            }
         }
         var propertyNames = asSchema(schema.propertyNames);
         if (propertyNames) {
-            node.properties.forEach(function (f) {
+            for (var _q = 0, _r = node.properties; _q < _r.length; _q++) {
+                var f = _r[_q];
                 var key = f.keyNode;
                 if (key) {
                     validate(key, propertyNames, validationResult, NoOpSchemaCollector.instance);
                 }
-            });
+            }
         }
     }
 }
@@ -1156,7 +1163,7 @@ export function parse(textDocument, config) {
             var tokenValue = scanner.getTokenValue();
             try {
                 var numberValue = JSON.parse(tokenValue);
-                if (typeof numberValue !== 'number') {
+                if (!isNumber(numberValue)) {
                     return _error(localize('InvalidNumberFormat', 'Invalid number format.'), ErrorCode.Undefined, node);
                 }
                 node.value = numberValue;
@@ -1197,4 +1204,3 @@ export function parse(textDocument, config) {
     }
     return new JSONDocument(_root, problems, commentRanges);
 }
-//# sourceMappingURL=jsonParser.js.map

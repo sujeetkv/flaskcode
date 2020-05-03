@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -18,13 +18,7 @@ var __extends = (this && this.__extends) || (function () {
 import { transformErrorForSerialization } from '../errors.js';
 import { Disposable } from '../lifecycle.js';
 import { isWeb } from '../platform.js';
-import { PolyfillPromise } from '../winjs.polyfill.promise.js';
-var global = self;
-// When missing, polyfill the native promise
-// with our winjs-based polyfill
-if (typeof global.Promise === 'undefined') {
-    global.Promise = PolyfillPromise;
-}
+import * as types from '../types.js';
 var INITIALIZE = '$initialize';
 var webWorkerWarningLogged = false;
 export function logOnceWebWorkerWarning(err) {
@@ -64,15 +58,7 @@ var SimpleWorkerProtocol = /** @class */ (function () {
             });
         });
     };
-    SimpleWorkerProtocol.prototype.handleMessage = function (serializedMessage) {
-        var message;
-        try {
-            message = JSON.parse(serializedMessage);
-        }
-        catch (e) {
-            // nothing
-            return;
-        }
+    SimpleWorkerProtocol.prototype.handleMessage = function (message) {
         if (!message || !message.vsWorker) {
             return;
         }
@@ -129,9 +115,22 @@ var SimpleWorkerProtocol = /** @class */ (function () {
         });
     };
     SimpleWorkerProtocol.prototype._send = function (msg) {
-        var strMsg = JSON.stringify(msg);
-        // console.log('SENDING: ' + strMsg);
-        this._handler.sendMessage(strMsg);
+        var transfer = [];
+        if (msg.req) {
+            var m = msg;
+            for (var i = 0; i < m.args.length; i++) {
+                if (m.args[i] instanceof ArrayBuffer) {
+                    transfer.push(m.args[i]);
+                }
+            }
+        }
+        else {
+            var m = msg;
+            if (m.res instanceof ArrayBuffer) {
+                transfer.push(m.res);
+            }
+        }
+        this._handler.sendMessage(msg, transfer);
     };
     return SimpleWorkerProtocol;
 }());
@@ -140,7 +139,7 @@ var SimpleWorkerProtocol = /** @class */ (function () {
  */
 var SimpleWorkerClient = /** @class */ (function (_super) {
     __extends(SimpleWorkerClient, _super);
-    function SimpleWorkerClient(workerFactory, moduleId) {
+    function SimpleWorkerClient(workerFactory, moduleId, host) {
         var _this = _super.call(this) || this;
         var lazyProxyReject = null;
         _this._worker = _this._register(workerFactory.create('vs/base/common/worker/simpleWorker', function (msg) {
@@ -153,12 +152,19 @@ var SimpleWorkerClient = /** @class */ (function (_super) {
             }
         }));
         _this._protocol = new SimpleWorkerProtocol({
-            sendMessage: function (msg) {
-                _this._worker.postMessage(msg);
+            sendMessage: function (msg, transfer) {
+                _this._worker.postMessage(msg, transfer);
             },
             handleMessage: function (method, args) {
-                // Intentionally not supporting worker -> main requests
-                return Promise.resolve(null);
+                if (typeof host[method] !== 'function') {
+                    return Promise.reject(new Error('Missing method ' + method + ' on main thread host.'));
+                }
+                try {
+                    return Promise.resolve(host[method].apply(host, args));
+                }
+                catch (e) {
+                    return Promise.reject(e);
+                }
             }
         });
         _this._protocol.setWorkerId(_this._worker.getId());
@@ -172,35 +178,27 @@ var SimpleWorkerClient = /** @class */ (function (_super) {
             // Get the configuration from requirejs
             loaderConfiguration = self.requirejs.s.contexts._.config;
         }
+        var hostMethods = types.getAllMethodNames(host);
         // Send initialize message
         _this._onModuleLoaded = _this._protocol.sendMessage(INITIALIZE, [
             _this._worker.getId(),
+            JSON.parse(JSON.stringify(loaderConfiguration)),
             moduleId,
-            loaderConfiguration
+            hostMethods,
         ]);
+        // Create proxy to loaded code
+        var proxyMethodRequest = function (method, args) {
+            return _this._request(method, args);
+        };
         _this._lazyProxy = new Promise(function (resolve, reject) {
             lazyProxyReject = reject;
             _this._onModuleLoaded.then(function (availableMethods) {
-                var proxy = {};
-                for (var i = 0; i < availableMethods.length; i++) {
-                    proxy[availableMethods[i]] = createProxyMethod(availableMethods[i], proxyMethodRequest);
-                }
-                resolve(proxy);
+                resolve(types.createProxyObject(availableMethods, proxyMethodRequest));
             }, function (e) {
                 reject(e);
                 _this._onError('Worker failed to load ' + moduleId, e);
             });
         });
-        // Create proxy to loaded code
-        var proxyMethodRequest = function (method, args) {
-            return _this._request(method, args);
-        };
-        var createProxyMethod = function (method, proxyMethodRequest) {
-            return function () {
-                var args = Array.prototype.slice.call(arguments, 0);
-                return proxyMethodRequest(method, args);
-            };
-        };
         return _this;
     }
     SimpleWorkerClient.prototype.getProxyObject = function () {
@@ -225,12 +223,13 @@ export { SimpleWorkerClient };
  * Worker side
  */
 var SimpleWorkerServer = /** @class */ (function () {
-    function SimpleWorkerServer(postSerializedMessage, requestHandler) {
+    function SimpleWorkerServer(postMessage, requestHandlerFactory) {
         var _this = this;
-        this._requestHandler = requestHandler;
+        this._requestHandlerFactory = requestHandlerFactory;
+        this._requestHandler = null;
         this._protocol = new SimpleWorkerProtocol({
-            sendMessage: function (msg) {
-                postSerializedMessage(msg);
+            sendMessage: function (msg, transfer) {
+                postMessage(msg, transfer);
             },
             handleMessage: function (method, args) { return _this._handleMessage(method, args); }
         });
@@ -240,7 +239,7 @@ var SimpleWorkerServer = /** @class */ (function () {
     };
     SimpleWorkerServer.prototype._handleMessage = function (method, args) {
         if (method === INITIALIZE) {
-            return this.initialize(args[0], args[1], args[2]);
+            return this.initialize(args[0], args[1], args[2], args[3]);
         }
         if (!this._requestHandler || typeof this._requestHandler[method] !== 'function') {
             return Promise.reject(new Error('Missing requestHandler or method: ' + method));
@@ -252,18 +251,17 @@ var SimpleWorkerServer = /** @class */ (function () {
             return Promise.reject(e);
         }
     };
-    SimpleWorkerServer.prototype.initialize = function (workerId, moduleId, loaderConfig) {
+    SimpleWorkerServer.prototype.initialize = function (workerId, loaderConfig, moduleId, hostMethods) {
         var _this = this;
         this._protocol.setWorkerId(workerId);
-        if (this._requestHandler) {
+        var proxyMethodRequest = function (method, args) {
+            return _this._protocol.sendMessage(method, args);
+        };
+        var hostProxy = types.createProxyObject(hostMethods, proxyMethodRequest);
+        if (this._requestHandlerFactory) {
             // static request handler
-            var methods = [];
-            for (var prop in this._requestHandler) {
-                if (typeof this._requestHandler[prop] === 'function') {
-                    methods.push(prop);
-                }
-            }
-            return Promise.resolve(methods);
+            this._requestHandler = this._requestHandlerFactory(hostProxy);
+            return Promise.resolve(types.getAllMethodNames(this._requestHandler));
         }
         if (loaderConfig) {
             // Remove 'baseUrl', handling it is beyond scope for now
@@ -281,24 +279,13 @@ var SimpleWorkerServer = /** @class */ (function () {
         }
         return new Promise(function (resolve, reject) {
             // Use the global require to be sure to get the global config
-            self.require([moduleId], function () {
-                var result = [];
-                for (var _i = 0; _i < arguments.length; _i++) {
-                    result[_i] = arguments[_i];
-                }
-                var handlerModule = result[0];
-                _this._requestHandler = handlerModule.create();
+            self.require([moduleId], function (module) {
+                _this._requestHandler = module.create(hostProxy);
                 if (!_this._requestHandler) {
                     reject(new Error("No RequestHandler!"));
                     return;
                 }
-                var methods = [];
-                for (var prop in _this._requestHandler) {
-                    if (typeof _this._requestHandler[prop] === 'function') {
-                        methods.push(prop);
-                    }
-                }
-                resolve(methods);
+                resolve(types.getAllMethodNames(_this._requestHandler));
             }, reject);
         });
     };

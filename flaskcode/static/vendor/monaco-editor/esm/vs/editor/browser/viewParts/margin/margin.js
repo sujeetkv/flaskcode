@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -21,11 +21,20 @@ var Margin = /** @class */ (function (_super) {
     __extends(Margin, _super);
     function Margin(context) {
         var _this = _super.call(this, context) || this;
-        _this._canUseLayerHinting = _this._context.configuration.editor.canUseLayerHinting;
-        _this._contentLeft = _this._context.configuration.editor.layoutInfo.contentLeft;
-        _this._glyphMarginLeft = _this._context.configuration.editor.layoutInfo.glyphMarginLeft;
-        _this._glyphMarginWidth = _this._context.configuration.editor.layoutInfo.glyphMarginWidth;
-        _this._domNode = _this._createDomNode();
+        var options = _this._context.configuration.options;
+        var layoutInfo = options.get(107 /* layoutInfo */);
+        _this._canUseLayerHinting = !options.get(22 /* disableLayerHinting */);
+        _this._contentLeft = layoutInfo.contentLeft;
+        _this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
+        _this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
+        _this._domNode = createFastDomNode(document.createElement('div'));
+        _this._domNode.setClassName(Margin.OUTER_CLASS_NAME);
+        _this._domNode.setPosition('absolute');
+        _this._domNode.setAttribute('role', 'presentation');
+        _this._domNode.setAttribute('aria-hidden', 'true');
+        _this._glyphMarginBackgroundDomNode = createFastDomNode(document.createElement('div'));
+        _this._glyphMarginBackgroundDomNode.setClassName(Margin.CLASS_NAME);
+        _this._domNode.appendChild(_this._glyphMarginBackgroundDomNode);
         return _this;
     }
     Margin.prototype.dispose = function () {
@@ -34,27 +43,14 @@ var Margin = /** @class */ (function (_super) {
     Margin.prototype.getDomNode = function () {
         return this._domNode;
     };
-    Margin.prototype._createDomNode = function () {
-        var domNode = createFastDomNode(document.createElement('div'));
-        domNode.setClassName(Margin.OUTER_CLASS_NAME);
-        domNode.setPosition('absolute');
-        domNode.setAttribute('role', 'presentation');
-        domNode.setAttribute('aria-hidden', 'true');
-        this._glyphMarginBackgroundDomNode = createFastDomNode(document.createElement('div'));
-        this._glyphMarginBackgroundDomNode.setClassName(Margin.CLASS_NAME);
-        domNode.appendChild(this._glyphMarginBackgroundDomNode);
-        return domNode;
-    };
     // --- begin event handlers
     Margin.prototype.onConfigurationChanged = function (e) {
-        if (e.canUseLayerHinting) {
-            this._canUseLayerHinting = this._context.configuration.editor.canUseLayerHinting;
-        }
-        if (e.layoutInfo) {
-            this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
-            this._glyphMarginLeft = this._context.configuration.editor.layoutInfo.glyphMarginLeft;
-            this._glyphMarginWidth = this._context.configuration.editor.layoutInfo.glyphMarginWidth;
-        }
+        var options = this._context.configuration.options;
+        var layoutInfo = options.get(107 /* layoutInfo */);
+        this._canUseLayerHinting = !options.get(22 /* disableLayerHinting */);
+        this._contentLeft = layoutInfo.contentLeft;
+        this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
+        this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
         return true;
     };
     Margin.prototype.onScrollChanged = function (e) {
@@ -66,6 +62,7 @@ var Margin = /** @class */ (function (_super) {
     };
     Margin.prototype.render = function (ctx) {
         this._domNode.setLayerHinting(this._canUseLayerHinting);
+        this._domNode.setContain('strict');
         var adjustedScrollTop = ctx.scrollTop - ctx.bigNumbersDelta;
         this._domNode.setTop(-adjustedScrollTop);
         var height = Math.min(ctx.scrollHeight, 1000000);

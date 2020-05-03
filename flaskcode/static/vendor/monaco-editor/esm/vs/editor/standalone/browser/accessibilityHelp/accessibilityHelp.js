@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -25,11 +25,10 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 import './accessibilityHelp.css';
-import * as nls from '../../../../nls.js';
 import * as browser from '../../../../base/browser/browser.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { createFastDomNode } from '../../../../base/browser/fastDomNode.js';
-import { renderFormattedText } from '../../../../base/browser/htmlContentRenderer.js';
+import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { Widget } from '../../../../base/browser/ui/widget.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -43,8 +42,9 @@ import { IContextKeyService, RawContextKey } from '../../../../platform/contextk
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { contrastBorder, editorWidgetBackground, widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
+import { contrastBorder, editorWidgetBackground, widgetShadow, editorWidgetForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { AccessibilityHelpNLS } from '../../../common/standaloneStrings.js';
 var CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey('accessibilityHelpWidgetVisible', false);
 var AccessibilityHelpController = /** @class */ (function (_super) {
     __extends(AccessibilityHelpController, _super);
@@ -56,9 +56,6 @@ var AccessibilityHelpController = /** @class */ (function (_super) {
     }
     AccessibilityHelpController.get = function (editor) {
         return editor.getContribution(AccessibilityHelpController.ID);
-    };
-    AccessibilityHelpController.prototype.getId = function () {
-        return AccessibilityHelpController.ID;
     };
     AccessibilityHelpController.prototype.show = function () {
         this._widget.show();
@@ -72,28 +69,23 @@ var AccessibilityHelpController = /** @class */ (function (_super) {
     ], AccessibilityHelpController);
     return AccessibilityHelpController;
 }(Disposable));
-var nlsNoSelection = nls.localize("noSelection", "No selection");
-var nlsSingleSelectionRange = nls.localize("singleSelectionRange", "Line {0}, Column {1} ({2} selected)");
-var nlsSingleSelection = nls.localize("singleSelection", "Line {0}, Column {1}");
-var nlsMultiSelectionRange = nls.localize("multiSelectionRange", "{0} selections ({1} characters selected)");
-var nlsMultiSelection = nls.localize("multiSelection", "{0} selections");
 function getSelectionLabel(selections, charactersSelected) {
     if (!selections || selections.length === 0) {
-        return nlsNoSelection;
+        return AccessibilityHelpNLS.noSelection;
     }
     if (selections.length === 1) {
         if (charactersSelected) {
-            return strings.format(nlsSingleSelectionRange, selections[0].positionLineNumber, selections[0].positionColumn, charactersSelected);
+            return strings.format(AccessibilityHelpNLS.singleSelectionRange, selections[0].positionLineNumber, selections[0].positionColumn, charactersSelected);
         }
-        return strings.format(nlsSingleSelection, selections[0].positionLineNumber, selections[0].positionColumn);
+        return strings.format(AccessibilityHelpNLS.singleSelection, selections[0].positionLineNumber, selections[0].positionColumn);
     }
     if (charactersSelected) {
-        return strings.format(nlsMultiSelectionRange, selections.length, charactersSelected);
+        return strings.format(AccessibilityHelpNLS.multiSelectionRange, selections.length, charactersSelected);
     }
     if (selections.length > 0) {
-        return strings.format(nlsMultiSelection, selections.length);
+        return strings.format(AccessibilityHelpNLS.multiSelection, selections.length);
     }
-    return null;
+    return '';
 }
 var AccessibilityHelpWidget = /** @class */ (function (_super) {
     __extends(AccessibilityHelpWidget, _super);
@@ -124,7 +116,7 @@ var AccessibilityHelpWidget = /** @class */ (function (_super) {
                 return;
             }
             if (e.equals(2048 /* CtrlCmd */ | 35 /* KEY_E */)) {
-                alert(nls.localize("emergencyConfOn", "Now changing the setting `accessibilitySupport` to 'on'."));
+                alert(AccessibilityHelpNLS.emergencyConfOn);
                 _this._editor.updateOptions({
                     accessibilitySupport: 'on'
                 });
@@ -135,8 +127,8 @@ var AccessibilityHelpWidget = /** @class */ (function (_super) {
                 e.stopPropagation();
             }
             if (e.equals(2048 /* CtrlCmd */ | 38 /* KEY_H */)) {
-                alert(nls.localize("openingDocs", "Now opening the Editor Accessibility documentation page."));
-                var url = _this._editor.getRawConfiguration().accessibilityHelpUrl;
+                alert(AccessibilityHelpNLS.openingDocs);
+                var url = _this._editor.getRawOptions().accessibilityHelpUrl;
                 if (typeof url === 'undefined') {
                     url = 'https://go.microsoft.com/fwlink/?linkid=852450';
                 }
@@ -187,7 +179,7 @@ var AccessibilityHelpWidget = /** @class */ (function (_super) {
         return strings.format(noKbMsg, commandId);
     };
     AccessibilityHelpWidget.prototype._buildContent = function () {
-        var opts = this._editor.getConfiguration();
+        var options = this._editor.getOptions();
         var selections = this._editor.getSelections();
         var charactersSelected = 0;
         if (selections) {
@@ -199,52 +191,48 @@ var AccessibilityHelpWidget = /** @class */ (function (_super) {
             }
         }
         var text = getSelectionLabel(selections, charactersSelected);
-        if (opts.wrappingInfo.inDiffEditor) {
-            if (opts.readOnly) {
-                text += nls.localize("readonlyDiffEditor", " in a read-only pane of a diff editor.");
+        if (options.get(45 /* inDiffEditor */)) {
+            if (options.get(68 /* readOnly */)) {
+                text += AccessibilityHelpNLS.readonlyDiffEditor;
             }
             else {
-                text += nls.localize("editableDiffEditor", " in a pane of a diff editor.");
+                text += AccessibilityHelpNLS.editableDiffEditor;
             }
         }
         else {
-            if (opts.readOnly) {
-                text += nls.localize("readonlyEditor", " in a read-only code editor");
+            if (options.get(68 /* readOnly */)) {
+                text += AccessibilityHelpNLS.readonlyEditor;
             }
             else {
-                text += nls.localize("editableEditor", " in a code editor");
+                text += AccessibilityHelpNLS.editableEditor;
             }
         }
         var turnOnMessage = (platform.isMacintosh
-            ? nls.localize("changeConfigToOnMac", "To configure the editor to be optimized for usage with a Screen Reader press Command+E now.")
-            : nls.localize("changeConfigToOnWinLinux", "To configure the editor to be optimized for usage with a Screen Reader press Control+E now."));
-        switch (opts.accessibilitySupport) {
+            ? AccessibilityHelpNLS.changeConfigToOnMac
+            : AccessibilityHelpNLS.changeConfigToOnWinLinux);
+        switch (options.get(2 /* accessibilitySupport */)) {
             case 0 /* Unknown */:
                 text += '\n\n - ' + turnOnMessage;
                 break;
             case 2 /* Enabled */:
-                text += '\n\n - ' + nls.localize("auto_on", "The editor is configured to be optimized for usage with a Screen Reader.");
+                text += '\n\n - ' + AccessibilityHelpNLS.auto_on;
                 break;
             case 1 /* Disabled */:
-                text += '\n\n - ' + nls.localize("auto_off", "The editor is configured to never be optimized for usage with a Screen Reader, which is not the case at this time.");
+                text += '\n\n - ' + AccessibilityHelpNLS.auto_off;
                 text += ' ' + turnOnMessage;
                 break;
         }
-        var NLS_TAB_FOCUS_MODE_ON = nls.localize("tabFocusModeOnMsg", "Pressing Tab in the current editor will move focus to the next focusable element. Toggle this behavior by pressing {0}.");
-        var NLS_TAB_FOCUS_MODE_ON_NO_KB = nls.localize("tabFocusModeOnMsgNoKb", "Pressing Tab in the current editor will move focus to the next focusable element. The command {0} is currently not triggerable by a keybinding.");
-        var NLS_TAB_FOCUS_MODE_OFF = nls.localize("tabFocusModeOffMsg", "Pressing Tab in the current editor will insert the tab character. Toggle this behavior by pressing {0}.");
-        var NLS_TAB_FOCUS_MODE_OFF_NO_KB = nls.localize("tabFocusModeOffMsgNoKb", "Pressing Tab in the current editor will insert the tab character. The command {0} is currently not triggerable by a keybinding.");
-        if (opts.tabFocusMode) {
-            text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_ON, NLS_TAB_FOCUS_MODE_ON_NO_KB);
+        if (options.get(106 /* tabFocusMode */)) {
+            text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOnMsg, AccessibilityHelpNLS.tabFocusModeOnMsgNoKb);
         }
         else {
-            text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_OFF, NLS_TAB_FOCUS_MODE_OFF_NO_KB);
+            text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOffMsg, AccessibilityHelpNLS.tabFocusModeOffMsgNoKb);
         }
         var openDocMessage = (platform.isMacintosh
-            ? nls.localize("openDocMac", "Press Command+H now to open a browser window with more information related to editor accessibility.")
-            : nls.localize("openDocWinLinux", "Press Control+H now to open a browser window with more information related to editor accessibility."));
+            ? AccessibilityHelpNLS.openDocMac
+            : AccessibilityHelpNLS.openDocWinLinux);
         text += '\n\n - ' + openDocMessage;
-        text += '\n\n' + nls.localize("outroMsg", "You can dismiss this tooltip and return to the editor by pressing Escape or Shift+Escape.");
+        text += '\n\n' + AccessibilityHelpNLS.outroMsg;
         this._contentDomNode.domNode.appendChild(renderFormattedText(text));
         // Per https://www.w3.org/TR/wai-aria/roles#document, Authors SHOULD provide a title or label for documents
         this._contentDomNode.domNode.setAttribute('aria-label', text);
@@ -287,9 +275,9 @@ var ShowAccessibilityHelpAction = /** @class */ (function (_super) {
     function ShowAccessibilityHelpAction() {
         return _super.call(this, {
             id: 'editor.action.showAccessibilityHelp',
-            label: nls.localize("ShowAccessibilityHelpAction", "Show Accessibility Help"),
+            label: AccessibilityHelpNLS.showAccessibilityHelpAction,
             alias: 'Show Accessibility Help',
-            precondition: null,
+            precondition: undefined,
             kbOpts: {
                 kbExpr: EditorContextKeys.focus,
                 primary: (browser.isIE ? 2048 /* CtrlCmd */ | 59 /* F1 */ : 512 /* Alt */ | 59 /* F1 */),
@@ -305,7 +293,7 @@ var ShowAccessibilityHelpAction = /** @class */ (function (_super) {
     };
     return ShowAccessibilityHelpAction;
 }(EditorAction));
-registerEditorContribution(AccessibilityHelpController);
+registerEditorContribution(AccessibilityHelpController.ID, AccessibilityHelpController);
 registerEditorAction(ShowAccessibilityHelpAction);
 var AccessibilityHelpCommand = EditorCommand.bindToContribution(AccessibilityHelpController.get);
 registerEditorCommand(new AccessibilityHelpCommand({
@@ -323,6 +311,10 @@ registerThemingParticipant(function (theme, collector) {
     var widgetBackground = theme.getColor(editorWidgetBackground);
     if (widgetBackground) {
         collector.addRule(".monaco-editor .accessibilityHelpWidget { background-color: " + widgetBackground + "; }");
+    }
+    var widgetForeground = theme.getColor(editorWidgetForeground);
+    if (widgetForeground) {
+        collector.addRule(".monaco-editor .accessibilityHelpWidget { color: " + widgetForeground + "; }");
     }
     var widgetShadowColor = theme.getColor(widgetShadow);
     if (widgetShadowColor) {

@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import { registerLanguage } from '../_.contribution.js';
-// Allow for running under nodejs/requirejs in tests
-var _monaco = (typeof monaco === 'undefined' ? self.monaco : monaco);
 registerLanguage({
     id: 'msdax',
     extensions: ['.dax', '.msdax'],
     aliases: ['DAX', 'MSDAX'],
-    loader: function () { return _monaco.Promise.wrap(import('./msdax.js')); }
+    loader: function () { return import('./msdax.js'); }
 });

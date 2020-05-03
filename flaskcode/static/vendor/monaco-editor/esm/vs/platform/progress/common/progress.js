@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-export var IProgressService = createDecorator('progressService');
+export var IEditorProgressService = createDecorator('editorProgressService');

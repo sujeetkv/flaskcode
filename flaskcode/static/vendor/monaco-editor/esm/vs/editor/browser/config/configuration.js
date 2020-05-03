@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -22,6 +22,7 @@ import * as platform from '../../../base/common/platform.js';
 import { CharWidthRequest, readCharWidths } from './charWidthReader.js';
 import { ElementSizeObserver } from './elementSizeObserver.js';
 import { CommonEditorConfiguration } from '../../common/config/commonEditorConfig.js';
+import { EditorFontLigatures } from '../../common/config/editorOptions.js';
 import { FontInfo } from '../../common/config/fontInfo.js';
 var CSSBasedConfigurationCache = /** @class */ (function () {
     function CSSBasedConfigurationCache() {
@@ -52,6 +53,9 @@ var CSSBasedConfigurationCache = /** @class */ (function () {
     };
     return CSSBasedConfigurationCache;
 }());
+export function clearAllFontInfos() {
+    CSSBasedConfiguration.INSTANCE.clearCache();
+}
 var CSSBasedConfiguration = /** @class */ (function (_super) {
     __extends(CSSBasedConfiguration, _super);
     function CSSBasedConfiguration() {
@@ -68,6 +72,10 @@ var CSSBasedConfiguration = /** @class */ (function (_super) {
             this._evictUntrustedReadingsTimeout = -1;
         }
         _super.prototype.dispose.call(this);
+    };
+    CSSBasedConfiguration.prototype.clearCache = function () {
+        this._cache = new CSSBasedConfigurationCache();
+        this._onDidChange.fire();
     };
     CSSBasedConfiguration.prototype._writeToCache = function (item, value) {
         var _this = this;
@@ -104,6 +112,7 @@ var CSSBasedConfiguration = /** @class */ (function (_super) {
                     fontFamily: readConfig.fontFamily,
                     fontWeight: readConfig.fontWeight,
                     fontSize: readConfig.fontSize,
+                    fontFeatureSettings: readConfig.fontFeatureSettings,
                     lineHeight: readConfig.lineHeight,
                     letterSpacing: readConfig.letterSpacing,
                     isMonospace: readConfig.isMonospace,
@@ -111,6 +120,7 @@ var CSSBasedConfiguration = /** @class */ (function (_super) {
                     typicalFullwidthCharacterWidth: Math.max(readConfig.typicalFullwidthCharacterWidth, 5),
                     canUseHalfwidthRightwardsArrow: readConfig.canUseHalfwidthRightwardsArrow,
                     spaceWidth: Math.max(readConfig.spaceWidth, 5),
+                    middotWidth: Math.max(readConfig.middotWidth, 5),
                     maxDigitWidth: Math.max(readConfig.maxDigitWidth, 5),
                 }, false);
             }
@@ -145,7 +155,8 @@ var CSSBasedConfiguration = /** @class */ (function (_super) {
         // monospace test: used for whitespace rendering
         var rightwardsArrow = this.createRequest('→', 0 /* Regular */, all, monospace);
         var halfwidthRightwardsArrow = this.createRequest('￫', 0 /* Regular */, all, null);
-        this.createRequest('·', 0 /* Regular */, all, monospace);
+        // middle dot character
+        var middot = this.createRequest('·', 0 /* Regular */, all, monospace);
         // monospace test: some characters
         this.createRequest('|', 0 /* Regular */, all, monospace);
         this.createRequest('/', 0 /* Regular */, all, monospace);
@@ -170,9 +181,9 @@ var CSSBasedConfiguration = /** @class */ (function (_super) {
         this.createRequest('n', 2 /* Bold */, all, monospace);
         readCharWidths(bareFontInfo, all);
         var maxDigitWidth = Math.max(digit0.width, digit1.width, digit2.width, digit3.width, digit4.width, digit5.width, digit6.width, digit7.width, digit8.width, digit9.width);
-        var isMonospace = true;
+        var isMonospace = (bareFontInfo.fontFeatureSettings === EditorFontLigatures.OFF);
         var referenceWidth = monospace[0].width;
-        for (var i = 1, len = monospace.length; i < len; i++) {
+        for (var i = 1, len = monospace.length; isMonospace && i < len; i++) {
             var diff = referenceWidth - monospace[i].width;
             if (diff < -0.001 || diff > 0.001) {
                 isMonospace = false;
@@ -195,6 +206,7 @@ var CSSBasedConfiguration = /** @class */ (function (_super) {
             fontFamily: bareFontInfo.fontFamily,
             fontWeight: bareFontInfo.fontWeight,
             fontSize: bareFontInfo.fontSize,
+            fontFeatureSettings: bareFontInfo.fontFeatureSettings,
             lineHeight: bareFontInfo.lineHeight,
             letterSpacing: bareFontInfo.letterSpacing,
             isMonospace: isMonospace,
@@ -202,6 +214,7 @@ var CSSBasedConfiguration = /** @class */ (function (_super) {
             typicalFullwidthCharacterWidth: typicalFullwidthCharacter.width,
             canUseHalfwidthRightwardsArrow: canUseHalfwidthRightwardsArrow,
             spaceWidth: space.width,
+            middotWidth: middot.width,
             maxDigitWidth: maxDigitWidth
         }, canTrustBrowserZoomLevel);
     };
@@ -210,16 +223,17 @@ var CSSBasedConfiguration = /** @class */ (function (_super) {
 }(Disposable));
 var Configuration = /** @class */ (function (_super) {
     __extends(Configuration, _super);
-    function Configuration(options, referenceDomElement) {
+    function Configuration(isSimpleWidget, options, referenceDomElement, accessibilityService) {
         if (referenceDomElement === void 0) { referenceDomElement = null; }
-        var _this = _super.call(this, options) || this;
-        _this._elementSizeObserver = _this._register(new ElementSizeObserver(referenceDomElement, function () { return _this._onReferenceDomElementSizeChanged(); }));
+        var _this = _super.call(this, isSimpleWidget, options) || this;
+        _this.accessibilityService = accessibilityService;
+        _this._elementSizeObserver = _this._register(new ElementSizeObserver(referenceDomElement, options.dimension, function () { return _this._onReferenceDomElementSizeChanged(); }));
         _this._register(CSSBasedConfiguration.INSTANCE.onDidChange(function () { return _this._onCSSBasedConfigurationChanged(); }));
-        if (_this._validatedOptions.automaticLayout) {
+        if (_this._validatedOptions.get(9 /* automaticLayout */)) {
             _this._elementSizeObserver.startObserving();
         }
         _this._register(browser.onDidChangeZoomLevel(function (_) { return _this._recomputeOptions(); }));
-        _this._register(browser.onDidChangeAccessibilitySupport(function () { return _this._recomputeOptions(); }));
+        _this._register(_this.accessibilityService.onDidChangeScreenReaderOptimized(function () { return _this._recomputeOptions(); }));
         _this._recomputeOptions();
         return _this;
     }
@@ -227,6 +241,7 @@ var Configuration = /** @class */ (function (_super) {
         domNode.style.fontFamily = fontInfo.getMassagedFontFamily();
         domNode.style.fontWeight = fontInfo.fontWeight;
         domNode.style.fontSize = fontInfo.fontSize + 'px';
+        domNode.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
         domNode.style.lineHeight = fontInfo.lineHeight + 'px';
         domNode.style.letterSpacing = fontInfo.letterSpacing + 'px';
     };
@@ -234,6 +249,7 @@ var Configuration = /** @class */ (function (_super) {
         domNode.setFontFamily(fontInfo.getMassagedFontFamily());
         domNode.setFontWeight(fontInfo.fontWeight);
         domNode.setFontSize(fontInfo.fontSize);
+        domNode.setFontFeatureSettings(fontInfo.fontFeatureSettings);
         domNode.setLineHeight(fontInfo.lineHeight);
         domNode.setLetterSpacing(fontInfo.letterSpacing);
     };
@@ -251,17 +267,9 @@ var Configuration = /** @class */ (function (_super) {
     };
     Configuration.prototype._getExtraEditorClassName = function () {
         var extra = '';
-        if (browser.isIE) {
-            extra += 'ie ';
-        }
-        else if (browser.isFirefox) {
-            extra += 'ff ';
-        }
-        else if (browser.isEdge) {
-            extra += 'edge ';
-        }
-        else if (browser.isSafari) {
-            extra += 'safari ';
+        if (!browser.isSafari && !browser.isWebkitWebView) {
+            // Use user-select: none in all browsers except Safari and native macOS WebView
+            extra += 'no-user-select ';
         }
         if (platform.isMacintosh) {
             extra += 'mac ';
@@ -276,7 +284,9 @@ var Configuration = /** @class */ (function (_super) {
             emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
             pixelRatio: browser.getPixelRatio(),
             zoomLevel: browser.getZoomLevel(),
-            accessibilitySupport: browser.getAccessibilitySupport()
+            accessibilitySupport: (this.accessibilityService.isScreenReaderOptimized()
+                ? 2 /* Enabled */
+                : this.accessibilityService.getAccessibilitySupport())
         };
     };
     Configuration.prototype.readConfiguration = function (bareFontInfo) {

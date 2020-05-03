@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -27,10 +27,13 @@ var ViewCursors = /** @class */ (function (_super) {
     __extends(ViewCursors, _super);
     function ViewCursors(context) {
         var _this = _super.call(this, context) || this;
-        _this._readOnly = _this._context.configuration.editor.readOnly;
-        _this._cursorBlinking = _this._context.configuration.editor.viewInfo.cursorBlinking;
-        _this._cursorStyle = _this._context.configuration.editor.viewInfo.cursorStyle;
+        var options = _this._context.configuration.options;
+        _this._readOnly = options.get(68 /* readOnly */);
+        _this._cursorBlinking = options.get(16 /* cursorBlinking */);
+        _this._cursorStyle = options.get(18 /* cursorStyle */);
+        _this._cursorSmoothCaretAnimation = options.get(17 /* cursorSmoothCaretAnimation */);
         _this._selectionIsEmpty = true;
+        _this._isVisible = false;
         _this._primaryCursor = new ViewCursor(_this._context);
         _this._secondaryCursors = [];
         _this._renderData = [];
@@ -56,18 +59,14 @@ var ViewCursors = /** @class */ (function (_super) {
     };
     // --- begin event handlers
     ViewCursors.prototype.onConfigurationChanged = function (e) {
-        if (e.readOnly) {
-            this._readOnly = this._context.configuration.editor.readOnly;
-        }
-        if (e.viewInfo) {
-            this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
-            this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
-        }
-        this._primaryCursor.onConfigurationChanged(e);
+        var options = this._context.configuration.options;
+        this._readOnly = options.get(68 /* readOnly */);
+        this._cursorBlinking = options.get(16 /* cursorBlinking */);
+        this._cursorStyle = options.get(18 /* cursorStyle */);
+        this._cursorSmoothCaretAnimation = options.get(17 /* cursorSmoothCaretAnimation */);
         this._updateBlinking();
-        if (e.viewInfo) {
-            this._updateDomClassName();
-        }
+        this._updateDomClassName();
+        this._primaryCursor.onConfigurationChanged(e);
         for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
             this._secondaryCursors[i].onConfigurationChanged(e);
         }
@@ -146,8 +145,9 @@ var ViewCursors = /** @class */ (function (_super) {
         if (shouldRender(this._primaryCursor.getPosition())) {
             return true;
         }
-        for (var i = 0; i < this._secondaryCursors.length; i++) {
-            if (shouldRender(this._secondaryCursors[i].getPosition())) {
+        for (var _i = 0, _a = this._secondaryCursors; _i < _a.length; _i++) {
+            var secondaryCursor = _a[_i];
+            if (shouldRender(secondaryCursor.getPosition())) {
                 return true;
             }
         }
@@ -257,6 +257,9 @@ var ViewCursors = /** @class */ (function (_super) {
         }
         else {
             result += ' cursor-solid';
+        }
+        if (this._cursorSmoothCaretAnimation) {
+            result += ' cursor-smooth-caret-animation';
         }
         return result;
     };

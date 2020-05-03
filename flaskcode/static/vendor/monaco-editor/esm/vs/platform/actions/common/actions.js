@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -24,69 +24,73 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var __spreadArrays = (this && this.__spreadArrays) || function () {
+    for (var s = 0, i = 0, il = arguments.length; i < il; i++) s += arguments[i].length;
+    for (var r = Array(s), k = 0, i = 0; i < il; i++)
+        for (var a = arguments[i], j = 0, jl = a.length; j < jl; j++, k++)
+            r[k] = a[j];
+    return r;
+};
 import { Action } from '../../../base/common/actions.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IContextKeyService } from '../../contextkey/common/contextkey.js';
 import { ICommandService } from '../../commands/common/commands.js';
+import { Emitter } from '../../../base/common/event.js';
 export function isIMenuItem(item) {
     return item.command !== undefined;
 }
-var MenuId = /** @class */ (function () {
-    function MenuId() {
-        this.id = String(MenuId.ID++);
-    }
-    MenuId.ID = 1;
-    MenuId.EditorContext = new MenuId();
-    MenuId.CommandPalette = new MenuId();
-    MenuId.MenubarEditMenu = new MenuId();
-    MenuId.MenubarSelectionMenu = new MenuId();
-    MenuId.MenubarGoMenu = new MenuId();
-    return MenuId;
-}());
-export { MenuId };
 export var IMenuService = createDecorator('menuService');
 export var MenuRegistry = new /** @class */ (function () {
     function class_1() {
-        this._commands = Object.create(null);
-        this._menuItems = Object.create(null);
+        this._commands = new Map();
+        this._menuItems = new Map();
+        this._onDidChangeMenu = new Emitter();
+        this.onDidChangeMenu = this._onDidChangeMenu.event;
     }
     class_1.prototype.addCommand = function (command) {
-        var old = this._commands[command.id];
-        this._commands[command.id] = command;
-        return old !== void 0;
+        var _this = this;
+        this._commands.set(command.id, command);
+        this._onDidChangeMenu.fire(0 /* CommandPalette */);
+        return {
+            dispose: function () {
+                if (_this._commands.delete(command.id)) {
+                    _this._onDidChangeMenu.fire(0 /* CommandPalette */);
+                }
+            }
+        };
     };
     class_1.prototype.getCommand = function (id) {
-        return this._commands[id];
+        return this._commands.get(id);
     };
     class_1.prototype.getCommands = function () {
-        var result = Object.create(null);
-        for (var key in this._commands) {
-            result[key] = this.getCommand(key);
-        }
-        return result;
+        var map = new Map();
+        this._commands.forEach(function (value, key) { return map.set(key, value); });
+        return map;
     };
-    class_1.prototype.appendMenuItem = function (_a, item) {
-        var id = _a.id;
-        var array = this._menuItems[id];
+    class_1.prototype.appendMenuItem = function (id, item) {
+        var _this = this;
+        var array = this._menuItems.get(id);
         if (!array) {
-            this._menuItems[id] = array = [item];
+            array = [item];
+            this._menuItems.set(id, array);
         }
         else {
             array.push(item);
         }
+        this._onDidChangeMenu.fire(id);
         return {
             dispose: function () {
                 var idx = array.indexOf(item);
                 if (idx >= 0) {
                     array.splice(idx, 1);
+                    _this._onDidChangeMenu.fire(id);
                 }
             }
         };
     };
-    class_1.prototype.getMenuItems = function (_a) {
-        var id = _a.id;
-        var result = this._menuItems[id] || [];
-        if (id === MenuId.CommandPalette.id) {
+    class_1.prototype.getMenuItems = function (id) {
+        var result = (this._menuItems.get(id) || []).slice(0);
+        if (id === 0 /* CommandPalette */) {
             // CommandPalette is special because it shows
             // all commands by default
             this._appendImplicitItems(result);
@@ -103,11 +107,11 @@ export var MenuRegistry = new /** @class */ (function () {
                 set.add(alt.id);
             }
         }
-        for (var id in this._commands) {
+        this._commands.forEach(function (command, id) {
             if (!set.has(id)) {
-                result.push({ command: this._commands[id] });
+                result.push({ command: command });
             }
-        }
+        });
     };
     return class_1;
 }());
@@ -119,12 +123,12 @@ var ExecuteCommandAction = /** @class */ (function (_super) {
         return _this;
     }
     ExecuteCommandAction.prototype.run = function () {
+        var _a;
         var args = [];
         for (var _i = 0; _i < arguments.length; _i++) {
             args[_i] = arguments[_i];
         }
-        var _a;
-        return (_a = this._commandService).executeCommand.apply(_a, [this.id].concat(args));
+        return (_a = this._commandService).executeCommand.apply(_a, __spreadArrays([this.id], args));
     };
     ExecuteCommandAction = __decorate([
         __param(2, ICommandService)
@@ -156,6 +160,12 @@ var MenuItemAction = /** @class */ (function (_super) {
         _this.alt = alt ? new MenuItemAction(alt, undefined, _this._options, contextKeyService, commandService) : undefined;
         return _this;
     }
+    MenuItemAction.prototype.dispose = function () {
+        if (this.alt) {
+            this.alt.dispose();
+        }
+        _super.prototype.dispose.call(this);
+    };
     MenuItemAction.prototype.run = function () {
         var args = [];
         for (var _i = 0; _i < arguments.length; _i++) {
@@ -163,10 +173,10 @@ var MenuItemAction = /** @class */ (function (_super) {
         }
         var runArgs = [];
         if (this._options.arg) {
-            runArgs = runArgs.concat([this._options.arg]);
+            runArgs = __spreadArrays(runArgs, [this._options.arg]);
         }
         if (this._options.shouldForwardArgs) {
-            runArgs = runArgs.concat(args);
+            runArgs = __spreadArrays(runArgs, args);
         }
         return _super.prototype.run.apply(this, runArgs);
     };
@@ -177,3 +187,4 @@ var MenuItemAction = /** @class */ (function (_super) {
     return MenuItemAction;
 }(ExecuteCommandAction));
 export { MenuItemAction };
+//#endregion

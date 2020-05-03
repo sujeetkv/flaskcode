@@ -2,21 +2,26 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 import * as Parser from '../parser/jsonParser.js';
 import * as Json from './../../jsonc-parser/main.js';
 import { stringifyObject } from '../utils/json.js';
 import { endsWith } from '../utils/strings.js';
-import { CompletionItem, CompletionItemKind, Range, TextEdit, InsertTextFormat } from './../../vscode-languageserver-types/main.js';
+import { isDefined } from '../utils/objects.js';
+import { CompletionItem, CompletionItemKind, Range, TextEdit, InsertTextFormat, MarkupKind } from '../jsonLanguageTypes.js';
 import * as nls from './../../../fillers/vscode-nls.js';
 var localize = nls.loadMessageBundle();
+var valueCommitCharacters = [',', '}', ']'];
+var propertyCommitCharacters = [':'];
 var JSONCompletion = /** @class */ (function () {
-    function JSONCompletion(schemaService, contributions, promiseConstructor) {
+    function JSONCompletion(schemaService, contributions, promiseConstructor, clientCapabilities) {
         if (contributions === void 0) { contributions = []; }
-        this.templateVarIdCounter = 0;
+        if (promiseConstructor === void 0) { promiseConstructor = Promise; }
+        if (clientCapabilities === void 0) { clientCapabilities = {}; }
         this.schemaService = schemaService;
         this.contributions = contributions;
-        this.promise = promiseConstructor || Promise;
+        this.promiseConstructor = promiseConstructor;
+        this.clientCapabilities = clientCapabilities;
+        this.templateVarIdCounter = 0;
     }
     JSONCompletion.prototype.doResolve = function (item) {
         for (var i = this.contributions.length - 1; i >= 0; i--) {
@@ -27,7 +32,7 @@ var JSONCompletion = /** @class */ (function () {
                 }
             }
         }
-        return this.promise.resolve(item);
+        return this.promiseConstructor.resolve(item);
     };
     JSONCompletion.prototype.doComplete = function (document, position, doc) {
         var _this = this;
@@ -35,10 +40,18 @@ var JSONCompletion = /** @class */ (function () {
             items: [],
             isIncomplete: false
         };
+        var text = document.getText();
         var offset = document.offsetAt(position);
         var node = doc.getNodeFromOffset(offset, true);
         if (this.isInComment(document, node ? node.offset : 0, offset)) {
             return Promise.resolve(result);
+        }
+        if (node && (offset === node.offset + node.length) && offset > 0) {
+            var ch = text[offset - 1];
+            if (node.type === 'object' && ch === '}' || node.type === 'array' && ch === ']') {
+                // after ] or }
+                node = node.parent;
+            }
         }
         var currentWord = this.getCurrentWord(document, offset);
         var overwriteRange = null;
@@ -47,20 +60,33 @@ var JSONCompletion = /** @class */ (function () {
         }
         else {
             var overwriteStart = offset - currentWord.length;
-            if (overwriteStart > 0 && document.getText()[overwriteStart - 1] === '"') {
+            if (overwriteStart > 0 && text[overwriteStart - 1] === '"') {
                 overwriteStart--;
             }
             overwriteRange = Range.create(document.positionAt(overwriteStart), position);
         }
+        var supportsCommitCharacters = false; //this.doesSupportsCommitCharacters(); disabled for now, waiting for new API: https://github.com/microsoft/vscode/issues/42544
         var proposed = {};
         var collector = {
             add: function (suggestion) {
-                var existing = proposed[suggestion.label];
+                var label = suggestion.label;
+                var existing = proposed[label];
                 if (!existing) {
-                    proposed[suggestion.label] = suggestion;
+                    label = label.replace(/[\n]/g, '↵');
+                    if (label.length > 60) {
+                        var shortendedLabel = label.substr(0, 57).trim() + '...';
+                        if (!proposed[shortendedLabel]) {
+                            label = shortendedLabel;
+                        }
+                    }
                     if (overwriteRange) {
                         suggestion.textEdit = TextEdit.replace(overwriteRange, suggestion.insertText);
                     }
+                    if (supportsCommitCharacters) {
+                        suggestion.commitCharacters = suggestion.kind === CompletionItemKind.Property ? propertyCommitCharacters : valueCommitCharacters;
+                    }
+                    suggestion.label = label;
+                    proposed[label] = suggestion;
                     result.items.push(suggestion);
                 }
                 else if (!existing.documentation) {
@@ -91,7 +117,7 @@ var JSONCompletion = /** @class */ (function () {
                     if (parent && parent.type === 'property' && parent.keyNode === node) {
                         addValue = !parent.valueNode;
                         currentProperty = parent;
-                        currentKey = document.getText().substr(node.offset + 1, node.length - 2);
+                        currentKey = text.substr(node.offset + 1, node.length - 2);
                         if (parent) {
                             node = parent.parent;
                         }
@@ -130,13 +156,14 @@ var JSONCompletion = /** @class */ (function () {
                         collectionPromises.push(collectPromise);
                     }
                 });
-                if ((!schema && currentWord.length > 0 && document.getText().charAt(offset - currentWord.length - 1) !== '"')) {
+                if ((!schema && currentWord.length > 0 && text.charAt(offset - currentWord.length - 1) !== '"')) {
                     collector.add({
                         kind: CompletionItemKind.Property,
                         label: _this.getLabelForValue(currentWord),
                         insertText: _this.getInsertTextForProperty(currentWord, null, false, separatorAfter_1),
-                        insertTextFormat: InsertTextFormat.Snippet, documentation: ''
+                        insertTextFormat: InsertTextFormat.Snippet, documentation: '',
                     });
+                    collector.setAsIncomplete();
                 }
             }
             // proposals for values
@@ -152,7 +179,7 @@ var JSONCompletion = /** @class */ (function () {
             if (_this.contributions.length > 0) {
                 _this.getContributedValueCompletions(doc, node, offset, document, collector, collectionPromises);
             }
-            return _this.promise.all(collectionPromises).then(function () {
+            return _this.promiseConstructor.all(collectionPromises).then(function () {
                 if (collector.getNumberOfProposals() === 0) {
                     var offsetForSeparator = offset;
                     if (node && (node.type === 'string' || node.type === 'number' || node.type === 'boolean' || node.type === 'null')) {
@@ -181,7 +208,7 @@ var JSONCompletion = /** @class */ (function () {
                                 insertText: _this.getInsertTextForProperty(key, propertySchema, addValue, separatorAfter),
                                 insertTextFormat: InsertTextFormat.Snippet,
                                 filterText: _this.getFilterTextForValue(key),
-                                documentation: propertySchema.description || '',
+                                documentation: _this.fromMarkup(propertySchema.markdownDescription) || propertySchema.description || '',
                             };
                             if (endsWith(proposal.insertText, "$1" + separatorAfter)) {
                                 proposal.command = {
@@ -434,9 +461,26 @@ var JSONCompletion = /** @class */ (function () {
                 label: this.getLabelForValue(value),
                 insertText: this.getInsertTextForValue(value, separatorAfter),
                 insertTextFormat: InsertTextFormat.Snippet,
-                detail: localize('json.suggest.default', 'Default value'),
+                detail: localize('json.suggest.default', 'Default value')
             });
             hasProposals = true;
+        }
+        if (Array.isArray(schema.examples)) {
+            schema.examples.forEach(function (example) {
+                var type = schema.type;
+                var value = example;
+                for (var i = arrayDepth; i > 0; i--) {
+                    value = [value];
+                    type = 'array';
+                }
+                collector.add({
+                    kind: _this.getSuggestionKind(type),
+                    label: _this.getLabelForValue(value),
+                    insertText: _this.getInsertTextForValue(value, separatorAfter),
+                    insertTextFormat: InsertTextFormat.Snippet
+                });
+                hasProposals = true;
+            });
         }
         if (Array.isArray(schema.defaultSnippets)) {
             schema.defaultSnippets.forEach(function (s) {
@@ -464,13 +508,13 @@ var JSONCompletion = /** @class */ (function () {
                         type = 'array';
                     }
                     insertText = prefix + indent + s.bodyText.split('\n').join('\n' + indent) + suffix + separatorAfter;
-                    label = label || insertText;
-                    filterText = insertText.replace(/[\n]/g, ''); // remove new lines
+                    label = label || insertText,
+                        filterText = insertText.replace(/[\n]/g, ''); // remove new lines
                 }
                 collector.add({
                     kind: _this.getSuggestionKind(type),
                     label: label,
-                    documentation: s.description,
+                    documentation: _this.fromMarkup(s.markdownDescription) || s.description,
                     insertText: insertText,
                     insertTextFormat: InsertTextFormat.Snippet,
                     filterText: filterText
@@ -489,14 +533,17 @@ var JSONCompletion = /** @class */ (function () {
                 label: this.getLabelForValue(schema.const),
                 insertText: this.getInsertTextForValue(schema.const, separatorAfter),
                 insertTextFormat: InsertTextFormat.Snippet,
-                documentation: schema.description
+                documentation: this.fromMarkup(schema.markdownDescription) || schema.description
             });
         }
         if (Array.isArray(schema.enum)) {
             for (var i = 0, length = schema.enum.length; i < length; i++) {
                 var enm = schema.enum[i];
-                var documentation = schema.description;
-                if (schema.enumDescriptions && i < schema.enumDescriptions.length) {
+                var documentation = this.fromMarkup(schema.markdownDescription) || schema.description;
+                if (schema.markdownEnumDescriptions && i < schema.markdownEnumDescriptions.length && this.doesSupportMarkdown()) {
+                    documentation = this.fromMarkup(schema.markdownEnumDescriptions[i]);
+                }
+                else if (schema.enumDescriptions && i < schema.enumDescriptions.length) {
                     documentation = schema.enumDescriptions[i];
                 }
                 collector.add({
@@ -573,11 +620,7 @@ var JSONCompletion = /** @class */ (function () {
         }); });
     };
     JSONCompletion.prototype.getLabelForValue = function (value) {
-        var label = JSON.stringify(value);
-        if (label.length > 57) {
-            return label.substr(0, 57).trim() + '...';
-        }
-        return label;
+        return JSON.stringify(value);
     };
     JSONCompletion.prototype.getFilterTextForValue = function (value) {
         return JSON.stringify(value);
@@ -587,11 +630,7 @@ var JSONCompletion = /** @class */ (function () {
     };
     JSONCompletion.prototype.getLabelForSnippetValue = function (value) {
         var label = JSON.stringify(value);
-        label = label.replace(/\$\{\d+:([^}]+)\}|\$\d+/g, '$1');
-        if (label.length > 57) {
-            return label.substr(0, 57).trim() + '...';
-        }
-        return label;
+        return label.replace(/\$\{\d+:([^}]+)\}|\$\d+/g, '$1');
     };
     JSONCompletion.prototype.getInsertTextForPlainText = function (text) {
         return text.replace(/[\\\$\}]/g, '\\$&'); // escape $, \ and } 
@@ -599,10 +638,10 @@ var JSONCompletion = /** @class */ (function () {
     JSONCompletion.prototype.getInsertTextForValue = function (value, separatorAfter) {
         var text = JSON.stringify(value, null, '\t');
         if (text === '{}') {
-            return '{\n\t$1\n}' + separatorAfter;
+            return '{$1}' + separatorAfter;
         }
         else if (text === '[]') {
-            return '[\n\t$1\n]' + separatorAfter;
+            return '[$1]' + separatorAfter;
         }
         return this.getInsertTextForPlainText(text + separatorAfter);
     };
@@ -702,6 +741,12 @@ var JSONCompletion = /** @class */ (function () {
                 }
                 nValueProposals++;
             }
+            if (Array.isArray(propertySchema.examples) && propertySchema.examples.length) {
+                if (!value) {
+                    value = this.getInsertTextForGuessedValue(propertySchema.examples[0], '');
+                }
+                nValueProposals += propertySchema.examples.length;
+            }
             if (nValueProposals === 0) {
                 var type = Array.isArray(propertySchema.type) ? propertySchema.type[0] : propertySchema.type;
                 if (!type) {
@@ -720,10 +765,10 @@ var JSONCompletion = /** @class */ (function () {
                         value = '"$1"';
                         break;
                     case 'object':
-                        value = '{\n\t$1\n}';
+                        value = '{$1}';
                         break;
                     case 'array':
-                        value = '[\n\t$1\n]';
+                        value = '[$1]';
                         break;
                     case 'number':
                     case 'integer':
@@ -792,10 +837,29 @@ var JSONCompletion = /** @class */ (function () {
         }
         return (token === 12 /* LineCommentTrivia */ || token === 13 /* BlockCommentTrivia */) && scanner.getTokenOffset() <= offset;
     };
+    JSONCompletion.prototype.fromMarkup = function (markupString) {
+        if (markupString && this.doesSupportMarkdown()) {
+            return {
+                kind: MarkupKind.Markdown,
+                value: markupString
+            };
+        }
+        return undefined;
+    };
+    JSONCompletion.prototype.doesSupportMarkdown = function () {
+        if (!isDefined(this.supportsMarkdown)) {
+            var completion = this.clientCapabilities.textDocument && this.clientCapabilities.textDocument.completion;
+            this.supportsMarkdown = completion && completion.completionItem && Array.isArray(completion.completionItem.documentationFormat) && completion.completionItem.documentationFormat.indexOf(MarkupKind.Markdown) !== -1;
+        }
+        return this.supportsMarkdown;
+    };
+    JSONCompletion.prototype.doesSupportsCommitCharacters = function () {
+        if (!isDefined(this.supportsCommitCharacters)) {
+            var completion = this.clientCapabilities.textDocument && this.clientCapabilities.textDocument.completion;
+            this.supportsCommitCharacters = completion && completion.completionItem && !!completion.completionItem.commitCharactersSupport;
+        }
+        return this.supportsCommitCharacters;
+    };
     return JSONCompletion;
 }());
 export { JSONCompletion };
-function isDefined(val) {
-    return typeof val !== 'undefined';
-}
-//# sourceMappingURL=jsonCompletion.js.map

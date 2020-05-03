@@ -5,22 +5,36 @@
 'use strict';
 import * as nodes from '../parser/cssNodes.js';
 import { Symbols } from '../parser/cssSymbolScope.js';
-import * as languageFacts from './languageFacts.js';
+import * as languageFacts from '../languageFacts/facts.js';
 import * as strings from '../utils/strings.js';
-import { Position, CompletionItemKind, Range, TextEdit, InsertTextFormat } from './../../vscode-languageserver-types/main.js';
+import { Position, CompletionItemKind, Range, TextEdit, InsertTextFormat, MarkupKind, CompletionItemTag } from '../cssLanguageTypes.js';
 import * as nls from './../../../fillers/vscode-nls.js';
+import { isDefined } from '../utils/objects.js';
 var localize = nls.loadMessageBundle();
 var SnippetFormat = InsertTextFormat.Snippet;
+var SortTexts;
+(function (SortTexts) {
+    // char code 32, comes before everything
+    SortTexts["Enums"] = " ";
+    SortTexts["Normal"] = "d";
+    SortTexts["VendorPrefixed"] = "x";
+    SortTexts["Term"] = "y";
+    SortTexts["Variable"] = "z";
+})(SortTexts || (SortTexts = {}));
 var CSSCompletion = /** @class */ (function () {
-    function CSSCompletion(variablePrefix) {
+    function CSSCompletion(variablePrefix, clientCapabilities) {
         if (variablePrefix === void 0) { variablePrefix = null; }
+        this.variablePrefix = variablePrefix;
+        this.clientCapabilities = clientCapabilities;
         this.completionParticipants = [];
         this.valueTypes = [
             nodes.NodeType.Identifier, nodes.NodeType.Value, nodes.NodeType.StringLiteral, nodes.NodeType.URILiteral, nodes.NodeType.NumericValue,
             nodes.NodeType.HexColorValue, nodes.NodeType.VariableName, nodes.NodeType.Prio
         ];
-        this.variablePrefix = variablePrefix;
     }
+    CSSCompletion.prototype.configure = function (settings) {
+        this.settings = settings;
+    };
     CSSCompletion.prototype.getSymbolContext = function () {
         if (!this.symbolContext) {
             this.symbolContext = new Symbols(this.styleSheet);
@@ -54,13 +68,15 @@ var CSSCompletion = /** @class */ (function () {
                     }
                 }
                 else if (node instanceof nodes.SimpleSelector) {
-                    var parentExtRef = node.findParent(nodes.NodeType.ExtendsReference);
-                    if (parentExtRef) {
-                        this.getCompletionsForExtendsReference(parentExtRef, node, result);
-                    }
-                    else {
-                        var parentRuleSet = node.findParent(nodes.NodeType.Ruleset);
-                        this.getCompletionsForSelector(parentRuleSet, parentRuleSet && parentRuleSet.isNested(), result);
+                    var parentRef = node.findAParent(nodes.NodeType.ExtendsReference, nodes.NodeType.Ruleset);
+                    if (parentRef) {
+                        if (parentRef.type === nodes.NodeType.ExtendsReference) {
+                            this.getCompletionsForExtendsReference(parentRef, node, result);
+                        }
+                        else {
+                            var parentRuleSet = parentRef;
+                            this.getCompletionsForSelector(parentRuleSet, parentRuleSet && parentRuleSet.isNested(), result);
+                        }
                     }
                 }
                 else if (node instanceof nodes.FunctionArgument) {
@@ -101,6 +117,9 @@ var CSSCompletion = /** @class */ (function () {
                 }
                 else if (node.parent === null) {
                     this.getCompletionForTopLevel(result);
+                }
+                else if (node.type === nodes.NodeType.StringLiteral && this.isImportPathParent(node.parent.type)) {
+                    this.getCompletionForImportPath(node, result);
                     // } else if (node instanceof nodes.Variable) {
                     // this.getCompletionsForVariableDeclaration()
                 }
@@ -130,15 +149,30 @@ var CSSCompletion = /** @class */ (function () {
             this.nodePath = null;
         }
     };
+    CSSCompletion.prototype.isImportPathParent = function (type) {
+        return type === nodes.NodeType.Import;
+    };
     CSSCompletion.prototype.finalize = function (result) {
-        var needsSortText = result.items.some(function (i) { return !!i.sortText; });
+        var needsSortText = result.items.some(function (i) { return !!i.sortText || i.label[0] === '-'; });
         if (needsSortText) {
-            for (var _i = 0, _a = result.items; _i < _a.length; _i++) {
-                var i = _a[_i];
-                if (!i.sortText) {
-                    i.sortText = 'd';
+            result.items.forEach(function (item, index) {
+                if (!item.sortText) {
+                    if (item.label[0] === '-') {
+                        item.sortText = SortTexts.VendorPrefixed + '_' + computeRankNumber(index);
+                    }
+                    else {
+                        item.sortText = SortTexts.Normal + '_' + computeRankNumber(index);
+                    }
                 }
-            }
+                else {
+                    if (item.label[0] === '-') {
+                        item.sortText += SortTexts.VendorPrefixed + '_' + computeRankNumber(index);
+                    }
+                    else {
+                        item.sortText += SortTexts.Normal + '_' + computeRankNumber(index);
+                    }
+                }
+            });
         }
         return result;
     };
@@ -160,49 +194,58 @@ var CSSCompletion = /** @class */ (function () {
     };
     CSSCompletion.prototype.getPropertyProposals = function (declaration, result) {
         var _this = this;
-        var properties = languageFacts.getProperties();
-        for (var key in properties) {
-            if (properties.hasOwnProperty(key)) {
-                var entry = properties[key];
-                if (entry.browsers.onCodeComplete) {
-                    var range = void 0;
-                    var insertText = void 0;
-                    var retrigger = false;
-                    if (declaration) {
-                        range = this.getCompletionRange(declaration.getProperty());
-                        insertText = entry.name;
-                        if (!isDefined(declaration.colonPosition)) {
-                            insertText += ': ';
-                            retrigger = true;
-                        }
-                    }
-                    else {
-                        range = this.getCompletionRange(null);
-                        insertText = entry.name + ': ';
-                        retrigger = true;
-                    }
-                    var item = {
-                        label: entry.name,
-                        documentation: languageFacts.getEntryDescription(entry),
-                        textEdit: TextEdit.replace(range, insertText),
-                        kind: CompletionItemKind.Property
-                    };
-                    if (entry.restrictions.length === 1 && entry.restrictions[0] === 'none') {
-                        retrigger = false;
-                    }
-                    if (retrigger) {
-                        item.command = {
-                            title: 'Suggest',
-                            command: 'editor.action.triggerSuggest'
-                        };
-                    }
-                    if (strings.startsWith(entry.name, '-')) {
-                        item.sortText = 'x';
-                    }
-                    result.items.push(item);
+        var triggerPropertyValueCompletion = this.isTriggerPropertyValueCompletionEnabled;
+        var completePropertyWithSemicolon = this.isCompletePropertyWithSemicolonEnabled;
+        var properties = languageFacts.cssDataManager.getProperties();
+        properties.forEach(function (entry) {
+            var range;
+            var insertText;
+            var retrigger = false;
+            if (declaration) {
+                range = _this.getCompletionRange(declaration.getProperty());
+                insertText = entry.name;
+                if (!isDefined(declaration.colonPosition)) {
+                    insertText += ': ';
+                    retrigger = true;
                 }
             }
-        }
+            else {
+                range = _this.getCompletionRange(null);
+                insertText = entry.name + ': ';
+                retrigger = true;
+            }
+            // Empty .selector { | } case
+            if (!declaration && completePropertyWithSemicolon) {
+                insertText += '$0;';
+            }
+            // Cases such as .selector { p; } or .selector { p:; }
+            if (declaration && !declaration.semicolonPosition) {
+                if (completePropertyWithSemicolon && _this.offset >= _this.textDocument.offsetAt(range.end)) {
+                    insertText += '$0;';
+                }
+            }
+            var item = {
+                label: entry.name,
+                documentation: languageFacts.getEntryDescription(entry, _this.doesSupportMarkdown()),
+                tags: isDeprecated(entry) ? [CompletionItemTag.Deprecated] : [],
+                textEdit: TextEdit.replace(range, insertText),
+                insertTextFormat: InsertTextFormat.Snippet,
+                kind: CompletionItemKind.Property
+            };
+            if (!entry.restrictions) {
+                retrigger = false;
+            }
+            if (triggerPropertyValueCompletion && retrigger) {
+                item.command = {
+                    title: 'Suggest',
+                    command: 'editor.action.triggerSuggest'
+                };
+            }
+            if (strings.startsWith(entry.name, '-')) {
+                item.sortText = SortTexts.VendorPrefixed;
+            }
+            result.items.push(item);
+        });
         this.completionParticipants.forEach(function (participant) {
             if (participant.onCssProperty) {
                 participant.onCssProperty({
@@ -213,11 +256,35 @@ var CSSCompletion = /** @class */ (function () {
         });
         return result;
     };
+    Object.defineProperty(CSSCompletion.prototype, "isTriggerPropertyValueCompletionEnabled", {
+        get: function () {
+            if (!this.settings ||
+                !this.settings.completion ||
+                this.settings.completion.triggerPropertyValueCompletion === undefined) {
+                return true;
+            }
+            return this.settings.completion.triggerPropertyValueCompletion;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(CSSCompletion.prototype, "isCompletePropertyWithSemicolonEnabled", {
+        get: function () {
+            if (!this.settings ||
+                !this.settings.completion ||
+                this.settings.completion.completePropertyWithSemicolon === undefined) {
+                return true;
+            }
+            return this.settings.completion.completePropertyWithSemicolon;
+        },
+        enumerable: true,
+        configurable: true
+    });
     CSSCompletion.prototype.getCompletionsForDeclarationValue = function (node, result) {
         var _this = this;
         var propertyName = node.getFullPropertyName();
-        var entry = languageFacts.getProperties()[propertyName];
-        var existingNode = node.getValue();
+        var entry = languageFacts.cssDataManager.getProperty(propertyName);
+        var existingNode = node.getValue() || null;
         while (existingNode && existingNode.hasChildren()) {
             existingNode = existingNode.findChildAtOffset(this.offset, false);
         }
@@ -231,39 +298,41 @@ var CSSCompletion = /** @class */ (function () {
             }
         });
         if (entry) {
-            for (var _i = 0, _a = entry.restrictions; _i < _a.length; _i++) {
-                var restriction = _a[_i];
-                switch (restriction) {
-                    case 'color':
-                        this.getColorProposals(entry, existingNode, result);
-                        break;
-                    case 'position':
-                        this.getPositionProposals(entry, existingNode, result);
-                        break;
-                    case 'repeat':
-                        this.getRepeatStyleProposals(entry, existingNode, result);
-                        break;
-                    case 'line-style':
-                        this.getLineStyleProposals(entry, existingNode, result);
-                        break;
-                    case 'line-width':
-                        this.getLineWidthProposals(entry, existingNode, result);
-                        break;
-                    case 'geometry-box':
-                        this.getGeometryBoxProposals(entry, existingNode, result);
-                        break;
-                    case 'box':
-                        this.getBoxProposals(entry, existingNode, result);
-                        break;
-                    case 'image':
-                        this.getImageProposals(entry, existingNode, result);
-                        break;
-                    case 'timing-function':
-                        this.getTimingFunctionProposals(entry, existingNode, result);
-                        break;
-                    case 'shape':
-                        this.getBasicShapeProposals(entry, existingNode, result);
-                        break;
+            if (entry.restrictions) {
+                for (var _i = 0, _a = entry.restrictions; _i < _a.length; _i++) {
+                    var restriction = _a[_i];
+                    switch (restriction) {
+                        case 'color':
+                            this.getColorProposals(entry, existingNode, result);
+                            break;
+                        case 'position':
+                            this.getPositionProposals(entry, existingNode, result);
+                            break;
+                        case 'repeat':
+                            this.getRepeatStyleProposals(entry, existingNode, result);
+                            break;
+                        case 'line-style':
+                            this.getLineStyleProposals(entry, existingNode, result);
+                            break;
+                        case 'line-width':
+                            this.getLineWidthProposals(entry, existingNode, result);
+                            break;
+                        case 'geometry-box':
+                            this.getGeometryBoxProposals(entry, existingNode, result);
+                            break;
+                        case 'box':
+                            this.getBoxProposals(entry, existingNode, result);
+                            break;
+                        case 'image':
+                            this.getImageProposals(entry, existingNode, result);
+                            break;
+                        case 'timing-function':
+                            this.getTimingFunctionProposals(entry, existingNode, result);
+                            break;
+                        case 'shape':
+                            this.getBasicShapeProposals(entry, existingNode, result);
+                            break;
+                    }
                 }
             }
             this.getValueEnumProposals(entry, existingNode, result);
@@ -289,25 +358,25 @@ var CSSCompletion = /** @class */ (function () {
         if (entry.values) {
             for (var _i = 0, _a = entry.values; _i < _a.length; _i++) {
                 var value = _a[_i];
-                if (languageFacts.isCommonValue(value)) { // only show if supported by more than one browser
-                    var insertString = value.name;
-                    var insertTextFormat = void 0;
-                    if (strings.endsWith(insertString, ')')) {
-                        var from = insertString.lastIndexOf('(');
-                        if (from !== -1) {
-                            insertString = insertString.substr(0, from) + '($1)';
-                            insertTextFormat = SnippetFormat;
-                        }
+                var insertString = value.name;
+                var insertTextFormat = void 0;
+                if (strings.endsWith(insertString, ')')) {
+                    var from = insertString.lastIndexOf('(');
+                    if (from !== -1) {
+                        insertString = insertString.substr(0, from) + '($1)';
+                        insertTextFormat = SnippetFormat;
                     }
-                    var item = {
-                        label: value.name,
-                        documentation: languageFacts.getEntryDescription(value),
-                        textEdit: TextEdit.replace(this.getCompletionRange(existingNode), insertString),
-                        kind: CompletionItemKind.Value,
-                        insertTextFormat: insertTextFormat
-                    };
-                    result.items.push(item);
                 }
+                var item = {
+                    label: value.name,
+                    documentation: languageFacts.getEntryDescription(value, this.doesSupportMarkdown()),
+                    tags: isDeprecated(entry) ? [CompletionItemTag.Deprecated] : [],
+                    textEdit: TextEdit.replace(this.getCompletionRange(existingNode), insertString),
+                    sortText: SortTexts.Enums,
+                    kind: CompletionItemKind.Value,
+                    insertTextFormat: insertTextFormat
+                };
+                result.items.push(item);
             }
         }
         return result;
@@ -334,20 +403,23 @@ var CSSCompletion = /** @class */ (function () {
         for (var _i = 0, symbols_1 = symbols; _i < symbols_1.length; _i++) {
             var symbol = symbols_1[_i];
             var insertText = strings.startsWith(symbol.name, '--') ? "var(" + symbol.name + ")" : symbol.name;
-            var suggest = {
+            var completionItem = {
                 label: symbol.name,
                 documentation: symbol.value ? strings.getLimitedString(symbol.value) : symbol.value,
                 textEdit: TextEdit.replace(this.getCompletionRange(existingNode), insertText),
                 kind: CompletionItemKind.Variable,
-                sortText: 'z'
+                sortText: SortTexts.Variable
             };
+            if (typeof completionItem.documentation === 'string' && isColorString(completionItem.documentation)) {
+                completionItem.kind = CompletionItemKind.Color;
+            }
             if (symbol.node.type === nodes.NodeType.FunctionParameter) {
                 var mixinNode = (symbol.node.getParent());
                 if (mixinNode.type === nodes.NodeType.MixinDeclaration) {
-                    suggest.detail = localize('completion.argument', 'argument from \'{0}\'', mixinNode.getName());
+                    completionItem.detail = localize('completion.argument', 'argument from \'{0}\'', mixinNode.getName());
                 }
             }
-            result.items.push(suggest);
+            result.items.push(completionItem);
         }
         return result;
     };
@@ -358,12 +430,16 @@ var CSSCompletion = /** @class */ (function () {
         });
         for (var _i = 0, symbols_2 = symbols; _i < symbols_2.length; _i++) {
             var symbol = symbols_2[_i];
-            result.items.push({
+            var completionItem = {
                 label: symbol.name,
                 documentation: symbol.value ? strings.getLimitedString(symbol.value) : symbol.value,
                 textEdit: TextEdit.replace(this.getCompletionRange(null), symbol.name),
                 kind: CompletionItemKind.Variable
-            });
+            };
+            if (typeof completionItem.documentation === 'string' && isColorString(completionItem.documentation)) {
+                completionItem.kind = CompletionItemKind.Color;
+            }
+            result.items.push(completionItem);
         }
         return result;
     };
@@ -382,27 +458,32 @@ var CSSCompletion = /** @class */ (function () {
         if (existingNode && existingNode.parent && existingNode.parent.type === nodes.NodeType.Term) {
             existingNode = existingNode.getParent(); // include the unary operator
         }
-        for (var _i = 0, _a = entry.restrictions; _i < _a.length; _i++) {
-            var restriction = _a[_i];
-            var units = languageFacts.units[restriction];
-            if (units) {
-                for (var _b = 0, units_1 = units; _b < units_1.length; _b++) {
-                    var unit = units_1[_b];
-                    var insertText = currentWord + unit;
-                    result.items.push({
-                        label: insertText,
-                        textEdit: TextEdit.replace(this.getCompletionRange(existingNode), insertText),
-                        kind: CompletionItemKind.Unit
-                    });
+        if (entry.restrictions) {
+            for (var _i = 0, _a = entry.restrictions; _i < _a.length; _i++) {
+                var restriction = _a[_i];
+                var units = languageFacts.units[restriction];
+                if (units) {
+                    for (var _b = 0, units_1 = units; _b < units_1.length; _b++) {
+                        var unit = units_1[_b];
+                        var insertText = currentWord + unit;
+                        result.items.push({
+                            label: insertText,
+                            textEdit: TextEdit.replace(this.getCompletionRange(existingNode), insertText),
+                            kind: CompletionItemKind.Unit
+                        });
+                    }
                 }
             }
         }
         return result;
     };
     CSSCompletion.prototype.getCompletionRange = function (existingNode) {
-        if (existingNode && existingNode.offset <= this.offset) {
+        if (existingNode && existingNode.offset <= this.offset && this.offset <= existingNode.end) {
             var end = existingNode.end !== -1 ? this.textDocument.positionAt(existingNode.end) : this.position;
-            return Range.create(this.textDocument.positionAt(existingNode.offset), end);
+            var start = this.textDocument.positionAt(existingNode.offset);
+            if (start.line === end.line) {
+                return Range.create(start, end); // multi line edits are not allowed
+            }
         }
         return this.defaultReplaceRange;
     };
@@ -435,7 +516,7 @@ var CSSCompletion = /** @class */ (function () {
         }
         var _loop_1 = function (p) {
             var tabStop = 1;
-            var replaceFunction = function (match, p1) { return '${' + tabStop++ + ':' + p1 + '}'; };
+            var replaceFunction = function (_match, p1) { return '${' + tabStop++ + ':' + p1 + '}'; };
             var insertText = p.func.replace(/\[?\$(\w+)\]?/g, replaceFunction);
             result.items.push({
                 label: p.func.substr(0, p.func.indexOf('(')),
@@ -572,17 +653,16 @@ var CSSCompletion = /** @class */ (function () {
         return result;
     };
     CSSCompletion.prototype.getCompletionForTopLevel = function (result) {
-        for (var _i = 0, _a = languageFacts.getAtDirectives(); _i < _a.length; _i++) {
-            var entry = _a[_i];
-            if (entry.browsers.count > 0) {
-                result.items.push({
-                    label: entry.name,
-                    textEdit: TextEdit.replace(this.getCompletionRange(null), entry.name),
-                    documentation: languageFacts.getEntryDescription(entry),
-                    kind: CompletionItemKind.Keyword
-                });
-            }
-        }
+        var _this = this;
+        languageFacts.cssDataManager.getAtDirectives().forEach(function (entry) {
+            result.items.push({
+                label: entry.name,
+                textEdit: TextEdit.replace(_this.getCompletionRange(null), entry.name),
+                documentation: languageFacts.getEntryDescription(entry, _this.doesSupportMarkdown()),
+                tags: isDeprecated(entry) ? [CompletionItemTag.Deprecated] : [],
+                kind: CompletionItemKind.Keyword
+            });
+        });
         this.getCompletionsForSelector(null, false, result);
         return result;
     };
@@ -596,7 +676,6 @@ var CSSCompletion = /** @class */ (function () {
         if (isInSelectors) {
             return this.getCompletionsForSelector(ruleSet, ruleSet.isNested(), result);
         }
-        ruleSet.findParent(nodes.NodeType.Ruleset);
         return this.getCompletionsForDeclarations(ruleSet.getDeclarations(), result);
     };
     CSSCompletion.prototype.getCompletionsForSelector = function (ruleSet, isNested, result) {
@@ -607,51 +686,49 @@ var CSSCompletion = /** @class */ (function () {
             this.currentWord = ':' + this.currentWord;
             this.defaultReplaceRange = Range.create(Position.create(this.position.line, this.position.character - this.currentWord.length), this.position);
         }
-        for (var _i = 0, _a = languageFacts.getPseudoClasses(); _i < _a.length; _i++) {
-            var entry = _a[_i];
-            if (entry.browsers.onCodeComplete) {
-                var insertText = moveCursorInsideParenthesis(entry.name);
-                var item = {
-                    label: entry.name,
-                    textEdit: TextEdit.replace(this.getCompletionRange(existingNode), insertText),
-                    documentation: languageFacts.getEntryDescription(entry),
-                    kind: CompletionItemKind.Function,
-                    insertTextFormat: entry.name !== insertText ? SnippetFormat : void 0
-                };
-                if (strings.startsWith(entry.name, ':-')) {
-                    item.sortText = 'x';
-                }
-                result.items.push(item);
+        var pseudoClasses = languageFacts.cssDataManager.getPseudoClasses();
+        pseudoClasses.forEach(function (entry) {
+            var insertText = moveCursorInsideParenthesis(entry.name);
+            var item = {
+                label: entry.name,
+                textEdit: TextEdit.replace(_this.getCompletionRange(existingNode), insertText),
+                documentation: languageFacts.getEntryDescription(entry, _this.doesSupportMarkdown()),
+                tags: isDeprecated(entry) ? [CompletionItemTag.Deprecated] : [],
+                kind: CompletionItemKind.Function,
+                insertTextFormat: entry.name !== insertText ? SnippetFormat : void 0
+            };
+            if (strings.startsWith(entry.name, ':-')) {
+                item.sortText = SortTexts.VendorPrefixed;
             }
-        }
-        for (var _b = 0, _c = languageFacts.getPseudoElements(); _b < _c.length; _b++) {
-            var entry = _c[_b];
-            if (entry.browsers.onCodeComplete) {
-                var insertText = moveCursorInsideParenthesis(entry.name);
-                var item = {
-                    label: entry.name,
-                    textEdit: TextEdit.replace(this.getCompletionRange(existingNode), insertText),
-                    documentation: languageFacts.getEntryDescription(entry),
-                    kind: CompletionItemKind.Function,
-                    insertTextFormat: entry.name !== insertText ? SnippetFormat : void 0
-                };
-                if (strings.startsWith(entry.name, '::-')) {
-                    item.sortText = 'x';
-                }
-                result.items.push(item);
+            result.items.push(item);
+        });
+        var pseudoElements = languageFacts.cssDataManager.getPseudoElements();
+        pseudoElements.forEach(function (entry) {
+            var insertText = moveCursorInsideParenthesis(entry.name);
+            var item = {
+                label: entry.name,
+                textEdit: TextEdit.replace(_this.getCompletionRange(existingNode), insertText),
+                documentation: languageFacts.getEntryDescription(entry, _this.doesSupportMarkdown()),
+                tags: isDeprecated(entry) ? [CompletionItemTag.Deprecated] : [],
+                kind: CompletionItemKind.Function,
+                insertTextFormat: entry.name !== insertText ? SnippetFormat : void 0
+            };
+            if (strings.startsWith(entry.name, '::-')) {
+                item.sortText = SortTexts.VendorPrefixed;
             }
-        }
+            result.items.push(item);
+        });
         if (!isNested) { // show html tags only for top level
-            for (var _d = 0, _e = languageFacts.html5Tags; _d < _e.length; _d++) {
-                var entry = _e[_d];
+            for (var _i = 0, _a = languageFacts.html5Tags; _i < _a.length; _i++) {
+                var entry = _a[_i];
                 result.items.push({
                     label: entry,
                     textEdit: TextEdit.replace(this.getCompletionRange(existingNode), entry),
                     kind: CompletionItemKind.Keyword
                 });
             }
-            for (var _f = 0, _g = languageFacts.svgElements; _f < _g.length; _f++) {
-                var entry = _g[_f];
+            for (var _b = 0, _c = languageFacts.svgElements; _b < _c.length; _b++) {
+                var entry = _c[_b];
                 result.items.push({
                     label: entry,
                     textEdit: TextEdit.replace(this.getCompletionRange(existingNode), entry),
@@ -661,10 +738,10 @@ var CSSCompletion = /** @class */ (function () {
         }
         var visited = {};
         visited[this.currentWord] = true;
-        var textProvider = this.styleSheet.getTextProvider();
+        var docText = this.textDocument.getText();
         this.styleSheet.accept(function (n) {
             if (n.type === nodes.NodeType.SimpleSelector && n.length > 0) {
-                var selector = textProvider(n.offset, n.length);
+                var selector = docText.substr(n.offset, n.length);
                 if (selector.charAt(0) === '.' && !visited[selector]) {
                     visited[selector] = true;
                     result.items.push({
@@ -720,14 +797,15 @@ var CSSCompletion = /** @class */ (function () {
         return result;
     };
     CSSCompletion.prototype.getCompletionsForVariableDeclaration = function (declaration, result) {
-        if (this.offset > declaration.colonPosition) {
+        if (this.offset && isDefined(declaration.colonPosition) && this.offset > declaration.colonPosition) {
             this.getVariableProposals(declaration.getValue(), result);
         }
         return result;
     };
     CSSCompletion.prototype.getCompletionsForExpression = function (expression, result) {
-        if (expression.getParent() instanceof nodes.FunctionArgument) {
-            this.getCompletionsForFunctionArgument(expression.getParent(), expression.getParent().getParent(), result);
+        var parent = expression.getParent();
+        if (parent instanceof nodes.FunctionArgument) {
+            this.getCompletionsForFunctionArgument(parent, parent.getParent(), result);
             return result;
         }
         var declaration = expression.findParent(nodes.NodeType.Declaration);
@@ -745,7 +823,8 @@ var CSSCompletion = /** @class */ (function () {
         return result;
     };
     CSSCompletion.prototype.getCompletionsForFunctionArgument = function (arg, func, result) {
-        if (func.getIdentifier().getText() === 'var') {
+        var identifier = func.getIdentifier();
+        if (identifier && identifier.matches('var')) {
             if (!func.getArguments().hasChildren() || func.getArguments().getChild(0) === arg) {
                 this.getVariableProposalsForCSSVarFunction(result);
             }
@@ -791,14 +870,14 @@ var CSSCompletion = /** @class */ (function () {
             textEdit: TextEdit.replace(this.getCompletionRange(existingNode), insertText),
             insertTextFormat: SnippetFormat,
             kind: CompletionItemKind.Function,
-            sortText: 'z'
+            sortText: SortTexts.Term
         };
     };
     CSSCompletion.prototype.getCompletionsForSupportsCondition = function (supportsCondition, result) {
         var child = supportsCondition.findFirstChildBeforeOffset(this.offset);
         if (child) {
             if (child instanceof nodes.Declaration) {
-                if (!isDefined(child.colonPosition || this.offset <= child.colonPosition)) {
+                if (!isDefined(child.colonPosition) || this.offset <= child.colonPosition) {
                     return this.getCompletionsForDeclarationProperty(child, result);
                 }
                 else {
@@ -834,7 +913,7 @@ var CSSCompletion = /** @class */ (function () {
         var position;
         var range;
         // No children, empty value
-        if (uriLiteralNode.getChildren().length === 0) {
+        if (!uriLiteralNode.hasChildren()) {
             uriValue = '';
             position = this.position;
             var emptyURIValuePosition = this.textDocument.positionAt(uriLiteralNode.offset + 'url('.length);
@@ -857,9 +936,57 @@ var CSSCompletion = /** @class */ (function () {
         });
         return result;
     };
+    CSSCompletion.prototype.getCompletionForImportPath = function (importPathNode, result) {
+        var _this = this;
+        this.completionParticipants.forEach(function (participant) {
+            if (participant.onCssImportPath) {
+                participant.onCssImportPath({
+                    pathValue: importPathNode.getText(),
+                    position: _this.position,
+                    range: _this.getCompletionRange(importPathNode)
+                });
+            }
+        });
+        return result;
+    };
+    CSSCompletion.prototype.doesSupportMarkdown = function () {
+        if (!isDefined(this.supportsMarkdown)) {
+            if (!isDefined(this.clientCapabilities)) {
+                this.supportsMarkdown = true;
+                return this.supportsMarkdown;
+            }
+            var completion = this.clientCapabilities.textDocument && this.clientCapabilities.textDocument.completion;
+            this.supportsMarkdown = completion && completion.completionItem && Array.isArray(completion.completionItem.documentationFormat) && completion.completionItem.documentationFormat.indexOf(MarkupKind.Markdown) !== -1;
+        }
+        return this.supportsMarkdown;
+    };
     return CSSCompletion;
 }());
 export { CSSCompletion };
+function isDeprecated(entry) {
+    if (entry.status && (entry.status === 'nonstandard' || entry.status === 'obsolete')) {
+        return true;
+    }
+    return false;
+}
+/**
+ * Rank number should all be same length strings
+ */
+function computeRankNumber(n) {
+    var nstr = n.toString();
+    switch (nstr.length) {
+        case 4:
+            return nstr;
+        case 3:
+            return '0' + nstr;
+        case 2:
+            return '00' + nstr;
+        case 1:
+            return '000' + nstr;
+        default:
+            return '0000';
+    }
+}
 var Set = /** @class */ (function () {
     function Set() {
         this.entries = {};
@@ -918,9 +1045,6 @@ var ColorValueCollector = /** @class */ (function () {
     };
     return ColorValueCollector;
 }());
-function isDefined(obj) {
-    return typeof obj !== 'undefined';
-}
 function getCurrentWord(document, offset) {
     var i = offset - 1;
     var text = document.getText();
@@ -929,4 +1053,7 @@ function getCurrentWord(document, offset) {
     }
     return text.substring(i + 1, offset);
 }
-//# sourceMappingURL=cssCompletion.js.map
+function isColorString(s) {
+    // From https://stackoverflow.com/questions/8027423/how-to-check-if-a-string-is-a-valid-hex-color-representation/8027444
+    return (s.toLowerCase() in languageFacts.colors) || /(^#[0-9A-F]{6}$)|(^#[0-9A-F]{3}$)/i.test(s);
+}

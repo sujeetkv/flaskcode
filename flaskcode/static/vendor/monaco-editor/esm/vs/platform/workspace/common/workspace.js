@@ -67,7 +67,11 @@ var Workspace = /** @class */ (function () {
         if (!resource) {
             return null;
         }
-        return this._foldersMap.findSubstr(resource.toString());
+        return this._foldersMap.findSubstr(resource.with({
+            scheme: resource.scheme,
+            authority: resource.authority,
+            path: resource.path
+        }).toString()) || null;
     };
     Workspace.prototype.updateFoldersMap = function () {
         this._foldersMap = TernarySearchTree.forPaths();

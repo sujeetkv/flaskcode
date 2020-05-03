@@ -45,7 +45,8 @@ var DeleteOperations = /** @class */ (function () {
             }
             var lineText = model.getLineContent(position.lineNumber);
             var character = lineText[position.column - 2];
-            if (!config.autoClosingPairsOpen.hasOwnProperty(character)) {
+            var autoClosingPairCandidates = config.autoClosingPairsOpen2.get(character);
+            if (!autoClosingPairCandidates) {
                 return false;
             }
             if (isQuote(character)) {
@@ -59,8 +60,14 @@ var DeleteOperations = /** @class */ (function () {
                 }
             }
             var afterCharacter = lineText[position.column - 1];
-            var closeCharacter = config.autoClosingPairsOpen[character];
-            if (afterCharacter !== closeCharacter) {
+            var foundAutoClosingPair = false;
+            for (var _i = 0, autoClosingPairCandidates_1 = autoClosingPairCandidates; _i < autoClosingPairCandidates_1.length; _i++) {
+                var autoClosingPairCandidate = autoClosingPairCandidates_1[_i];
+                if (autoClosingPairCandidate.open === character && autoClosingPairCandidate.close === afterCharacter) {
+                    foundAutoClosingPair = true;
+                }
+            }
+            if (!foundAutoClosingPair) {
                 return false;
             }
         }
@@ -94,7 +101,7 @@ var DeleteOperations = /** @class */ (function () {
                         : firstNonWhitespaceIndex + 1);
                     if (position.column <= lastIndentationColumn) {
                         var fromVisibleColumn = CursorColumns.visibleColumnFromColumn2(config, model, position);
-                        var toVisibleColumn = CursorColumns.prevTabStop(fromVisibleColumn, config.tabSize);
+                        var toVisibleColumn = CursorColumns.prevIndentTabStop(fromVisibleColumn, config.indentSize);
                         var toColumn = CursorColumns.columnFromVisibleColumn2(config, model, position.lineNumber, toVisibleColumn);
                         deleteSelection = new Range(position.lineNumber, toColumn, position.lineNumber, position.column);
                     }

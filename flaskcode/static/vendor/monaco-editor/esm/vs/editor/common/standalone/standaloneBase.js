@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import './promise-polyfill/polyfill.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Emitter } from '../../../base/common/event.js';
 import { KeyChord } from '../../../base/common/keyCodes.js';
 import { URI } from '../../../base/common/uri.js';
-import { TPromise } from '../../../base/common/winjs.base.js';
 import { Position } from '../core/position.js';
 import { Range } from '../core/range.js';
 import { Selection } from '../core/selection.js';
@@ -39,7 +39,6 @@ export function createMonacoBaseAPI() {
         SelectionDirection: standaloneEnums.SelectionDirection,
         MarkerSeverity: standaloneEnums.MarkerSeverity,
         MarkerTag: standaloneEnums.MarkerTag,
-        Promise: TPromise,
         Uri: URI,
         Token: Token
     };

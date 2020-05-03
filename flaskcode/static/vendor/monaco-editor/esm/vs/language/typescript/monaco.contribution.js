@@ -4,15 +4,17 @@ import '../../editor/editor.api.js';
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
+import { typescriptVersion } from './lib/typescriptServicesMetadata.js'; // do not import the whole typescriptServices here
 var Emitter = monaco.Emitter;
-// --- TypeScript configuration and defaults ---------
 var LanguageServiceDefaultsImpl = /** @class */ (function () {
     function LanguageServiceDefaultsImpl(compilerOptions, diagnosticsOptions) {
         this._onDidChange = new Emitter();
+        this._onDidExtraLibsChange = new Emitter();
         this._extraLibs = Object.create(null);
-        this._workerMaxIdleTime = 2 * 60 * 1000;
+        this._eagerModelSync = false;
         this.setCompilerOptions(compilerOptions);
         this.setDiagnosticsOptions(diagnosticsOptions);
+        this._onDidExtraLibsChangeTimeout = -1;
     }
     Object.defineProperty(LanguageServiceDefaultsImpl.prototype, "onDidChange", {
         get: function () {
@@ -21,52 +23,96 @@ var LanguageServiceDefaultsImpl = /** @class */ (function () {
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(LanguageServiceDefaultsImpl.prototype, "onDidExtraLibsChange", {
+        get: function () {
+            return this._onDidExtraLibsChange.event;
+        },
+        enumerable: true,
+        configurable: true
+    });
     LanguageServiceDefaultsImpl.prototype.getExtraLibs = function () {
-        var result = Object.create(null);
-        for (var key in this._extraLibs) {
-            result[key] = this._extraLibs[key];
-        }
-        return Object.freeze(result);
+        return this._extraLibs;
     };
-    LanguageServiceDefaultsImpl.prototype.addExtraLib = function (content, filePath) {
+    LanguageServiceDefaultsImpl.prototype.addExtraLib = function (content, _filePath) {
         var _this = this;
-        if (typeof filePath === 'undefined') {
-            filePath = "ts:extralib-" + Date.now();
+        var filePath;
+        if (typeof _filePath === 'undefined') {
+            filePath = "ts:extralib-" + Math.random().toString(36).substring(2, 15);
         }
+        else {
+            filePath = _filePath;
+        }
+        if (this._extraLibs[filePath] && this._extraLibs[filePath].content === content) {
+            // no-op, there already exists an extra lib with this content
+            return {
+                dispose: function () { }
+            };
+        }
+        var myVersion = 1;
         if (this._extraLibs[filePath]) {
-            throw new Error(filePath + " already a extra lib");
+            myVersion = this._extraLibs[filePath].version + 1;
         }
-        this._extraLibs[filePath] = content;
-        this._onDidChange.fire(this);
+        this._extraLibs[filePath] = {
+            content: content,
+            version: myVersion,
+        };
+        this._fireOnDidExtraLibsChangeSoon();
         return {
             dispose: function () {
-                if (delete _this._extraLibs[filePath]) {
-                    _this._onDidChange.fire(_this);
+                var extraLib = _this._extraLibs[filePath];
+                if (!extraLib) {
+                    return;
                 }
+                if (extraLib.version !== myVersion) {
+                    return;
+                }
+                delete _this._extraLibs[filePath];
+                _this._fireOnDidExtraLibsChangeSoon();
             }
         };
+    };
+    LanguageServiceDefaultsImpl.prototype.setExtraLibs = function (libs) {
+        // clear out everything
+        this._extraLibs = Object.create(null);
+        if (libs && libs.length > 0) {
+            for (var _i = 0, libs_1 = libs; _i < libs_1.length; _i++) {
+                var lib = libs_1[_i];
+                var filePath = lib.filePath || "ts:extralib-" + Math.random().toString(36).substring(2, 15);
+                var content = lib.content;
+                this._extraLibs[filePath] = {
+                    content: content,
+                    version: 1
+                };
+            }
+        }
+        this._fireOnDidExtraLibsChangeSoon();
+    };
+    LanguageServiceDefaultsImpl.prototype._fireOnDidExtraLibsChangeSoon = function () {
+        var _this = this;
+        if (this._onDidExtraLibsChangeTimeout !== -1) {
+            // already scheduled
+            return;
+        }
+        this._onDidExtraLibsChangeTimeout = setTimeout(function () {
+            _this._onDidExtraLibsChangeTimeout = -1;
+            _this._onDidExtraLibsChange.fire(undefined);
+        }, 0);
     };
     LanguageServiceDefaultsImpl.prototype.getCompilerOptions = function () {
         return this._compilerOptions;
     };
     LanguageServiceDefaultsImpl.prototype.setCompilerOptions = function (options) {
         this._compilerOptions = options || Object.create(null);
-        this._onDidChange.fire(this);
+        this._onDidChange.fire(undefined);
     };
     LanguageServiceDefaultsImpl.prototype.getDiagnosticsOptions = function () {
         return this._diagnosticsOptions;
     };
     LanguageServiceDefaultsImpl.prototype.setDiagnosticsOptions = function (options) {
         this._diagnosticsOptions = options || Object.create(null);
-        this._onDidChange.fire(this);
+        this._onDidChange.fire(undefined);
     };
     LanguageServiceDefaultsImpl.prototype.setMaximumWorkerIdleTime = function (value) {
-        // doesn't fire an event since no
-        // worker restart is required here
-        this._workerMaxIdleTime = value;
-    };
-    LanguageServiceDefaultsImpl.prototype.getWorkerMaxIdleTime = function () {
-        return this._workerMaxIdleTime;
     };
     LanguageServiceDefaultsImpl.prototype.setEagerModelSync = function (value) {
         // doesn't fire an event since no
@@ -88,7 +134,7 @@ var ModuleKind;
     ModuleKind[ModuleKind["UMD"] = 3] = "UMD";
     ModuleKind[ModuleKind["System"] = 4] = "System";
     ModuleKind[ModuleKind["ES2015"] = 5] = "ES2015";
-    ModuleKind[ModuleKind["ESNext"] = 6] = "ESNext";
+    ModuleKind[ModuleKind["ESNext"] = 99] = "ESNext";
 })(ModuleKind || (ModuleKind = {}));
 var JsxEmit;
 (function (JsxEmit) {
@@ -110,9 +156,11 @@ var ScriptTarget;
     ScriptTarget[ScriptTarget["ES2016"] = 3] = "ES2016";
     ScriptTarget[ScriptTarget["ES2017"] = 4] = "ES2017";
     ScriptTarget[ScriptTarget["ES2018"] = 5] = "ES2018";
-    ScriptTarget[ScriptTarget["ESNext"] = 6] = "ESNext";
+    ScriptTarget[ScriptTarget["ES2019"] = 6] = "ES2019";
+    ScriptTarget[ScriptTarget["ES2020"] = 7] = "ES2020";
+    ScriptTarget[ScriptTarget["ESNext"] = 99] = "ESNext";
     ScriptTarget[ScriptTarget["JSON"] = 100] = "JSON";
-    ScriptTarget[ScriptTarget["Latest"] = 6] = "Latest";
+    ScriptTarget[ScriptTarget["Latest"] = 99] = "Latest";
 })(ScriptTarget || (ScriptTarget = {}));
 var ModuleResolutionKind;
 (function (ModuleResolutionKind) {
@@ -136,6 +184,7 @@ function createAPI() {
         NewLineKind: NewLineKind,
         ScriptTarget: ScriptTarget,
         ModuleResolutionKind: ModuleResolutionKind,
+        typescriptVersion: typescriptVersion,
         typescriptDefaults: typescriptDefaults,
         javascriptDefaults: javascriptDefaults,
         getTypeScriptWorker: getTypeScriptWorker,
@@ -145,7 +194,7 @@ function createAPI() {
 monaco.languages.typescript = createAPI();
 // --- Registration to monaco editor ---
 function getMode() {
-    return monaco.Promise.wrap(import('./tsMode.js'));
+    return import('./tsMode.js');
 }
 monaco.languages.onLanguage('typescript', function () {
     return getMode().then(function (mode) { return mode.setupTypeScript(typescriptDefaults); });

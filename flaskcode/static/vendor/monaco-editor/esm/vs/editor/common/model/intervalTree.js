@@ -292,11 +292,9 @@ export function nodeAcceptEdit(node, start, end, textLength, forceMoveMarkers) {
     var deltaColumn = (insertingCnt - deletingCnt);
     if (!startDone) {
         node.start = Math.max(0, nodeStart + deltaColumn);
-        startDone = true;
     }
     if (!endDone) {
         node.end = Math.max(0, nodeEnd + deltaColumn);
-        endDone = true;
     }
     if (node.start > node.end) {
         node.end = node.start;

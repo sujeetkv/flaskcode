@@ -18,4 +18,3 @@ export var SCSSParseError = {
     ThroughOrToExpected: new SCSSIssueType('scss-throughexpected', localize('expected.through', "'through' or 'to' expected")),
     InExpected: new SCSSIssueType('scss-fromexpected', localize('expected.in', "'in' expected")),
 };
-//# sourceMappingURL=scssErrors.js.map

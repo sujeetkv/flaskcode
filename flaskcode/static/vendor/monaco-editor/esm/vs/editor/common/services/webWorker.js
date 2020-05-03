@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -16,6 +16,7 @@ var __extends = (this && this.__extends) || (function () {
     };
 })();
 import { EditorWorkerClient } from './editorWorkerServiceImpl.js';
+import * as types from '../../../base/common/types.js';
 /**
  * Create a new web worker that has model syncing capabilities built in.
  * Specify an AMD module to load that will `create` an object that will be proxied.
@@ -26,17 +27,31 @@ export function createWebWorker(modelService, opts) {
 var MonacoWebWorkerImpl = /** @class */ (function (_super) {
     __extends(MonacoWebWorkerImpl, _super);
     function MonacoWebWorkerImpl(modelService, opts) {
-        var _this = _super.call(this, modelService, opts.label) || this;
+        var _this = _super.call(this, modelService, opts.keepIdleModels || false, opts.label) || this;
         _this._foreignModuleId = opts.moduleId;
         _this._foreignModuleCreateData = opts.createData || null;
+        _this._foreignModuleHost = opts.host || null;
         _this._foreignProxy = null;
         return _this;
     }
+    // foreign host request
+    MonacoWebWorkerImpl.prototype.fhr = function (method, args) {
+        if (!this._foreignModuleHost || typeof this._foreignModuleHost[method] !== 'function') {
+            return Promise.reject(new Error('Missing method ' + method + ' or missing main thread foreign host.'));
+        }
+        try {
+            return Promise.resolve(this._foreignModuleHost[method].apply(this._foreignModuleHost, args));
+        }
+        catch (e) {
+            return Promise.reject(e);
+        }
+    };
     MonacoWebWorkerImpl.prototype._getForeignProxy = function () {
         var _this = this;
         if (!this._foreignProxy) {
             this._foreignProxy = this._getProxy().then(function (proxy) {
-                return proxy.loadForeignModule(_this._foreignModuleId, _this._foreignModuleCreateData).then(function (foreignMethods) {
+                var foreignHostMethods = _this._foreignModuleHost ? types.getAllMethodNames(_this._foreignModuleHost) : [];
+                return proxy.loadForeignModule(_this._foreignModuleId, _this._foreignModuleCreateData, foreignHostMethods).then(function (foreignMethods) {
                     _this._foreignModuleCreateData = null;
                     var proxyMethodRequest = function (method, args) {
                         return proxy.fmr(method, args);
@@ -48,8 +63,9 @@ var MonacoWebWorkerImpl = /** @class */ (function (_super) {
                         };
                     };
                     var foreignProxy = {};
-                    for (var i = 0; i < foreignMethods.length; i++) {
-                        foreignProxy[foreignMethods[i]] = createProxyMethod(foreignMethods[i], proxyMethodRequest);
+                    for (var _i = 0, foreignMethods_1 = foreignMethods; _i < foreignMethods_1.length; _i++) {
+                        var foreignMethod = foreignMethods_1[_i];
+                        foreignProxy[foreignMethod] = createProxyMethod(foreignMethod, proxyMethodRequest);
                     }
                     return foreignProxy;
                 });

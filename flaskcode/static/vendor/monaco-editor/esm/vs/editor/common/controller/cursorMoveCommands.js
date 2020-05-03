@@ -99,19 +99,18 @@ var CursorMoveCommands = /** @class */ (function () {
         var result = [];
         for (var i = 0, len = cursors.length; i < len; i++) {
             var cursor = cursors[i];
-            var viewSelection = cursor.viewState.selection;
-            var startLineNumber = viewSelection.startLineNumber;
-            var lineCount = context.viewModel.getLineCount();
-            var endLineNumber = viewSelection.endLineNumber;
+            var startLineNumber = cursor.modelState.selection.startLineNumber;
+            var lineCount = context.model.getLineCount();
+            var endLineNumber = cursor.modelState.selection.endLineNumber;
             var endColumn = void 0;
             if (endLineNumber === lineCount) {
-                endColumn = context.viewModel.getLineMaxColumn(lineCount);
+                endColumn = context.model.getLineMaxColumn(lineCount);
             }
             else {
                 endLineNumber++;
                 endColumn = 1;
             }
-            result[i] = CursorState.fromViewState(new SingleCursorState(new Range(startLineNumber, 1, startLineNumber, 1), 0, new Position(endLineNumber, endColumn), 0));
+            result[i] = CursorState.fromModelState(new SingleCursorState(new Range(startLineNumber, 1, startLineNumber, 1), 0, new Position(endLineNumber, endColumn), 0));
         }
         return result;
     };
@@ -503,7 +502,29 @@ export var CursorMove;
             {
                 name: 'Cursor move argument object',
                 description: "Property-value pairs that can be passed through this argument:\n\t\t\t\t\t* 'to': A mandatory logical position value providing where to move the cursor.\n\t\t\t\t\t\t```\n\t\t\t\t\t\t'left', 'right', 'up', 'down'\n\t\t\t\t\t\t'wrappedLineStart', 'wrappedLineEnd', 'wrappedLineColumnCenter'\n\t\t\t\t\t\t'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineLastNonWhitespaceCharacter'\n\t\t\t\t\t\t'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside'\n\t\t\t\t\t\t```\n\t\t\t\t\t* 'by': Unit to move. Default is computed based on 'to' value.\n\t\t\t\t\t\t```\n\t\t\t\t\t\t'line', 'wrappedLine', 'character', 'halfLine'\n\t\t\t\t\t\t```\n\t\t\t\t\t* 'value': Number of units to move. Default is '1'.\n\t\t\t\t\t* 'select': If 'true' makes the selection. Default is 'false'.\n\t\t\t\t",
-                constraint: isCursorMoveArgs
+                constraint: isCursorMoveArgs,
+                schema: {
+                    'type': 'object',
+                    'required': ['to'],
+                    'properties': {
+                        'to': {
+                            'type': 'string',
+                            'enum': ['left', 'right', 'up', 'down', 'wrappedLineStart', 'wrappedLineEnd', 'wrappedLineColumnCenter', 'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineLastNonWhitespaceCharacter', 'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside']
+                        },
+                        'by': {
+                            'type': 'string',
+                            'enum': ['line', 'wrappedLine', 'character', 'halfLine']
+                        },
+                        'value': {
+                            'type': 'number',
+                            'default': 1
+                        },
+                        'select': {
+                            'type': 'boolean',
+                            'default': false
+                        }
+                    }
+                }
             }
         ]
     };

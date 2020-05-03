@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 export function startsWith(haystack, needle) {
     if (haystack.length < needle.length) {
         return false;
@@ -33,7 +32,8 @@ export function endsWith(haystack, needle) {
  * @returns the length of the common prefix of the two strings.
  */
 export function commonPrefixLength(a, b) {
-    var i, len = Math.min(a.length, b.length);
+    var i;
+    var len = Math.min(a.length, b.length);
     for (i = 0; i < len; i++) {
         if (a.charCodeAt(i) !== b.charCodeAt(i)) {
             return i;
@@ -62,4 +62,3 @@ export function isLetterOrDigit(text, index) {
     var c = text.charCodeAt(index);
     return (_a <= c && c <= _z) || (_A <= c && c <= _Z) || (_0 <= c && c <= _9);
 }
-//# sourceMappingURL=strings.js.map

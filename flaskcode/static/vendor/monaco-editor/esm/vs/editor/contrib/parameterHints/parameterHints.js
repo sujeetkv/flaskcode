@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -25,7 +25,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 import * as nls from '../../../nls.js';
-import { dispose } from '../../../base/common/lifecycle.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { EditorContextKeys } from '../../common/editorContextKeys.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
@@ -33,16 +33,16 @@ import { registerEditorAction, registerEditorContribution, EditorAction, EditorC
 import { ParameterHintsWidget } from './parameterHintsWidget.js';
 import { Context } from './provideSignatureHelp.js';
 import * as modes from '../../common/modes.js';
-var ParameterHintsController = /** @class */ (function () {
+var ParameterHintsController = /** @class */ (function (_super) {
+    __extends(ParameterHintsController, _super);
     function ParameterHintsController(editor, instantiationService) {
-        this.editor = editor;
-        this.widget = instantiationService.createInstance(ParameterHintsWidget, this.editor);
+        var _this = _super.call(this) || this;
+        _this.editor = editor;
+        _this.widget = _this._register(instantiationService.createInstance(ParameterHintsWidget, _this.editor));
+        return _this;
     }
     ParameterHintsController.get = function (editor) {
         return editor.getContribution(ParameterHintsController.ID);
-    };
-    ParameterHintsController.prototype.getId = function () {
-        return ParameterHintsController.ID;
     };
     ParameterHintsController.prototype.cancel = function () {
         this.widget.cancel();
@@ -56,15 +56,12 @@ var ParameterHintsController = /** @class */ (function () {
     ParameterHintsController.prototype.trigger = function (context) {
         this.widget.trigger(context);
     };
-    ParameterHintsController.prototype.dispose = function () {
-        this.widget = dispose(this.widget);
-    };
     ParameterHintsController.ID = 'editor.controller.parameterHints';
     ParameterHintsController = __decorate([
         __param(1, IInstantiationService)
     ], ParameterHintsController);
     return ParameterHintsController;
-}());
+}(Disposable));
 var TriggerParameterHintsAction = /** @class */ (function (_super) {
     __extends(TriggerParameterHintsAction, _super);
     function TriggerParameterHintsAction() {
@@ -84,14 +81,14 @@ var TriggerParameterHintsAction = /** @class */ (function (_super) {
         var controller = ParameterHintsController.get(editor);
         if (controller) {
             controller.trigger({
-                triggerReason: modes.SignatureHelpTriggerReason.Invoke
+                triggerKind: modes.SignatureHelpTriggerKind.Invoke
             });
         }
     };
     return TriggerParameterHintsAction;
 }(EditorAction));
 export { TriggerParameterHintsAction };
-registerEditorContribution(ParameterHintsController);
+registerEditorContribution(ParameterHintsController.ID, ParameterHintsController);
 registerEditorAction(TriggerParameterHintsAction);
 var weight = 100 /* EditorContrib */ + 75;
 var ParameterHintsCommand = EditorCommand.bindToContribution(ParameterHintsController.get);
@@ -101,7 +98,7 @@ registerEditorCommand(new ParameterHintsCommand({
     handler: function (x) { return x.cancel(); },
     kbOpts: {
         weight: weight,
-        kbExpr: EditorContextKeys.editorTextFocus,
+        kbExpr: EditorContextKeys.focus,
         primary: 9 /* Escape */,
         secondary: [1024 /* Shift */ | 9 /* Escape */]
     }
@@ -112,7 +109,7 @@ registerEditorCommand(new ParameterHintsCommand({
     handler: function (x) { return x.previous(); },
     kbOpts: {
         weight: weight,
-        kbExpr: EditorContextKeys.editorTextFocus,
+        kbExpr: EditorContextKeys.focus,
         primary: 16 /* UpArrow */,
         secondary: [512 /* Alt */ | 16 /* UpArrow */],
         mac: { primary: 16 /* UpArrow */, secondary: [512 /* Alt */ | 16 /* UpArrow */, 256 /* WinCtrl */ | 46 /* KEY_P */] }
@@ -124,7 +121,7 @@ registerEditorCommand(new ParameterHintsCommand({
     handler: function (x) { return x.next(); },
     kbOpts: {
         weight: weight,
-        kbExpr: EditorContextKeys.editorTextFocus,
+        kbExpr: EditorContextKeys.focus,
         primary: 18 /* DownArrow */,
         secondary: [512 /* Alt */ | 18 /* DownArrow */],
         mac: { primary: 18 /* DownArrow */, secondary: [512 /* Alt */ | 18 /* DownArrow */, 256 /* WinCtrl */ | 44 /* KEY_N */] }

@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -24,23 +24,28 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { localize } from '../../../nls.js';
+var __spreadArrays = (this && this.__spreadArrays) || function () {
+    for (var s = 0, i = 0, il = arguments.length; i < il; i++) s += arguments[i].length;
+    for (var r = Array(s), k = 0, i = 0; i < il; i++)
+        for (var a = arguments[i], j = 0, jl = a.length; j < jl; j++, k++)
+            r[k] = a[j];
+    return r;
+};
+import * as strings from '../../../base/common/strings.js';
 import * as dom from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { SimpleKeybinding, createKeybinding } from '../../../base/common/keyCodes.js';
-import { ImmortalReference, combinedDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ImmortalReference, toDisposable, DisposableStore, Disposable } from '../../../base/common/lifecycle.js';
 import { OS, isLinux, isMacintosh } from '../../../base/common/platform.js';
 import Severity from '../../../base/common/severity.js';
 import { URI } from '../../../base/common/uri.js';
-import { TPromise } from '../../../base/common/winjs.base.js';
 import { isCodeEditor } from '../../browser/editorBrowser.js';
 import { isDiffEditorConfigurationKey, isEditorConfigurationKey } from '../../common/config/commonEditorConfig.js';
 import { EditOperation } from '../../common/core/editOperation.js';
 import { Position as Pos } from '../../common/core/position.js';
 import { Range } from '../../common/core/range.js';
-import { isResourceTextEdit } from '../../common/modes.js';
-import { Menu } from '../../../platform/actions/common/menu.js';
+import { WorkspaceTextEdit } from '../../common/modes.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { Configuration, ConfigurationModel, DefaultConfigurationModel } from '../../../platform/configuration/common/configurationModels.js';
@@ -51,6 +56,7 @@ import { ResolvedKeybindingItem } from '../../../platform/keybinding/common/reso
 import { USLayoutResolvedKeybinding } from '../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { NoOpNotification } from '../../../platform/notification/common/notification.js';
 import { WorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
+import { SimpleServicesNLS } from '../../common/standaloneStrings.js';
 var SimpleModel = /** @class */ (function () {
     function SimpleModel(model) {
         this.model = model;
@@ -80,22 +86,25 @@ function withTypedEditor(widget, codeEditorCallback, diffEditorCallback) {
     }
 }
 var SimpleEditorModelResolverService = /** @class */ (function () {
-    function SimpleEditorModelResolverService() {
+    function SimpleEditorModelResolverService(modelService) {
+        this.modelService = modelService;
     }
     SimpleEditorModelResolverService.prototype.setEditor = function (editor) {
         this.editor = editor;
     };
     SimpleEditorModelResolverService.prototype.createModelReference = function (resource) {
         var _this = this;
-        var model;
-        model = withTypedEditor(this.editor, function (editor) { return _this.findModel(editor, resource); }, function (diffEditor) { return _this.findModel(diffEditor.getOriginalEditor(), resource) || _this.findModel(diffEditor.getModifiedEditor(), resource); });
-        if (!model) {
-            return TPromise.as(new ImmortalReference(null));
+        var model = null;
+        if (this.editor) {
+            model = withTypedEditor(this.editor, function (editor) { return _this.findModel(editor, resource); }, function (diffEditor) { return _this.findModel(diffEditor.getOriginalEditor(), resource) || _this.findModel(diffEditor.getModifiedEditor(), resource); });
         }
-        return TPromise.as(new ImmortalReference(new SimpleModel(model)));
+        if (!model) {
+            return Promise.reject(new Error("Model not found"));
+        }
+        return Promise.resolve(new ImmortalReference(new SimpleModel(model)));
     };
     SimpleEditorModelResolverService.prototype.findModel = function (editor, resource) {
-        var model = editor.getModel();
+        var model = this.modelService ? this.modelService.getModel(resource) : editor.getModel();
         if (model && model.uri.toString() !== resource.toString()) {
             return null;
         }
@@ -104,15 +113,23 @@ var SimpleEditorModelResolverService = /** @class */ (function () {
     return SimpleEditorModelResolverService;
 }());
 export { SimpleEditorModelResolverService };
-var SimpleProgressService = /** @class */ (function () {
-    function SimpleProgressService() {
+var SimpleEditorProgressService = /** @class */ (function () {
+    function SimpleEditorProgressService() {
     }
-    SimpleProgressService.prototype.showWhile = function (promise, delay) {
-        return null;
+    SimpleEditorProgressService.prototype.show = function () {
+        return SimpleEditorProgressService.NULL_PROGRESS_RUNNER;
     };
-    return SimpleProgressService;
+    SimpleEditorProgressService.prototype.showWhile = function (promise, delay) {
+        return Promise.resolve(undefined);
+    };
+    SimpleEditorProgressService.NULL_PROGRESS_RUNNER = {
+        done: function () { },
+        total: function () { },
+        worked: function () { }
+    };
+    return SimpleEditorProgressService;
 }());
-export { SimpleProgressService };
+export { SimpleEditorProgressService };
 var SimpleDialogService = /** @class */ (function () {
     function SimpleDialogService() {
     }
@@ -145,6 +162,9 @@ var SimpleNotificationService = /** @class */ (function () {
         }
         return SimpleNotificationService.NO_OP;
     };
+    SimpleNotificationService.prototype.status = function (message, options) {
+        return Disposable.None;
+    };
     SimpleNotificationService.NO_OP = new NoOpNotification();
     return SimpleNotificationService;
 }());
@@ -152,6 +172,7 @@ export { SimpleNotificationService };
 var StandaloneCommandService = /** @class */ (function () {
     function StandaloneCommandService(instantiationService) {
         this._onWillExecuteCommand = new Emitter();
+        this._onDidExecuteCommand = new Emitter();
         this._instantiationService = instantiationService;
         this._dynamicCommands = Object.create(null);
     }
@@ -173,8 +194,9 @@ var StandaloneCommandService = /** @class */ (function () {
             return Promise.reject(new Error("command '" + id + "' not found"));
         }
         try {
-            this._onWillExecuteCommand.fire({ commandId: id });
-            var result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler].concat(args));
+            this._onWillExecuteCommand.fire({ commandId: id, args: args });
+            var result = this._instantiationService.invokeFunction.apply(this._instantiationService, __spreadArrays([command.handler], args));
+            this._onDidExecuteCommand.fire({ commandId: id, args: args });
             return Promise.resolve(result);
         }
         catch (err) {
@@ -195,33 +217,37 @@ var StandaloneKeybindingService = /** @class */ (function (_super) {
             var shouldPreventDefault = _this._dispatch(keyEvent, keyEvent.target);
             if (shouldPreventDefault) {
                 keyEvent.preventDefault();
+                keyEvent.stopPropagation();
             }
         }));
         return _this;
     }
-    StandaloneKeybindingService.prototype.addDynamicKeybinding = function (commandId, keybinding, handler, when) {
+    StandaloneKeybindingService.prototype.addDynamicKeybinding = function (commandId, _keybinding, handler, when) {
         var _this = this;
-        var toDispose = [];
-        this._dynamicKeybindings.push({
-            keybinding: createKeybinding(keybinding, OS),
-            command: commandId,
-            when: when,
-            weight1: 1000,
-            weight2: 0
-        });
-        toDispose.push(toDisposable(function () {
-            for (var i = 0; i < _this._dynamicKeybindings.length; i++) {
-                var kb = _this._dynamicKeybindings[i];
-                if (kb.command === commandId) {
-                    _this._dynamicKeybindings.splice(i, 1);
-                    _this.updateResolver({ source: 1 /* Default */ });
-                    return;
+        var keybinding = createKeybinding(_keybinding, OS);
+        var toDispose = new DisposableStore();
+        if (keybinding) {
+            this._dynamicKeybindings.push({
+                keybinding: keybinding,
+                command: commandId,
+                when: when,
+                weight1: 1000,
+                weight2: 0
+            });
+            toDispose.add(toDisposable(function () {
+                for (var i = 0; i < _this._dynamicKeybindings.length; i++) {
+                    var kb = _this._dynamicKeybindings[i];
+                    if (kb.command === commandId) {
+                        _this._dynamicKeybindings.splice(i, 1);
+                        _this.updateResolver({ source: 1 /* Default */ });
+                        return;
+                    }
                 }
-            }
-        }));
+            }));
+        }
         var commandService = this._commandService;
         if (commandService instanceof StandaloneCommandService) {
-            toDispose.push(commandService.addCommand({
+            toDispose.add(commandService.addCommand({
                 id: commandId,
                 handler: handler
             }));
@@ -230,7 +256,7 @@ var StandaloneKeybindingService = /** @class */ (function (_super) {
             throw new Error('Unknown command service!');
         }
         this.updateResolver({ source: 1 /* Default */ });
-        return combinedDisposable(toDispose);
+        return toDispose;
     };
     StandaloneKeybindingService.prototype.updateResolver = function (event) {
         this._cachedResolver = null;
@@ -249,18 +275,19 @@ var StandaloneKeybindingService = /** @class */ (function (_super) {
     };
     StandaloneKeybindingService.prototype._toNormalizedKeybindingItems = function (items, isDefault) {
         var result = [], resultLen = 0;
-        for (var i = 0, len = items.length; i < len; i++) {
-            var item = items[i];
-            var when = (item.when ? item.when.normalize() : null);
+        for (var _i = 0, items_1 = items; _i < items_1.length; _i++) {
+            var item = items_1[_i];
+            var when = item.when || undefined;
             var keybinding = item.keybinding;
             if (!keybinding) {
                 // This might be a removal keybinding item in user settings => accept it
-                result[resultLen++] = new ResolvedKeybindingItem(null, item.command, item.commandArgs, when, isDefault);
+                result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault);
             }
             else {
                 var resolvedKeybindings = this.resolveKeybinding(keybinding);
-                for (var j = 0; j < resolvedKeybindings.length; j++) {
-                    result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybindings[j], item.command, item.commandArgs, when, isDefault);
+                for (var _a = 0, resolvedKeybindings_1 = resolvedKeybindings; _a < resolvedKeybindings_1.length; _a++) {
+                    var resolvedKeybinding = resolvedKeybindings_1[_a];
+                    result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
                 }
             }
         }
@@ -270,7 +297,7 @@ var StandaloneKeybindingService = /** @class */ (function (_super) {
         return [new USLayoutResolvedKeybinding(keybinding, OS)];
     };
     StandaloneKeybindingService.prototype.resolveKeyboardEvent = function (keyboardEvent) {
-        var keybinding = new SimpleKeybinding(keyboardEvent.ctrlKey, keyboardEvent.shiftKey, keyboardEvent.altKey, keyboardEvent.metaKey, keyboardEvent.keyCode);
+        var keybinding = new SimpleKeybinding(keyboardEvent.ctrlKey, keyboardEvent.shiftKey, keyboardEvent.altKey, keyboardEvent.metaKey, keyboardEvent.keyCode).toChord();
         return new USLayoutResolvedKeybinding(keybinding, OS);
     };
     return StandaloneKeybindingService;
@@ -292,13 +319,17 @@ var SimpleConfigurationService = /** @class */ (function () {
         return this._configuration;
     };
     SimpleConfigurationService.prototype.getValue = function (arg1, arg2) {
-        var section = typeof arg1 === 'string' ? arg1 : void 0;
+        var section = typeof arg1 === 'string' ? arg1 : undefined;
         var overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
-        return this.configuration().getValue(section, overrides, null);
+        return this.configuration().getValue(section, overrides, undefined);
     };
     SimpleConfigurationService.prototype.updateValue = function (key, value, arg3, arg4) {
         this.configuration().updateValue(key, value);
         return Promise.resolve();
+    };
+    SimpleConfigurationService.prototype.inspect = function (key, options) {
+        if (options === void 0) { options = {}; }
+        return this.configuration().inspect(key, options, undefined);
     };
     return SimpleConfigurationService;
 }());
@@ -307,14 +338,17 @@ var SimpleResourceConfigurationService = /** @class */ (function () {
     function SimpleResourceConfigurationService(configurationService) {
         var _this = this;
         this.configurationService = configurationService;
-        this._onDidChangeConfigurationEmitter = new Emitter();
+        this._onDidChangeConfiguration = new Emitter();
         this.configurationService.onDidChangeConfiguration(function (e) {
-            _this._onDidChangeConfigurationEmitter.fire(e);
+            _this._onDidChangeConfiguration.fire({ affectedKeys: e.affectedKeys, affectsConfiguration: function (resource, configuration) { return e.affectsConfiguration(configuration); } });
         });
     }
     SimpleResourceConfigurationService.prototype.getValue = function (resource, arg2, arg3) {
         var position = Pos.isIPosition(arg2) ? arg2 : null;
-        var section = position ? (typeof arg3 === 'string' ? arg3 : void 0) : (typeof arg2 === 'string' ? arg2 : void 0);
+        var section = position ? (typeof arg3 === 'string' ? arg3 : undefined) : (typeof arg2 === 'string' ? arg2 : undefined);
+        if (typeof section === 'undefined') {
+            return this.configurationService.getValue();
+        }
         return this.configurationService.getValue(section);
     };
     return SimpleResourceConfigurationService;
@@ -324,12 +358,10 @@ var SimpleResourcePropertiesService = /** @class */ (function () {
     function SimpleResourcePropertiesService(configurationService) {
         this.configurationService = configurationService;
     }
-    SimpleResourcePropertiesService.prototype.getEOL = function (resource) {
-        var filesConfiguration = this.configurationService.getValue('files');
-        if (filesConfiguration && filesConfiguration.eol) {
-            if (filesConfiguration.eol !== 'auto') {
-                return filesConfiguration.eol;
-            }
+    SimpleResourcePropertiesService.prototype.getEOL = function (resource, language) {
+        var eol = this.configurationService.getValue('files.eol', { overrideIdentifier: language, resource: resource });
+        if (eol && eol !== 'auto') {
+            return eol;
         }
         return (isLinux || isMacintosh) ? '\n' : '\r\n';
     };
@@ -339,21 +371,14 @@ var SimpleResourcePropertiesService = /** @class */ (function () {
     return SimpleResourcePropertiesService;
 }());
 export { SimpleResourcePropertiesService };
-var SimpleMenuService = /** @class */ (function () {
-    function SimpleMenuService(commandService) {
-        this._commandService = commandService;
-    }
-    SimpleMenuService.prototype.createMenu = function (id, contextKeyService) {
-        return new Menu(id, TPromise.as(true), this._commandService, contextKeyService);
-    };
-    return SimpleMenuService;
-}());
-export { SimpleMenuService };
 var StandaloneTelemetryService = /** @class */ (function () {
     function StandaloneTelemetryService() {
     }
     StandaloneTelemetryService.prototype.publicLog = function (eventName, data) {
-        return TPromise.wrap(null);
+        return Promise.resolve(undefined);
+    };
+    StandaloneTelemetryService.prototype.publicLog2 = function (eventName, data) {
+        return this.publicLog(eventName, data);
     };
     return StandaloneTelemetryService;
 }());
@@ -367,7 +392,7 @@ var SimpleWorkspaceContextService = /** @class */ (function () {
         return this.workspace;
     };
     SimpleWorkspaceContextService.prototype.getWorkspaceFolder = function (resource) {
-        return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME ? this.workspace.folders[0] : void 0;
+        return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME ? this.workspace.folders[0] : null;
     };
     SimpleWorkspaceContextService.SCHEME = 'inmemory';
     return SimpleWorkspaceContextService;
@@ -394,33 +419,41 @@ var SimpleBulkEditService = /** @class */ (function () {
         this._modelService = _modelService;
         //
     }
+    SimpleBulkEditService.prototype.hasPreviewHandler = function () {
+        return false;
+    };
     SimpleBulkEditService.prototype.apply = function (workspaceEdit, options) {
         var edits = new Map();
-        for (var _i = 0, _a = workspaceEdit.edits; _i < _a.length; _i++) {
-            var edit = _a[_i];
-            if (!isResourceTextEdit(edit)) {
-                return Promise.reject(new Error('bad edit - only text edits are supported'));
+        if (workspaceEdit.edits) {
+            for (var _i = 0, _a = workspaceEdit.edits; _i < _a.length; _i++) {
+                var edit = _a[_i];
+                if (!WorkspaceTextEdit.is(edit)) {
+                    return Promise.reject(new Error('bad edit - only text edits are supported'));
+                }
+                var model = this._modelService.getModel(edit.resource);
+                if (!model) {
+                    return Promise.reject(new Error('bad edit - model not found'));
+                }
+                var array = edits.get(model);
+                if (!array) {
+                    array = [];
+                    edits.set(model, array);
+                }
+                array.push(edit.edit);
             }
-            var model = this._modelService.getModel(edit.resource);
-            if (!model) {
-                return Promise.reject(new Error('bad edit - model not found'));
-            }
-            var array = edits.get(model);
-            if (!array) {
-                array = [];
-            }
-            edits.set(model, array.concat(edit.edits));
         }
         var totalEdits = 0;
         var totalFiles = 0;
         edits.forEach(function (edits, model) {
-            model.applyEdits(edits.map(function (edit) { return EditOperation.replaceMove(Range.lift(edit.range), edit.text); }));
+            model.pushStackElement();
+            model.pushEditOperations([], edits.map(function (e) { return EditOperation.replaceMove(Range.lift(e.range), e.text); }), function () { return []; });
+            model.pushStackElement();
             totalFiles += 1;
             totalEdits += edits.length;
         });
         return Promise.resolve({
             selection: undefined,
-            ariaSummary: localize('summary', 'Made {0} edits in {1} files', totalEdits, totalFiles)
+            ariaSummary: strings.format(SimpleServicesNLS.bulkEditServiceSummary, totalEdits, totalFiles)
         });
     };
     return SimpleBulkEditService;
@@ -438,3 +471,18 @@ var SimpleUriLabelService = /** @class */ (function () {
     return SimpleUriLabelService;
 }());
 export { SimpleUriLabelService };
+var SimpleLayoutService = /** @class */ (function () {
+    function SimpleLayoutService(_container) {
+        this._container = _container;
+        this.onLayout = Event.None;
+    }
+    Object.defineProperty(SimpleLayoutService.prototype, "container", {
+        get: function () {
+            return this._container;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    return SimpleLayoutService;
+}());
+export { SimpleLayoutService };

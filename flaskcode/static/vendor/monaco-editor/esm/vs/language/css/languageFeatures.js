@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-import * as ls from './_deps/vscode-languageserver-types/main.js';
+import * as cssService from './_deps/vscode-css-languageservice/cssLanguageService.js';
 var Uri = monaco.Uri;
+var Range = monaco.Range;
 // --- diagnostics --- ---
 var DiagnosticsAdapter = /** @class */ (function () {
     function DiagnosticsAdapter(_languageId, _worker, defaults) {
@@ -20,8 +21,8 @@ var DiagnosticsAdapter = /** @class */ (function () {
             }
             var handle;
             _this._listener[model.uri.toString()] = model.onDidChangeContent(function () {
-                clearTimeout(handle);
-                handle = setTimeout(function () { return _this._doValidate(model.uri, modeId); }, 500);
+                window.clearTimeout(handle);
+                handle = window.setTimeout(function () { return _this._doValidate(model.uri, modeId); }, 500);
             });
             _this._doValidate(model.uri, modeId);
         };
@@ -79,10 +80,10 @@ var DiagnosticsAdapter = /** @class */ (function () {
 export { DiagnosticsAdapter };
 function toSeverity(lsSeverity) {
     switch (lsSeverity) {
-        case ls.DiagnosticSeverity.Error: return monaco.MarkerSeverity.Error;
-        case ls.DiagnosticSeverity.Warning: return monaco.MarkerSeverity.Warning;
-        case ls.DiagnosticSeverity.Information: return monaco.MarkerSeverity.Info;
-        case ls.DiagnosticSeverity.Hint: return monaco.MarkerSeverity.Hint;
+        case cssService.DiagnosticSeverity.Error: return monaco.MarkerSeverity.Error;
+        case cssService.DiagnosticSeverity.Warning: return monaco.MarkerSeverity.Warning;
+        case cssService.DiagnosticSeverity.Information: return monaco.MarkerSeverity.Info;
+        case cssService.DiagnosticSeverity.Hint: return monaco.MarkerSeverity.Hint;
         default:
             return monaco.MarkerSeverity.Info;
     }
@@ -122,24 +123,24 @@ function toRange(range) {
 function toCompletionItemKind(kind) {
     var mItemKind = monaco.languages.CompletionItemKind;
     switch (kind) {
-        case ls.CompletionItemKind.Text: return mItemKind.Text;
-        case ls.CompletionItemKind.Method: return mItemKind.Method;
-        case ls.CompletionItemKind.Function: return mItemKind.Function;
-        case ls.CompletionItemKind.Constructor: return mItemKind.Constructor;
-        case ls.CompletionItemKind.Field: return mItemKind.Field;
-        case ls.CompletionItemKind.Variable: return mItemKind.Variable;
-        case ls.CompletionItemKind.Class: return mItemKind.Class;
-        case ls.CompletionItemKind.Interface: return mItemKind.Interface;
-        case ls.CompletionItemKind.Module: return mItemKind.Module;
-        case ls.CompletionItemKind.Property: return mItemKind.Property;
-        case ls.CompletionItemKind.Unit: return mItemKind.Unit;
-        case ls.CompletionItemKind.Value: return mItemKind.Value;
-        case ls.CompletionItemKind.Enum: return mItemKind.Enum;
-        case ls.CompletionItemKind.Keyword: return mItemKind.Keyword;
-        case ls.CompletionItemKind.Snippet: return mItemKind.Snippet;
-        case ls.CompletionItemKind.Color: return mItemKind.Color;
-        case ls.CompletionItemKind.File: return mItemKind.File;
-        case ls.CompletionItemKind.Reference: return mItemKind.Reference;
+        case cssService.CompletionItemKind.Text: return mItemKind.Text;
+        case cssService.CompletionItemKind.Method: return mItemKind.Method;
+        case cssService.CompletionItemKind.Function: return mItemKind.Function;
+        case cssService.CompletionItemKind.Constructor: return mItemKind.Constructor;
+        case cssService.CompletionItemKind.Field: return mItemKind.Field;
+        case cssService.CompletionItemKind.Variable: return mItemKind.Variable;
+        case cssService.CompletionItemKind.Class: return mItemKind.Class;
+        case cssService.CompletionItemKind.Interface: return mItemKind.Interface;
+        case cssService.CompletionItemKind.Module: return mItemKind.Module;
+        case cssService.CompletionItemKind.Property: return mItemKind.Property;
+        case cssService.CompletionItemKind.Unit: return mItemKind.Unit;
+        case cssService.CompletionItemKind.Value: return mItemKind.Value;
+        case cssService.CompletionItemKind.Enum: return mItemKind.Enum;
+        case cssService.CompletionItemKind.Keyword: return mItemKind.Keyword;
+        case cssService.CompletionItemKind.Snippet: return mItemKind.Snippet;
+        case cssService.CompletionItemKind.Color: return mItemKind.Color;
+        case cssService.CompletionItemKind.File: return mItemKind.File;
+        case cssService.CompletionItemKind.Reference: return mItemKind.Reference;
     }
     return mItemKind.Property;
 }
@@ -164,7 +165,6 @@ var CompletionAdapter = /** @class */ (function () {
         configurable: true
     });
     CompletionAdapter.prototype.provideCompletionItems = function (model, position, context, token) {
-        var wordInfo = model.getWordUntilPosition(position);
         var resource = model.uri;
         return this._worker(resource).then(function (worker) {
             return worker.doComplete(resource.toString(), fromPosition(position));
@@ -172,6 +172,8 @@ var CompletionAdapter = /** @class */ (function () {
             if (!info) {
                 return;
             }
+            var wordInfo = model.getWordUntilPosition(position);
+            var wordRange = new Range(position.lineNumber, wordInfo.startColumn, position.lineNumber, wordInfo.endColumn);
             var items = info.items.map(function (entry) {
                 var item = {
                     label: entry.label,
@@ -180,6 +182,7 @@ var CompletionAdapter = /** @class */ (function () {
                     filterText: entry.filterText,
                     documentation: entry.documentation,
                     detail: entry.detail,
+                    range: wordRange,
                     kind: toCompletionItemKind(entry.kind),
                 };
                 if (entry.textEdit) {
@@ -189,7 +192,7 @@ var CompletionAdapter = /** @class */ (function () {
                 if (entry.additionalTextEdits) {
                     item.additionalTextEdits = entry.additionalTextEdits.map(toTextEdit);
                 }
-                if (entry.insertTextFormat === ls.InsertTextFormat.Snippet) {
+                if (entry.insertTextFormat === cssService.InsertTextFormat.Snippet) {
                     item.insertTextRules = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
                 }
                 return item;
@@ -258,9 +261,9 @@ export { HoverAdapter };
 // --- document highlights ------
 function toDocumentHighlightKind(kind) {
     switch (kind) {
-        case ls.DocumentHighlightKind.Read: return monaco.languages.DocumentHighlightKind.Read;
-        case ls.DocumentHighlightKind.Write: return monaco.languages.DocumentHighlightKind.Write;
-        case ls.DocumentHighlightKind.Text: return monaco.languages.DocumentHighlightKind.Text;
+        case cssService.DocumentHighlightKind.Read: return monaco.languages.DocumentHighlightKind.Read;
+        case cssService.DocumentHighlightKind.Write: return monaco.languages.DocumentHighlightKind.Write;
+        case cssService.DocumentHighlightKind.Text: return monaco.languages.DocumentHighlightKind.Text;
     }
     return monaco.languages.DocumentHighlightKind.Text;
 }
@@ -338,15 +341,18 @@ function toWorkspaceEdit(edit) {
     }
     var resourceEdits = [];
     for (var uri in edit.changes) {
-        var edits = [];
+        var _uri = Uri.parse(uri);
+        // let edits: monaco.languages.TextEdit[] = [];
         for (var _i = 0, _a = edit.changes[uri]; _i < _a.length; _i++) {
             var e = _a[_i];
-            edits.push({
-                range: toRange(e.range),
-                text: e.newText
+            resourceEdits.push({
+                resource: _uri,
+                edit: {
+                    range: toRange(e.range),
+                    text: e.newText
+                }
             });
         }
-        resourceEdits.push({ resource: Uri.parse(uri), edits: edits });
     }
     return {
         edits: resourceEdits
@@ -371,24 +377,24 @@ export { RenameAdapter };
 function toSymbolKind(kind) {
     var mKind = monaco.languages.SymbolKind;
     switch (kind) {
-        case ls.SymbolKind.File: return mKind.Array;
-        case ls.SymbolKind.Module: return mKind.Module;
-        case ls.SymbolKind.Namespace: return mKind.Namespace;
-        case ls.SymbolKind.Package: return mKind.Package;
-        case ls.SymbolKind.Class: return mKind.Class;
-        case ls.SymbolKind.Method: return mKind.Method;
-        case ls.SymbolKind.Property: return mKind.Property;
-        case ls.SymbolKind.Field: return mKind.Field;
-        case ls.SymbolKind.Constructor: return mKind.Constructor;
-        case ls.SymbolKind.Enum: return mKind.Enum;
-        case ls.SymbolKind.Interface: return mKind.Interface;
-        case ls.SymbolKind.Function: return mKind.Function;
-        case ls.SymbolKind.Variable: return mKind.Variable;
-        case ls.SymbolKind.Constant: return mKind.Constant;
-        case ls.SymbolKind.String: return mKind.String;
-        case ls.SymbolKind.Number: return mKind.Number;
-        case ls.SymbolKind.Boolean: return mKind.Boolean;
-        case ls.SymbolKind.Array: return mKind.Array;
+        case cssService.SymbolKind.File: return mKind.Array;
+        case cssService.SymbolKind.Module: return mKind.Module;
+        case cssService.SymbolKind.Namespace: return mKind.Namespace;
+        case cssService.SymbolKind.Package: return mKind.Package;
+        case cssService.SymbolKind.Class: return mKind.Class;
+        case cssService.SymbolKind.Method: return mKind.Method;
+        case cssService.SymbolKind.Property: return mKind.Property;
+        case cssService.SymbolKind.Field: return mKind.Field;
+        case cssService.SymbolKind.Constructor: return mKind.Constructor;
+        case cssService.SymbolKind.Enum: return mKind.Enum;
+        case cssService.SymbolKind.Interface: return mKind.Interface;
+        case cssService.SymbolKind.Function: return mKind.Function;
+        case cssService.SymbolKind.Variable: return mKind.Variable;
+        case cssService.SymbolKind.Constant: return mKind.Constant;
+        case cssService.SymbolKind.String: return mKind.String;
+        case cssService.SymbolKind.Number: return mKind.Number;
+        case cssService.SymbolKind.Boolean: return mKind.Boolean;
+        case cssService.SymbolKind.Array: return mKind.Array;
     }
     return mKind.Function;
 }
@@ -407,6 +413,7 @@ var DocumentSymbolAdapter = /** @class */ (function () {
                 detail: '',
                 containerName: item.containerName,
                 kind: toSymbolKind(item.kind),
+                tags: [],
                 range: toRange(item.location.range),
                 selectionRange: toRange(item.location.range)
             }); });
@@ -460,7 +467,7 @@ var FoldingRangeAdapter = /** @class */ (function () {
     }
     FoldingRangeAdapter.prototype.provideFoldingRanges = function (model, context, token) {
         var resource = model.uri;
-        return this._worker(resource).then(function (worker) { return worker.provideFoldingRanges(resource.toString(), context); }).then(function (ranges) {
+        return this._worker(resource).then(function (worker) { return worker.getFoldingRanges(resource.toString(), context); }).then(function (ranges) {
             if (!ranges) {
                 return;
             }
@@ -481,9 +488,31 @@ var FoldingRangeAdapter = /** @class */ (function () {
 export { FoldingRangeAdapter };
 function toFoldingRangeKind(kind) {
     switch (kind) {
-        case ls.FoldingRangeKind.Comment: return monaco.languages.FoldingRangeKind.Comment;
-        case ls.FoldingRangeKind.Imports: return monaco.languages.FoldingRangeKind.Imports;
-        case ls.FoldingRangeKind.Region: return monaco.languages.FoldingRangeKind.Region;
+        case cssService.FoldingRangeKind.Comment: return monaco.languages.FoldingRangeKind.Comment;
+        case cssService.FoldingRangeKind.Imports: return monaco.languages.FoldingRangeKind.Imports;
+        case cssService.FoldingRangeKind.Region: return monaco.languages.FoldingRangeKind.Region;
     }
-    return void 0;
 }
+var SelectionRangeAdapter = /** @class */ (function () {
+    function SelectionRangeAdapter(_worker) {
+        this._worker = _worker;
+    }
+    SelectionRangeAdapter.prototype.provideSelectionRanges = function (model, positions, token) {
+        var resource = model.uri;
+        return this._worker(resource).then(function (worker) { return worker.getSelectionRanges(resource.toString(), positions.map(fromPosition)); }).then(function (selectionRanges) {
+            if (!selectionRanges) {
+                return;
+            }
+            return selectionRanges.map(function (selectionRange) {
+                var result = [];
+                while (selectionRange) {
+                    result.push({ range: toRange(selectionRange.range) });
+                    selectionRange = selectionRange.parent;
+                }
+                return result;
+            });
+        });
+    };
+    return SelectionRangeAdapter;
+}());
+export { SelectionRangeAdapter };

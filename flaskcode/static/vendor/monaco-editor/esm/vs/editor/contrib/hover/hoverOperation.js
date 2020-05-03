@@ -5,11 +5,11 @@
 import { RunOnceScheduler, createCancelablePromise } from '../../../base/common/async.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 var HoverOperation = /** @class */ (function () {
-    function HoverOperation(computer, success, error, progress) {
+    function HoverOperation(computer, success, error, progress, hoverTime) {
         var _this = this;
         this._computer = computer;
         this._state = 0 /* IDLE */;
-        this._hoverTime = HoverOperation.HOVER_TIME;
+        this._hoverTime = hoverTime;
         this._firstWaitScheduler = new RunOnceScheduler(function () { return _this._triggerAsyncComputation(); }, 0);
         this._secondWaitScheduler = new RunOnceScheduler(function () { return _this._triggerSyncComputation(); }, 0);
         this._loadingMessageScheduler = new RunOnceScheduler(function () { return _this._showLoadingMessage(); }, 0);
@@ -134,7 +134,6 @@ var HoverOperation = /** @class */ (function () {
         }
         this._state = 0 /* IDLE */;
     };
-    HoverOperation.HOVER_TIME = 300;
     return HoverOperation;
 }());
 export { HoverOperation };

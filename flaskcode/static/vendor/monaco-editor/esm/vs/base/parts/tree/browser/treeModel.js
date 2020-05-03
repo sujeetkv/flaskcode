@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -17,9 +17,8 @@ var __extends = (this && this.__extends) || (function () {
 })();
 import * as Assert from '../../../common/assert.js';
 import { onUnexpectedError } from '../../../common/errors.js';
-import { combinedDisposable } from '../../../common/lifecycle.js';
-import * as WinJS from '../../../common/winjs.base.js';
-import { Emitter, once, EventMultiplexer, Relay } from '../../../common/event.js';
+import { combinedDisposable, Disposable } from '../../../common/lifecycle.js';
+import { Event, Emitter, EventMultiplexer, Relay } from '../../../common/event.js';
 var LockData = /** @class */ (function () {
     function LockData(item) {
         this._onDispose = new Emitter();
@@ -37,7 +36,7 @@ var LockData = /** @class */ (function () {
         if (this._onDispose) {
             this._onDispose.fire();
             this._onDispose.dispose();
-            this._onDispose = null;
+            this._onDispose = undefined;
         }
     };
     return LockData;
@@ -54,14 +53,14 @@ var Lock = /** @class */ (function () {
         var _this = this;
         var lock = this.getLock(item);
         if (lock) {
-            return new WinJS.TPromise(function (c, e) {
-                once(lock.onDispose)(function () {
+            return new Promise(function (c, e) {
+                Event.once(lock.onDispose)(function () {
                     return _this.run(item, fn).then(c, e);
                 });
             });
         }
         var result;
-        return new WinJS.TPromise(function (c, e) {
+        return new Promise(function (c, e) {
             if (item.isDisposed()) {
                 return e(new Error('Item is disposed.'));
             }
@@ -116,19 +115,7 @@ var ItemRegistry = /** @class */ (function () {
     }
     ItemRegistry.prototype.register = function (item) {
         Assert.ok(!this.isRegistered(item.id), 'item already registered: ' + item.id);
-        var disposable = combinedDisposable([
-            this._onDidRevealItem.add(item.onDidReveal),
-            this._onExpandItem.add(item.onExpand),
-            this._onDidExpandItem.add(item.onDidExpand),
-            this._onCollapseItem.add(item.onCollapse),
-            this._onDidCollapseItem.add(item.onDidCollapse),
-            this._onDidAddTraitItem.add(item.onDidAddTrait),
-            this._onDidRemoveTraitItem.add(item.onDidRemoveTrait),
-            this._onDidRefreshItem.add(item.onDidRefresh),
-            this._onRefreshItemChildren.add(item.onRefreshChildren),
-            this._onDidRefreshItemChildren.add(item.onDidRefreshChildren),
-            this._onDidDisposeItem.add(item.onDidDispose)
-        ]);
+        var disposable = combinedDisposable(this._onDidRevealItem.add(item.onDidReveal), this._onExpandItem.add(item.onExpand), this._onDidExpandItem.add(item.onDidExpand), this._onCollapseItem.add(item.onCollapse), this._onDidCollapseItem.add(item.onDidCollapse), this._onDidAddTraitItem.add(item.onDidAddTrait), this._onDidRemoveTraitItem.add(item.onDidRemoveTrait), this._onDidRefreshItem.add(item.onDidRefresh), this._onRefreshItemChildren.add(item.onRefreshChildren), this._onDidRefreshItemChildren.add(item.onDidRefreshChildren), this._onDidDisposeItem.add(item.onDidDispose));
         this.items[item.id] = { item: item, disposable: disposable };
     };
     ItemRegistry.prototype.deregister = function (item) {
@@ -144,7 +131,7 @@ var ItemRegistry = /** @class */ (function () {
         return result ? result.item : null;
     };
     ItemRegistry.prototype.dispose = function () {
-        this.items = null;
+        this.items = {};
         this._onDidRevealItem.dispose();
         this._onExpandItem.dispose();
         this._onDidExpandItem.dispose();
@@ -203,7 +190,7 @@ var Item = /** @class */ (function () {
         this.lastChild = null;
         this.traits = {};
         this.depth = 0;
-        this.expanded = this.context.dataSource.shouldAutoexpand && this.context.dataSource.shouldAutoexpand(this.context.tree, element);
+        this.expanded = !!(this.context.dataSource.shouldAutoexpand && this.context.dataSource.shouldAutoexpand(this.context.tree, element));
         this._onDidCreate.fire(this);
         this.visible = this._isVisible();
         this.height = this._getHeight();
@@ -238,11 +225,11 @@ var Item = /** @class */ (function () {
     Item.prototype.expand = function () {
         var _this = this;
         if (this.isExpanded() || !this.doesHaveChildren || this.lock.isLocked(this)) {
-            return WinJS.TPromise.as(false);
+            return Promise.resolve(false);
         }
         var result = this.lock.run(this, function () {
             if (_this.isExpanded() || !_this.doesHaveChildren) {
-                return WinJS.TPromise.as(false);
+                return Promise.resolve(false);
             }
             var eventData = { item: _this };
             var result;
@@ -251,7 +238,7 @@ var Item = /** @class */ (function () {
                 result = _this.refreshChildren(false, true, true);
             }
             else {
-                result = WinJS.TPromise.as(null);
+                result = Promise.resolve(null);
             }
             return result.then(function () {
                 _this._setExpanded(true);
@@ -274,24 +261,24 @@ var Item = /** @class */ (function () {
         var _this = this;
         if (recursive === void 0) { recursive = false; }
         if (recursive) {
-            var collapseChildrenPromise = WinJS.TPromise.as(null);
+            var collapseChildrenPromise_1 = Promise.resolve(null);
             this.forEachChild(function (child) {
-                collapseChildrenPromise = collapseChildrenPromise.then(function () { return child.collapse(true); });
+                collapseChildrenPromise_1 = collapseChildrenPromise_1.then(function () { return child.collapse(true); });
             });
-            return collapseChildrenPromise.then(function () {
+            return collapseChildrenPromise_1.then(function () {
                 return _this.collapse(false);
             });
         }
         else {
             if (!this.isExpanded() || this.lock.isLocked(this)) {
-                return WinJS.TPromise.as(false);
+                return Promise.resolve(false);
             }
             return this.lock.run(this, function () {
                 var eventData = { item: _this };
                 _this._onCollapse.fire(eventData);
                 _this._setExpanded(false);
                 _this._onDidCollapse.fire(eventData);
-                return WinJS.TPromise.as(true);
+                return Promise.resolve(true);
             });
         }
     };
@@ -331,7 +318,7 @@ var Item = /** @class */ (function () {
                 item.forEachChild(setNeedsChildrenRefresh_1);
             };
             setNeedsChildrenRefresh_1(this);
-            return WinJS.TPromise.as(this);
+            return Promise.resolve(this);
         }
         this.needsChildrenRefresh = false;
         var doRefresh = function () {
@@ -342,14 +329,14 @@ var Item = /** @class */ (function () {
                 childrenPromise = _this.context.dataSource.getChildren(_this.context.tree, _this.element);
             }
             else {
-                childrenPromise = WinJS.TPromise.as([]);
+                childrenPromise = Promise.resolve([]);
             }
             var result = childrenPromise.then(function (elements) {
                 if (_this.isDisposed() || _this.registry.isDisposed()) {
-                    return WinJS.TPromise.as(null);
+                    return Promise.resolve(null);
                 }
                 if (!Array.isArray(elements)) {
-                    return WinJS.TPromise.wrapError(new Error('Please return an array of children.'));
+                    return Promise.reject(new Error('Please return an array of children.'));
                 }
                 elements = !elements ? [] : elements.slice(0);
                 elements = _this.sort(elements);
@@ -375,24 +362,24 @@ var Item = /** @class */ (function () {
                     }
                 }
                 if (recursive) {
-                    return WinJS.Promise.join(_this.mapEachChild(function (child) {
+                    return Promise.all(_this.mapEachChild(function (child) {
                         return child.doRefresh(recursive, true);
                     }));
                 }
                 else {
-                    return WinJS.Promise.join(_this.mapEachChild(function (child) {
+                    return Promise.all(_this.mapEachChild(function (child) {
                         if (child.isExpanded() && child.needsChildrenRefresh) {
                             return child.doRefresh(recursive, true);
                         }
                         else {
                             child.updateVisibility();
-                            return WinJS.TPromise.as(null);
+                            return Promise.resolve(null);
                         }
                     }));
                 }
             });
             return result
-                .then(null, onUnexpectedError)
+                .then(undefined, onUnexpectedError)
                 .then(function () { return _this._onDidRefreshChildren.fire(eventData); });
         };
         return safe ? doRefresh() : this.lock.run(this, doRefresh);
@@ -417,7 +404,8 @@ var Item = /** @class */ (function () {
     Item.prototype.intersects = function (other) {
         return this.isAncestorOf(other) || other.isAncestorOf(this);
     };
-    Item.prototype.isAncestorOf = function (item) {
+    Item.prototype.isAncestorOf = function (startItem) {
+        var item = startItem;
         while (item) {
             if (item.id === this.id) {
                 return true;
@@ -436,12 +424,18 @@ var Item = /** @class */ (function () {
             item.next = item.previous = null;
         }
         else if (atHead) {
+            if (!this.firstChild) {
+                throw new Error('Invalid tree state');
+            }
             this.firstChild.previous = item;
             item.next = this.firstChild;
             item.previous = null;
             this.firstChild = item;
         }
         else if (atTail) {
+            if (!this.lastChild) {
+                throw new Error('Invalid tree state');
+            }
             this.lastChild.next = item;
             item.next = null;
             item.previous = this.lastChild;
@@ -449,7 +443,13 @@ var Item = /** @class */ (function () {
         }
         else {
             item.previous = afterItem;
+            if (!afterItem) {
+                throw new Error('Invalid tree state');
+            }
             item.next = afterItem.next;
+            if (!afterItem.next) {
+                throw new Error('Invalid tree state');
+            }
             afterItem.next.previous = item;
             afterItem.next = item;
         }
@@ -463,22 +463,35 @@ var Item = /** @class */ (function () {
             this.firstChild = this.lastChild = null;
         }
         else if (isFirstChild) {
+            if (!item.next) {
+                throw new Error('Invalid tree state');
+            }
             item.next.previous = null;
             this.firstChild = item.next;
         }
         else if (isLastChild) {
+            if (!item.previous) {
+                throw new Error('Invalid tree state');
+            }
             item.previous.next = null;
             this.lastChild = item.previous;
         }
         else {
+            if (!item.next) {
+                throw new Error('Invalid tree state');
+            }
             item.next.previous = item.previous;
+            if (!item.previous) {
+                throw new Error('Invalid tree state');
+            }
             item.previous.next = item.next;
         }
         item.parent = null;
-        item.depth = null;
+        item.depth = NaN;
     };
     Item.prototype.forEachChild = function (fn) {
-        var child = this.firstChild, next;
+        var child = this.firstChild;
+        var next;
         while (child) {
             next = child.next;
             fn(child);
@@ -494,17 +507,24 @@ var Item = /** @class */ (function () {
     };
     Item.prototype.sort = function (elements) {
         var _this = this;
-        if (this.context.sorter) {
+        var sorter = this.context.sorter;
+        if (sorter) {
             return elements.sort(function (element, otherElement) {
-                return _this.context.sorter.compare(_this.context.tree, element, otherElement);
+                return sorter.compare(_this.context.tree, element, otherElement);
             });
         }
         return elements;
     };
     /* protected */ Item.prototype._getHeight = function () {
+        if (!this.context.renderer) {
+            return 0;
+        }
         return this.context.renderer.getHeight(this.context.tree, this.element);
     };
     /* protected */ Item.prototype._isVisible = function () {
+        if (!this.context.filter) {
+            return false;
+        }
         return this.context.filter.isVisible(this.context.tree, this.element);
     };
     Item.prototype.isDisposed = function () {
@@ -627,9 +647,9 @@ var TreeNavigator = /** @class */ (function () {
     };
     TreeNavigator.prototype.parent = function () {
         if (this.item) {
-            var parent = this.item.parent;
-            if (parent && parent !== this.start && parent.isVisible()) {
-                this.item = parent;
+            var parent_1 = this.item.parent;
+            if (parent_1 && parent_1 !== this.start && parent_1.isVisible()) {
+                this.item = parent_1;
             }
             else {
                 this.item = null;
@@ -650,6 +670,8 @@ var TreeNavigator = /** @class */ (function () {
 export { TreeNavigator };
 var TreeModel = /** @class */ (function () {
     function TreeModel(context) {
+        this.registry = new ItemRegistry();
+        this.registryDisposable = Disposable.None;
         this._onSetInput = new Emitter();
         this.onSetInput = this._onSetInput.event;
         this._onDidSetInput = new Emitter();
@@ -733,7 +755,7 @@ var TreeModel = /** @class */ (function () {
         if (recursive === void 0) { recursive = true; }
         var item = this.getItem(element);
         if (!item) {
-            return WinJS.TPromise.as(null);
+            return Promise.resolve(null);
         }
         var eventData = { item: item, recursive: recursive };
         this._onRefresh.fire(eventData);
@@ -744,7 +766,7 @@ var TreeModel = /** @class */ (function () {
     TreeModel.prototype.expand = function (element) {
         var item = this.getItem(element);
         if (!item) {
-            return WinJS.TPromise.as(false);
+            return Promise.resolve(false);
         }
         return item.expand();
     };
@@ -752,7 +774,7 @@ var TreeModel = /** @class */ (function () {
         if (recursive === void 0) { recursive = false; }
         var item = this.getItem(element);
         if (!item) {
-            return WinJS.TPromise.as(false);
+            return Promise.resolve(false);
         }
         return item.collapse(recursive);
     };
@@ -771,7 +793,7 @@ var TreeModel = /** @class */ (function () {
         var _this = this;
         if (relativeTop === void 0) { relativeTop = null; }
         return this.resolveUnknownParentChain(element).then(function (chain) {
-            var result = WinJS.TPromise.as(null);
+            var result = Promise.resolve(null);
             chain.forEach(function (e) {
                 result = result.then(function () { return _this.expand(e); });
             });
@@ -787,7 +809,7 @@ var TreeModel = /** @class */ (function () {
         var _this = this;
         return this.context.dataSource.getParent(this.context.tree, element).then(function (parent) {
             if (!parent) {
-                return WinJS.TPromise.as([]);
+                return Promise.resolve([]);
             }
             return _this.resolveUnknownParentChain(parent).then(function (result) {
                 result.push(parent);
@@ -801,6 +823,7 @@ var TreeModel = /** @class */ (function () {
         this._onDidHighlight.fire(eventData);
     };
     TreeModel.prototype.getHighlight = function (includeHidden) {
+        if (includeHidden === void 0) { includeHidden = false; }
         var result = this.getElementsWithTrait('highlighted', includeHidden);
         return result.length === 0 ? null : result[0];
     };
@@ -810,6 +833,7 @@ var TreeModel = /** @class */ (function () {
         this._onDidSelect.fire(eventData);
     };
     TreeModel.prototype.getSelection = function (includeHidden) {
+        if (includeHidden === void 0) { includeHidden = false; }
         return this.getElementsWithTrait('selected', includeHidden);
     };
     TreeModel.prototype.setFocus = function (element, eventPayload) {
@@ -818,6 +842,7 @@ var TreeModel = /** @class */ (function () {
         this._onDidFocus.fire(eventData);
     };
     TreeModel.prototype.getFocus = function (includeHidden) {
+        if (includeHidden === void 0) { includeHidden = false; }
         var result = this.getElementsWithTrait('focused', includeHidden);
         return result.length === 0 ? null : result[0];
     };
@@ -883,7 +908,7 @@ var TreeModel = /** @class */ (function () {
     TreeModel.prototype.focusLast = function (eventPayload, from) {
         var navItem = this.getParent(from);
         var item;
-        if (from) {
+        if (from && navItem) {
             item = navItem.lastChild;
         }
         else {
@@ -952,7 +977,7 @@ var TreeModel = /** @class */ (function () {
         }
         else {
             var items = {};
-            var item;
+            var item = void 0;
             for (var i = 0, len = elements.length; i < len; i++) {
                 item = this.getItem(elements[i]);
                 if (item) {
@@ -961,7 +986,7 @@ var TreeModel = /** @class */ (function () {
             }
             var traitItems = this.traitsToItems[trait] || {};
             var itemsToRemoveTrait = [];
-            var id;
+            var id = void 0;
             for (id in traitItems) {
                 if (traitItems.hasOwnProperty(id)) {
                     if (items.hasOwnProperty(id)) {
@@ -999,10 +1024,7 @@ var TreeModel = /** @class */ (function () {
         return elements;
     };
     TreeModel.prototype.dispose = function () {
-        if (this.registry) {
-            this.registry.dispose();
-            this.registry = null;
-        }
+        this.registry.dispose();
         this._onSetInput.dispose();
         this._onDidSetInput.dispose();
         this._onRefresh.dispose();

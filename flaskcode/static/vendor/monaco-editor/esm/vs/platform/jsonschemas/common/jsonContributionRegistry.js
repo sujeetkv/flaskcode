@@ -22,6 +22,9 @@ var JSONContributionRegistry = /** @class */ (function () {
         this.schemasById[normalizeId(uri)] = unresolvedSchemaContent;
         this._onDidChangeSchema.fire(uri);
     };
+    JSONContributionRegistry.prototype.notifySchemaChanged = function (uri) {
+        this._onDidChangeSchema.fire(uri);
+    };
     return JSONContributionRegistry;
 }());
 var jsonContributionRegistry = new JSONContributionRegistry();

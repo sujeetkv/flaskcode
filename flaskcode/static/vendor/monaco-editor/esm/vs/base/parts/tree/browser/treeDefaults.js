@@ -16,7 +16,7 @@ var KeybindingDispatcher = /** @class */ (function () {
         // Loop from the last to the first to handle overwrites
         for (var i = this._arr.length - 1; i >= 0; i--) {
             var item = this._arr[i];
-            if (keybinding.equals(item.keybinding)) {
+            if (keybinding.toChord().equals(item.keybinding)) {
                 return item.callback;
             }
         }
@@ -27,8 +27,8 @@ var KeybindingDispatcher = /** @class */ (function () {
 export { KeybindingDispatcher };
 var DefaultController = /** @class */ (function () {
     function DefaultController(options) {
-        if (options === void 0) { options = { clickBehavior: 0 /* ON_MOUSE_DOWN */, keyboardSupport: true, openMode: 0 /* SINGLE_CLICK */ }; }
         var _this = this;
+        if (options === void 0) { options = { clickBehavior: 0 /* ON_MOUSE_DOWN */, keyboardSupport: true, openMode: 0 /* SINGLE_CLICK */ }; }
         this.options = options;
         this.downKeyBindingDispatcher = new KeybindingDispatcher();
         this.upKeyBindingDispatcher = new KeybindingDispatcher();
@@ -106,10 +106,10 @@ var DefaultController = /** @class */ (function () {
             tree.setFocus(element, payload);
             if (this.shouldToggleExpansion(element, event, origin)) {
                 if (tree.isExpanded(element)) {
-                    tree.collapse(element).then(null, errors.onUnexpectedError);
+                    tree.collapse(element).then(undefined, errors.onUnexpectedError);
                 }
                 else {
-                    tree.expand(element).then(null, errors.onUnexpectedError);
+                    tree.expand(element).then(undefined, errors.onUnexpectedError);
                 }
             }
         }
@@ -118,9 +118,6 @@ var DefaultController = /** @class */ (function () {
     DefaultController.prototype.shouldToggleExpansion = function (element, event, origin) {
         var isDoubleClick = (origin === 'mouse' && event.detail === 2);
         return this.openOnSingleClick || isDoubleClick || this.isClickOnTwistie(event);
-    };
-    DefaultController.prototype.setOpenMode = function (openMode) {
-        this.options.openMode = openMode;
     };
     Object.defineProperty(DefaultController.prototype, "openOnSingleClick", {
         get: function () {
@@ -184,7 +181,7 @@ var DefaultController = /** @class */ (function () {
         }
         else {
             tree.focusPrevious(1, payload);
-            tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
+            tree.reveal(tree.getFocus()).then(undefined, errors.onUnexpectedError);
         }
         return true;
     };
@@ -195,7 +192,7 @@ var DefaultController = /** @class */ (function () {
         }
         else {
             tree.focusPreviousPage(payload);
-            tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
+            tree.reveal(tree.getFocus()).then(undefined, errors.onUnexpectedError);
         }
         return true;
     };
@@ -206,7 +203,7 @@ var DefaultController = /** @class */ (function () {
         }
         else {
             tree.focusNext(1, payload);
-            tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
+            tree.reveal(tree.getFocus()).then(undefined, errors.onUnexpectedError);
         }
         return true;
     };
@@ -217,7 +214,7 @@ var DefaultController = /** @class */ (function () {
         }
         else {
             tree.focusNextPage(payload);
-            tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
+            tree.reveal(tree.getFocus()).then(undefined, errors.onUnexpectedError);
         }
         return true;
     };
@@ -228,7 +225,7 @@ var DefaultController = /** @class */ (function () {
         }
         else {
             tree.focusFirst(payload);
-            tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
+            tree.reveal(tree.getFocus()).then(undefined, errors.onUnexpectedError);
         }
         return true;
     };
@@ -239,7 +236,7 @@ var DefaultController = /** @class */ (function () {
         }
         else {
             tree.focusLast(payload);
-            tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
+            tree.reveal(tree.getFocus()).then(undefined, errors.onUnexpectedError);
         }
         return true;
     };
@@ -256,7 +253,7 @@ var DefaultController = /** @class */ (function () {
                     return tree.reveal(tree.getFocus());
                 }
                 return undefined;
-            }).then(null, errors.onUnexpectedError);
+            }).then(undefined, errors.onUnexpectedError);
         }
         return true;
     };
@@ -273,7 +270,7 @@ var DefaultController = /** @class */ (function () {
                     return tree.reveal(tree.getFocus());
                 }
                 return undefined;
-            }).then(null, errors.onUnexpectedError);
+            }).then(undefined, errors.onUnexpectedError);
         }
         return true;
     };

@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -25,6 +25,7 @@ var StandardMouseEvent = /** @class */ (function () {
         this.leftButton = e.button === 0;
         this.middleButton = e.button === 1;
         this.rightButton = e.button === 2;
+        this.buttons = e.buttons;
         this.target = e.target;
         this.detail = e.detail || 1;
         if (e.type === 'dblclick') {
@@ -71,8 +72,8 @@ var DragMouseEvent = /** @class */ (function (_super) {
     return DragMouseEvent;
 }(StandardMouseEvent));
 export { DragMouseEvent };
-var StandardMouseWheelEvent = /** @class */ (function () {
-    function StandardMouseWheelEvent(e, deltaX, deltaY) {
+var StandardWheelEvent = /** @class */ (function () {
+    function StandardWheelEvent(e, deltaX, deltaY) {
         if (deltaX === void 0) { deltaX = 0; }
         if (deltaY === void 0) { deltaY = 0; }
         this.browserEvent = e || null;
@@ -80,6 +81,7 @@ var StandardMouseWheelEvent = /** @class */ (function () {
         this.deltaY = deltaY;
         this.deltaX = deltaX;
         if (e) {
+            // Old (deprecated) wheel events
             var e1 = e;
             var e2 = e;
             // vertical delta scroll
@@ -88,6 +90,18 @@ var StandardMouseWheelEvent = /** @class */ (function () {
             }
             else if (typeof e2.VERTICAL_AXIS !== 'undefined' && e2.axis === e2.VERTICAL_AXIS) {
                 this.deltaY = -e2.detail / 3;
+            }
+            else if (e.type === 'wheel') {
+                // Modern wheel event
+                // https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent
+                var ev = e;
+                if (ev.deltaMode === ev.DOM_DELTA_LINE) {
+                    // the deltas are expressed in lines
+                    this.deltaY = -e.deltaY;
+                }
+                else {
+                    this.deltaY = -e.deltaY / 40;
+                }
             }
             // horizontal delta scroll
             if (typeof e1.wheelDeltaX !== 'undefined') {
@@ -101,26 +115,38 @@ var StandardMouseWheelEvent = /** @class */ (function () {
             else if (typeof e2.HORIZONTAL_AXIS !== 'undefined' && e2.axis === e2.HORIZONTAL_AXIS) {
                 this.deltaX = -e.detail / 3;
             }
+            else if (e.type === 'wheel') {
+                // Modern wheel event
+                // https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent
+                var ev = e;
+                if (ev.deltaMode === ev.DOM_DELTA_LINE) {
+                    // the deltas are expressed in lines
+                    this.deltaX = -e.deltaX;
+                }
+                else {
+                    this.deltaX = -e.deltaX / 40;
+                }
+            }
             // Assume a vertical scroll if nothing else worked
             if (this.deltaY === 0 && this.deltaX === 0 && e.wheelDelta) {
                 this.deltaY = e.wheelDelta / 120;
             }
         }
     }
-    StandardMouseWheelEvent.prototype.preventDefault = function () {
+    StandardWheelEvent.prototype.preventDefault = function () {
         if (this.browserEvent) {
             if (this.browserEvent.preventDefault) {
                 this.browserEvent.preventDefault();
             }
         }
     };
-    StandardMouseWheelEvent.prototype.stopPropagation = function () {
+    StandardWheelEvent.prototype.stopPropagation = function () {
         if (this.browserEvent) {
             if (this.browserEvent.stopPropagation) {
                 this.browserEvent.stopPropagation();
             }
         }
     };
-    return StandardMouseWheelEvent;
+    return StandardWheelEvent;
 }());
-export { StandardMouseWheelEvent };
+export { StandardWheelEvent };

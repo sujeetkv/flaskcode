@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -16,9 +16,10 @@ var __extends = (this && this.__extends) || (function () {
     };
 })();
 import './media/scrollbars.css';
+import { isEdgeOrIE } from '../../browser.js';
 import * as dom from '../../dom.js';
 import { createFastDomNode } from '../../fastDomNode.js';
-import { StandardMouseWheelEvent } from '../../mouseEvent.js';
+import { StandardWheelEvent } from '../../mouseEvent.js';
 import { HorizontalScrollbar } from './horizontalScrollbar.js';
 import { VerticalScrollbar } from './verticalScrollbar.js';
 import { Widget } from '../widget.js';
@@ -51,7 +52,7 @@ var MouseWheelClassifier = /** @class */ (function () {
             // no elements
             return false;
         }
-        // 0.5 * last + 0.25 * before last + 0.125 * before before last + ...
+        // 0.5 * last + 0.25 * 2nd last + 0.125 * 3rd last + ...
         var remainingInfluence = 1;
         var score = 0;
         var iteration = 1;
@@ -157,6 +158,11 @@ var AbstractScrollableElement = /** @class */ (function (_super) {
             _this._topLeftShadowDomNode.setClassName('shadow top-left-corner');
             _this._domNode.appendChild(_this._topLeftShadowDomNode.domNode);
         }
+        else {
+            _this._leftShadowDomNode = null;
+            _this._topShadowDomNode = null;
+            _this._topLeftShadowDomNode = null;
+        }
         _this._listenOnDomNode = _this._options.listenOnDomNode || _this._domNode;
         _this._mouseWheelToDispose = [];
         _this._setListeningToMouseWheel(_this._options.handleMouseWheel);
@@ -218,6 +224,7 @@ var AbstractScrollableElement = /** @class */ (function (_super) {
         var massagedOptions = resolveOptions(newOptions);
         this._options.handleMouseWheel = massagedOptions.handleMouseWheel;
         this._options.mouseWheelScrollSensitivity = massagedOptions.mouseWheelScrollSensitivity;
+        this._options.fastScrollSensitivity = massagedOptions.fastScrollSensitivity;
         this._setListeningToMouseWheel(this._options.handleMouseWheel);
         if (!this._options.lazyRender) {
             this._render();
@@ -236,11 +243,9 @@ var AbstractScrollableElement = /** @class */ (function (_super) {
         // Start listening (if necessary)
         if (shouldListen) {
             var onMouseWheel = function (browserEvent) {
-                var e = new StandardMouseWheelEvent(browserEvent);
-                _this._onMouseWheel(e);
+                _this._onMouseWheel(new StandardWheelEvent(browserEvent));
             };
-            this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, 'mousewheel', onMouseWheel));
-            this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, 'DOMMouseScroll', onMouseWheel));
+            this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, isEdgeOrIE ? 'mousewheel' : 'wheel', onMouseWheel, { passive: false }));
         }
     };
     AbstractScrollableElement.prototype._onMouseWheel = function (e) {
@@ -262,6 +267,11 @@ var AbstractScrollableElement = /** @class */ (function (_super) {
             if ((this._options.scrollYToX || shiftConvert) && !deltaX) {
                 deltaX = deltaY;
                 deltaY = 0;
+            }
+            if (e.browserEvent && e.browserEvent.altKey) {
+                // fastScrolling
+                deltaX = deltaX * this._options.fastScrollSensitivity;
+                deltaY = deltaY * this._options.fastScrollSensitivity;
             }
             var futureScrollPosition = this._scrollable.getFutureScrollPosition();
             var desiredScrollPosition = {};
@@ -414,7 +424,7 @@ var DomScrollableElement = /** @class */ (function (_super) {
         return _this;
     }
     DomScrollableElement.prototype.scanDomNode = function () {
-        // widh, scrollLeft, scrollWidth, height, scrollTop, scrollHeight
+        // width, scrollLeft, scrollWidth, height, scrollTop, scrollHeight
         this.setScrollDimensions({
             width: this._element.clientWidth,
             scrollWidth: this._element.scrollWidth,
@@ -439,6 +449,7 @@ function resolveOptions(opts) {
         alwaysConsumeMouseWheel: (typeof opts.alwaysConsumeMouseWheel !== 'undefined' ? opts.alwaysConsumeMouseWheel : false),
         scrollYToX: (typeof opts.scrollYToX !== 'undefined' ? opts.scrollYToX : false),
         mouseWheelScrollSensitivity: (typeof opts.mouseWheelScrollSensitivity !== 'undefined' ? opts.mouseWheelScrollSensitivity : 1),
+        fastScrollSensitivity: (typeof opts.fastScrollSensitivity !== 'undefined' ? opts.fastScrollSensitivity : 5),
         mouseWheelSmoothScroll: (typeof opts.mouseWheelSmoothScroll !== 'undefined' ? opts.mouseWheelSmoothScroll : true),
         arrowSize: (typeof opts.arrowSize !== 'undefined' ? opts.arrowSize : 11),
         listenOnDomNode: (typeof opts.listenOnDomNode !== 'undefined' ? opts.listenOnDomNode : null),

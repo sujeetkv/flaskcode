@@ -24,4 +24,23 @@ export function findFirst(array, p) {
     }
     return low;
 }
-//# sourceMappingURL=arrays.js.map
+export function includes(array, item) {
+    return array.indexOf(item) !== -1;
+}
+export function union() {
+    var arrays = [];
+    for (var _i = 0; _i < arguments.length; _i++) {
+        arrays[_i] = arguments[_i];
+    }
+    var result = [];
+    for (var _a = 0, arrays_1 = arrays; _a < arrays_1.length; _a++) {
+        var array = arrays_1[_a];
+        for (var _b = 0, array_1 = array; _b < array_1.length; _b++) {
+            var item = array_1[_b];
+            if (!includes(result, item)) {
+                result.push(item);
+            }
+        }
+    }
+    return result;
+}

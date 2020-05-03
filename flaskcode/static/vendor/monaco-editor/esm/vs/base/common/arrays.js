@@ -132,20 +132,19 @@ export function groupBy(data, compare) {
     return result;
 }
 /**
- * @returns a new array with all falsy values removed. The original array IS NOT modified.
+ * @returns New array with all falsy values removed. The original array IS NOT modified.
  */
 export function coalesce(array) {
-    if (!array) {
-        return array;
-    }
     return array.filter(function (e) { return !!e; });
 }
 /**
- * @returns {{false}} if the provided object is an array
- * 	and not empty.
+ * @returns false if the provided object is an array and not empty.
  */
 export function isFalsyOrEmpty(obj) {
     return !Array.isArray(obj) || obj.length === 0;
+}
+export function isNonEmptyArray(obj) {
+    return Array.isArray(obj) && obj.length > 0;
 }
 /**
  * Removes duplicates from the given array. The optional keyFn allows to specify
@@ -167,6 +166,21 @@ export function distinct(array, keyFn) {
         return true;
     });
 }
+export function distinctES6(array) {
+    var seen = new Set();
+    return array.filter(function (element) {
+        if (seen.has(element)) {
+            return false;
+        }
+        seen.add(element);
+        return true;
+    });
+}
+export function fromSet(set) {
+    var result = [];
+    set.forEach(function (o) { return result.push(o); });
+    return result;
+}
 export function firstIndex(array, fn) {
     for (var i = 0; i < array.length; i++) {
         var element = array[i];
@@ -177,9 +191,12 @@ export function firstIndex(array, fn) {
     return -1;
 }
 export function first(array, fn, notFoundValue) {
-    if (notFoundValue === void 0) { notFoundValue = null; }
+    if (notFoundValue === void 0) { notFoundValue = undefined; }
     var index = firstIndex(array, fn);
     return index < 0 ? notFoundValue : array[index];
+}
+export function firstOrDefault(array, notFoundValue) {
+    return array.length > 0 ? array[0] : notFoundValue;
 }
 export function flatten(arr) {
     var _a;
@@ -215,4 +232,36 @@ export function arrayInsert(target, insertIndex, insertArr) {
     var before = target.slice(0, insertIndex);
     var after = target.slice(insertIndex);
     return before.concat(insertArr, after);
+}
+/**
+ * Pushes an element to the start of the array, if found.
+ */
+export function pushToStart(arr, value) {
+    var index = arr.indexOf(value);
+    if (index > -1) {
+        arr.splice(index, 1);
+        arr.unshift(value);
+    }
+}
+/**
+ * Pushes an element to the end of the array, if found.
+ */
+export function pushToEnd(arr, value) {
+    var index = arr.indexOf(value);
+    if (index > -1) {
+        arr.splice(index, 1);
+        arr.push(value);
+    }
+}
+export function find(arr, predicate) {
+    for (var i = 0; i < arr.length; i++) {
+        var element = arr[i];
+        if (predicate(element, i, arr)) {
+            return element;
+        }
+    }
+    return undefined;
+}
+export function asArray(x) {
+    return Array.isArray(x) ? x : [x];
 }

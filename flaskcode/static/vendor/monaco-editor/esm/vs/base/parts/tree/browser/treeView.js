@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -30,7 +30,7 @@ import { ScrollableElement } from '../../../browser/ui/scrollbar/scrollableEleme
 import { HeightMap } from './treeViewModel.js';
 import * as _ from './tree.js';
 import { Emitter } from '../../../common/event.js';
-import { DataTransfers } from '../../../browser/dnd.js';
+import { DataTransfers, StaticDND } from '../../../browser/dnd.js';
 import { DefaultTreestyler } from './treeDefaults.js';
 import { Delayer, timeout } from '../../../common/async.js';
 function removeFromParent(element) {
@@ -92,7 +92,6 @@ var RowCache = /** @class */ (function () {
     RowCache.prototype.dispose = function () {
         this.garbageCollect();
         this._cache = null;
-        this.context = null;
     };
     return RowCache;
 }());
@@ -101,6 +100,10 @@ var ViewItem = /** @class */ (function () {
     function ViewItem(context, model) {
         var _this = this;
         this.width = 0;
+        this.needsRender = false;
+        this.uri = null;
+        this.unbindDragStart = Lifecycle.Disposable.None;
+        this._draggable = false;
         this.context = context;
         this.model = model;
         this.id = this.model.id;
@@ -122,7 +125,7 @@ var ViewItem = /** @class */ (function () {
     });
     Object.defineProperty(ViewItem.prototype, "loading", {
         set: function (value) {
-            value ? this.addClass('loading') : this.removeClass('loading');
+            value ? this.addClass('codicon-loading') : this.removeClass('codicon-loading');
         },
         enumerable: true,
         configurable: true
@@ -147,7 +150,7 @@ var ViewItem = /** @class */ (function () {
     });
     Object.defineProperty(ViewItem.prototype, "element", {
         get: function () {
-            return this.row && this.row.element;
+            return (this.row && this.row.element);
         },
         enumerable: true,
         configurable: true
@@ -219,7 +222,6 @@ var ViewItem = /** @class */ (function () {
         if (uri !== this.uri) {
             if (this.unbindDragStart) {
                 this.unbindDragStart.dispose();
-                this.unbindDragStart = null;
             }
             if (uri) {
                 this.uri = uri;
@@ -233,10 +235,13 @@ var ViewItem = /** @class */ (function () {
             }
         }
         if (!skipUserRender && this.element) {
-            var style = window.getComputedStyle(this.element);
-            var paddingLeft = parseFloat(style.paddingLeft);
+            var paddingLeft = 0;
             if (this.context.horizontalScrolling) {
-                this.element.style.width = 'fit-content';
+                var style = window.getComputedStyle(this.element);
+                paddingLeft = parseFloat(style.paddingLeft);
+            }
+            if (this.context.horizontalScrolling) {
+                this.element.style.width = Browser.isFirefox ? '-moz-fit-content' : 'fit-content';
             }
             try {
                 this.context.renderer.renderElement(this.context.tree, this.model.getElement(), this.templateId, this.row.templateData);
@@ -278,10 +283,7 @@ var ViewItem = /** @class */ (function () {
         if (!this.row) {
             return;
         }
-        if (this.unbindDragStart) {
-            this.unbindDragStart.dispose();
-            this.unbindDragStart = null;
-        }
+        this.unbindDragStart.dispose();
         this.uri = null;
         this.element[TreeView.BINDING] = null;
         this.context.cache.release(this.templateId, this.row);
@@ -289,7 +291,6 @@ var ViewItem = /** @class */ (function () {
     };
     ViewItem.prototype.dispose = function () {
         this.row = null;
-        this.model = null;
     };
     return ViewItem;
 }());
@@ -348,12 +349,24 @@ var TreeView = /** @class */ (function (_super) {
     __extends(TreeView, _super);
     function TreeView(context, container) {
         var _this = _super.call(this) || this;
+        _this.model = null;
+        _this.lastPointerType = '';
         _this.lastClickTimeStamp = 0;
         _this.contentWidthUpdateDelayer = new Delayer(50);
         _this.isRefreshing = false;
         _this.refreshingPreviousChildrenIds = {};
+        _this.currentDragAndDropData = null;
+        _this.currentDropTarget = null;
+        _this.currentDropTargets = null;
         _this.currentDropDisposable = Lifecycle.Disposable.None;
+        _this.gestureDisposable = Lifecycle.Disposable.None;
+        _this.dragAndDropScrollInterval = null;
+        _this.dragAndDropScrollTimeout = null;
+        _this.dragAndDropMouseY = null;
+        _this.highlightedItemWasDraggable = false;
+        _this.onHiddenScrollTop = null;
         _this._onDOMFocus = new Emitter();
+        _this.onDOMFocus = _this._onDOMFocus.event;
         _this._onDOMBlur = new Emitter();
         _this._onDidScroll = new Emitter();
         TreeView.counter++;
@@ -375,17 +388,13 @@ var TreeView = /** @class */ (function (_super) {
         };
         _this.modelListeners = [];
         _this.viewListeners = [];
-        _this.model = null;
         _this.items = {};
         _this.domNode = document.createElement('div');
         _this.domNode.className = "monaco-tree no-focused-item monaco-tree-instance-" + _this.instance;
         // to allow direct tabbing into the tree instead of first focusing the tree
         _this.domNode.tabIndex = context.options.preventRootFocus ? -1 : 0;
         _this.styleElement = DOM.createStyleSheet(_this.domNode);
-        _this.treeStyler = context.styler;
-        if (!_this.treeStyler) {
-            _this.treeStyler = new DefaultTreestyler(_this.styleElement, "monaco-tree-instance-" + _this.instance);
-        }
+        _this.treeStyler = context.styler || new DefaultTreestyler(_this.styleElement, "monaco-tree-instance-" + _this.instance);
         // ARIA
         _this.domNode.setAttribute('role', 'tree');
         if (_this.context.options.ariaLabel) {
@@ -414,7 +423,7 @@ var TreeView = /** @class */ (function (_super) {
             _this.wrapper.style.msContentZooming = 'none';
         }
         else {
-            Touch.Gesture.addTarget(_this.wrapper);
+            _this.gestureDisposable = Touch.Gesture.addTarget(_this.wrapper);
         }
         _this.rowsContainer = document.createElement('div');
         _this.rowsContainer.className = 'monaco-tree-rows';
@@ -468,18 +477,12 @@ var TreeView = /** @class */ (function (_super) {
         _this.shouldInvalidateDropReaction = false;
         _this.dragAndDropScrollInterval = null;
         _this.dragAndDropScrollTimeout = null;
-        _this.onHiddenScrollTop = null;
         _this.onRowsChanged();
         _this.layout();
         _this.setupMSGesture();
         _this.applyStyles(context.options);
         return _this;
     }
-    Object.defineProperty(TreeView.prototype, "onDOMFocus", {
-        get: function () { return this._onDOMFocus.event; },
-        enumerable: true,
-        configurable: true
-    });
     TreeView.prototype.applyStyles = function (styles) {
         this.treeStyler.style(styles);
     };
@@ -657,6 +660,7 @@ var TreeView = /** @class */ (function (_super) {
     });
     Object.defineProperty(TreeView.prototype, "scrollHeight", {
         set: function (scrollHeight) {
+            scrollHeight = scrollHeight + (this.horizontalScrolling ? 10 : 0);
             this.scrollableElement.setScrollDimensions({ scrollHeight: scrollHeight });
         },
         enumerable: true,
@@ -686,12 +690,9 @@ var TreeView = /** @class */ (function (_super) {
             return scrollPosition.scrollTop;
         },
         set: function (scrollTop) {
-            this.scrollableElement.setScrollDimensions({
-                scrollHeight: this.getContentHeight()
-            });
-            this.scrollableElement.setScrollPosition({
-                scrollTop: scrollTop
-            });
+            var scrollHeight = this.getContentHeight() + (this.horizontalScrolling ? 10 : 0);
+            this.scrollableElement.setScrollDimensions({ scrollHeight: scrollHeight });
+            this.scrollableElement.setScrollPosition({ scrollTop: scrollTop });
         },
         enumerable: true,
         configurable: true
@@ -719,9 +720,9 @@ var TreeView = /** @class */ (function (_super) {
         }
         if (!e.isNested) {
             var childrenIds = [];
-            var navigator = item.getNavigator();
-            var childItem;
-            while (childItem = navigator.next()) {
+            var navigator_1 = item.getNavigator();
+            var childItem = void 0;
+            while (childItem = navigator_1.next()) {
                 childrenIds.push(childItem.id);
             }
             this.refreshingPreviousChildrenIds[item.id] = childrenIds;
@@ -739,25 +740,23 @@ var TreeView = /** @class */ (function (_super) {
             viewItem.loading = false;
         }
         if (!e.isNested) {
-            var previousChildrenIds = this.refreshingPreviousChildrenIds[item.id];
-            var afterModelItems = [];
-            var navigator = item.getNavigator();
-            var childItem;
-            while (childItem = navigator.next()) {
-                afterModelItems.push(childItem);
+            var previousChildrenIds_1 = this.refreshingPreviousChildrenIds[item.id];
+            var afterModelItems_1 = [];
+            var navigator_2 = item.getNavigator();
+            var childItem = void 0;
+            while (childItem = navigator_2.next()) {
+                afterModelItems_1.push(childItem);
             }
-            var skipDiff = Math.abs(previousChildrenIds.length - afterModelItems.length) > 1000;
-            var diff = void 0;
-            var doToInsertItemsAlreadyExist = void 0;
+            var skipDiff = Math.abs(previousChildrenIds_1.length - afterModelItems_1.length) > 1000;
+            var diff = [];
+            var doToInsertItemsAlreadyExist = false;
             if (!skipDiff) {
                 var lcs = new Diff.LcsDiff({
-                    getLength: function () { return previousChildrenIds.length; },
-                    getElementAtIndex: function (i) { return previousChildrenIds[i]; }
+                    getElements: function () { return previousChildrenIds_1; }
                 }, {
-                    getLength: function () { return afterModelItems.length; },
-                    getElementAtIndex: function (i) { return afterModelItems[i].id; }
+                    getElements: function () { return afterModelItems_1.map(function (item) { return item.id; }); }
                 }, null);
-                diff = lcs.ComputeDiff(false);
+                diff = lcs.ComputeDiff(false).changes;
                 // this means that the result of the diff algorithm would result
                 // in inserting items that were already registered. this can only
                 // happen if the data provider returns bad ids OR if the sorting
@@ -765,7 +764,7 @@ var TreeView = /** @class */ (function (_super) {
                 doToInsertItemsAlreadyExist = diff.some(function (d) {
                     if (d.modifiedLength > 0) {
                         for (var i = d.modifiedStart, len = d.modifiedStart + d.modifiedLength; i < len; i++) {
-                            if (_this.items.hasOwnProperty(afterModelItems[i].id)) {
+                            if (_this.items.hasOwnProperty(afterModelItems_1[i].id)) {
                                 return true;
                             }
                         }
@@ -776,21 +775,21 @@ var TreeView = /** @class */ (function (_super) {
             // 50 is an optimization number, at some point we're better off
             // just replacing everything
             if (!skipDiff && !doToInsertItemsAlreadyExist && diff.length < 50) {
-                for (var i = 0, len = diff.length; i < len; i++) {
-                    var diffChange = diff[i];
+                for (var _i = 0, diff_1 = diff; _i < diff_1.length; _i++) {
+                    var diffChange = diff_1[_i];
                     if (diffChange.originalLength > 0) {
-                        this.onRemoveItems(new ArrayIterator(previousChildrenIds, diffChange.originalStart, diffChange.originalStart + diffChange.originalLength));
+                        this.onRemoveItems(new ArrayIterator(previousChildrenIds_1, diffChange.originalStart, diffChange.originalStart + diffChange.originalLength));
                     }
                     if (diffChange.modifiedLength > 0) {
-                        var beforeItem = afterModelItems[diffChange.modifiedStart - 1] || item;
+                        var beforeItem = afterModelItems_1[diffChange.modifiedStart - 1] || item;
                         beforeItem = beforeItem.getDepth() > 0 ? beforeItem : null;
-                        this.onInsertItems(new ArrayIterator(afterModelItems, diffChange.modifiedStart, diffChange.modifiedStart + diffChange.modifiedLength), beforeItem ? beforeItem.id : null);
+                        this.onInsertItems(new ArrayIterator(afterModelItems_1, diffChange.modifiedStart, diffChange.modifiedStart + diffChange.modifiedLength), beforeItem ? beforeItem.id : null);
                     }
                 }
             }
             else if (skipDiff || diff.length) {
-                this.onRemoveItems(new ArrayIterator(previousChildrenIds));
-                this.onInsertItems(new ArrayIterator(afterModelItems), item.getDepth() > 0 ? item.id : null);
+                this.onRemoveItems(new ArrayIterator(previousChildrenIds_1));
+                this.onInsertItems(new ArrayIterator(afterModelItems_1), item.getDepth() > 0 ? item.id : null);
             }
             if (skipDiff || diff.length) {
                 this.onRowsChanged();
@@ -816,7 +815,7 @@ var TreeView = /** @class */ (function (_super) {
         var viewItem = this.items[item.id];
         if (viewItem) {
             viewItem.expanded = true;
-            var height = this.onInsertItems(item.getNavigator(), item.id);
+            var height = this.onInsertItems(item.getNavigator(), item.id) || 0;
             var scrollTop = this.scrollTop;
             if (viewItem.top + viewItem.height <= this.scrollTop) {
                 scrollTop += height;
@@ -1015,7 +1014,7 @@ var TreeView = /** @class */ (function (_super) {
             this.didJustPressContextMenuKey = false;
             var keyboardEvent = new Keyboard.StandardKeyboardEvent(event);
             element = this.model.getFocus();
-            var position;
+            var position = void 0;
             if (!element) {
                 element = this.model.getInput();
                 position = DOM.getDomNodePagePosition(this.inputItem.element);
@@ -1088,7 +1087,7 @@ var TreeView = /** @class */ (function (_super) {
             setTimeout(function () { return document.body.removeChild(dragImage_1); }, 0);
         }
         this.currentDragAndDropData = new dnd.ElementsDragAndDropData(elements);
-        TreeView.currentExternalDragAndDropData = new dnd.ExternalElementsDragAndDropData(elements);
+        StaticDND.CurrentDragAndDropData = new dnd.ExternalElementsDragAndDropData(elements);
         this.context.dnd.onDragStart(this.context.tree, this.currentDragAndDropData, new Mouse.DragMouseEvent(e));
     };
     TreeView.prototype.setupDragAndDropScrollInterval = function () {
@@ -1096,7 +1095,7 @@ var TreeView = /** @class */ (function (_super) {
         var viewTop = DOM.getTopLeftOffset(this.wrapper).top;
         if (!this.dragAndDropScrollInterval) {
             this.dragAndDropScrollInterval = window.setInterval(function () {
-                if (_this.dragAndDropMouseY === undefined) {
+                if (_this.dragAndDropMouseY === null) {
                     return;
                 }
                 var diff = _this.dragAndDropMouseY - viewTop;
@@ -1132,6 +1131,7 @@ var TreeView = /** @class */ (function (_super) {
     };
     TreeView.prototype.onDragOver = function (e) {
         var _this = this;
+        e.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
         var event = new Mouse.DragMouseEvent(e);
         var viewItem = this.getItemAround(event.target);
         if (!viewItem || (event.posx === 0 && event.posy === 0 && event.browserEvent.type === DOM.EventType.DRAG_LEAVE)) {
@@ -1153,8 +1153,8 @@ var TreeView = /** @class */ (function (_super) {
         this.dragAndDropMouseY = event.posy;
         if (!this.currentDragAndDropData) {
             // just started dragging
-            if (TreeView.currentExternalDragAndDropData) {
-                this.currentDragAndDropData = TreeView.currentExternalDragAndDropData;
+            if (StaticDND.CurrentDragAndDropData) {
+                this.currentDragAndDropData = StaticDND.CurrentDragAndDropData;
             }
             else {
                 if (!event.dataTransfer.types) {
@@ -1163,7 +1163,7 @@ var TreeView = /** @class */ (function (_super) {
                 this.currentDragAndDropData = new dnd.DesktopDragAndDropData();
             }
         }
-        this.currentDragAndDropData.update(event);
+        this.currentDragAndDropData.update(event.browserEvent.dataTransfer);
         var element;
         var item = viewItem.model;
         var reaction;
@@ -1209,7 +1209,7 @@ var TreeView = /** @class */ (function (_super) {
                 }
                 if (reaction.bubble === 0 /* BUBBLE_DOWN */) {
                     var nav = item.getNavigator();
-                    var child;
+                    var child = void 0;
                     while (child = nav.next()) {
                         viewItem = this.items[child.id];
                         if (viewItem) {
@@ -1231,10 +1231,10 @@ var TreeView = /** @class */ (function (_super) {
     };
     TreeView.prototype.onDrop = function (e) {
         if (this.currentDropElement) {
-            var event = new Mouse.DragMouseEvent(e);
-            event.preventDefault();
-            this.currentDragAndDropData.update(event);
-            this.context.dnd.drop(this.context.tree, this.currentDragAndDropData, this.currentDropElement, event);
+            var event_1 = new Mouse.DragMouseEvent(e);
+            event_1.preventDefault();
+            this.currentDragAndDropData.update(event_1.browserEvent.dataTransfer);
+            this.context.dnd.drop(this.context.tree, this.currentDragAndDropData, this.currentDropElement, event_1);
             this.onDragEnd(e);
         }
         this.cancelDragAndDropScrollInterval();
@@ -1247,7 +1247,7 @@ var TreeView = /** @class */ (function (_super) {
         this.currentDropDisposable.dispose();
         this.cancelDragAndDropScrollInterval();
         this.currentDragAndDropData = null;
-        TreeView.currentExternalDragAndDropData = null;
+        StaticDND.CurrentDragAndDropData = undefined;
         this.currentDropElement = null;
         this.currentDropTarget = null;
         this.dragAndDropMouseY = null;
@@ -1314,17 +1314,18 @@ var TreeView = /** @class */ (function (_super) {
     };
     TreeView.prototype.getItemAround = function (element) {
         var candidate = this.inputItem;
+        var el = element;
         do {
-            if (element[TreeView.BINDING]) {
-                candidate = element[TreeView.BINDING];
+            if (el[TreeView.BINDING]) {
+                candidate = el[TreeView.BINDING];
             }
-            if (element === this.wrapper || element === this.domNode) {
+            if (el === this.wrapper || el === this.domNode) {
                 return candidate;
             }
-            if (element === this.scrollableElement.getDomNode() || element === document.body) {
-                return null;
+            if (el === this.scrollableElement.getDomNode() || el === document.body) {
+                return undefined;
             }
-        } while (element = element.parentElement);
+        } while (el = el.parentElement);
         return undefined;
     };
     // Cleanup
@@ -1339,28 +1340,24 @@ var TreeView = /** @class */ (function (_super) {
         // TODO@joao: improve
         this.scrollableElement.dispose();
         this.releaseModel();
-        this.modelListeners = null;
         this.viewListeners = Lifecycle.dispose(this.viewListeners);
         this._onDOMFocus.dispose();
         this._onDOMBlur.dispose();
         if (this.domNode.parentNode) {
             this.domNode.parentNode.removeChild(this.domNode);
         }
-        this.domNode = null;
         if (this.items) {
             Object.keys(this.items).forEach(function (key) { return _this.items[key].removeFromDOM(); });
-            this.items = null;
         }
         if (this.context.cache) {
             this.context.cache.dispose();
-            this.context.cache = null;
         }
+        this.gestureDisposable.dispose();
         _super.prototype.dispose.call(this);
     };
     TreeView.BINDING = 'monaco-tree-row';
     TreeView.LOADING_DECORATION_DELAY = 800;
     TreeView.counter = 0;
-    TreeView.currentExternalDragAndDropData = null;
     return TreeView;
 }(HeightMap));
 export { TreeView };

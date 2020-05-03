@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 var SpacesDiffResult = /** @class */ (function () {
     function SpacesDiffResult() {
+        this.spacesDiff = 0;
+        this.looksLikeAlignment = false;
     }
     return SpacesDiffResult;
 }());
@@ -59,10 +61,12 @@ function spacesDiff(a, aLength, b, bLength, result) {
         result.spacesDiff = spacesDiff;
         if (spacesDiff > 0 && 0 <= bSpacesCnt - 1 && bSpacesCnt - 1 < a.length && bSpacesCnt < b.length) {
             if (b.charCodeAt(bSpacesCnt) !== 32 /* Space */ && a.charCodeAt(bSpacesCnt - 1) === 32 /* Space */) {
-                // This looks like an alignment desire: e.g.
-                // const a = b + c,
-                //       d = b - c;
-                result.looksLikeAlignment = true;
+                if (a.charCodeAt(a.length - 1) === 44 /* Comma */) {
+                    // This looks like an alignment desire: e.g.
+                    // const a = b + c,
+                    //       d = b - c;
+                    result.looksLikeAlignment = true;
+                }
             }
         }
         return;
@@ -120,8 +124,18 @@ export function guessIndentation(source, defaultTabSize, defaultInsertSpaces) {
         }
         spacesDiff(previousLineText, previousLineIndentation, currentLineText, currentLineIndentation, tmp);
         if (tmp.looksLikeAlignment) {
-            // skip this line entirely
-            continue;
+            // if defaultInsertSpaces === true && the spaces count == tabSize, we may want to count it as valid indentation
+            //
+            // - item1
+            //   - item2
+            //
+            // otherwise skip this line entirely
+            //
+            // const a = 1,
+            //       b = 2;
+            if (!(defaultInsertSpaces && defaultTabSize === tmp.spacesDiff)) {
+                continue;
+            }
         }
         var currentSpacesDiff = tmp.spacesDiff;
         if (currentSpacesDiff <= MAX_ALLOWED_TAB_SIZE_GUESS) {
@@ -135,15 +149,23 @@ export function guessIndentation(source, defaultTabSize, defaultInsertSpaces) {
         insertSpaces = (linesIndentedWithTabsCount < linesIndentedWithSpacesCount);
     }
     var tabSize = defaultTabSize;
-    var tabSizeScore = (insertSpaces ? 0 : 0.1 * linesCount);
-    // console.log("score threshold: " + tabSizeScore);
-    ALLOWED_TAB_SIZE_GUESSES.forEach(function (possibleTabSize) {
-        var possibleTabSizeScore = spacesDiffCount[possibleTabSize];
-        if (possibleTabSizeScore > tabSizeScore) {
-            tabSizeScore = possibleTabSizeScore;
-            tabSize = possibleTabSize;
+    // Guess tabSize only if inserting spaces...
+    if (insertSpaces) {
+        var tabSizeScore_1 = (insertSpaces ? 0 : 0.1 * linesCount);
+        // console.log("score threshold: " + tabSizeScore);
+        ALLOWED_TAB_SIZE_GUESSES.forEach(function (possibleTabSize) {
+            var possibleTabSizeScore = spacesDiffCount[possibleTabSize];
+            if (possibleTabSizeScore > tabSizeScore_1) {
+                tabSizeScore_1 = possibleTabSizeScore;
+                tabSize = possibleTabSize;
+            }
+        });
+        // Let a tabSize of 2 win even if it is not the maximum
+        // (only in case 4 was guessed)
+        if (tabSize === 4 && spacesDiffCount[4] > 0 && spacesDiffCount[2] > 0 && spacesDiffCount[2] >= spacesDiffCount[4] / 2) {
+            tabSize = 2;
         }
-    });
+    }
     // console.log('--------------------------');
     // console.log('linesIndentedWithTabsCount: ' + linesIndentedWithTabsCount + ', linesIndentedWithSpacesCount: ' + linesIndentedWithSpacesCount);
     // console.log('spacesDiffCount: ' + spacesDiffCount);

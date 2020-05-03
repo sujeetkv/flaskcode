@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -25,9 +25,11 @@ import * as types from '../../../common/types.js';
 import { EventType, Gesture } from '../../touch.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { Emitter } from '../../../common/event.js';
-var BaseActionItem = /** @class */ (function (_super) {
-    __extends(BaseActionItem, _super);
-    function BaseActionItem(context, action, options) {
+import { DataTransfers } from '../../dnd.js';
+import { isFirefox } from '../../browser.js';
+var BaseActionViewItem = /** @class */ (function (_super) {
+    __extends(BaseActionViewItem, _super);
+    function BaseActionViewItem(context, action, options) {
         var _this = _super.call(this) || this;
         _this.options = options;
         _this._context = context || _this;
@@ -44,26 +46,29 @@ var BaseActionItem = /** @class */ (function (_super) {
         }
         return _this;
     }
-    BaseActionItem.prototype.handleActionChangeEvent = function (event) {
-        if (event.enabled !== void 0) {
+    BaseActionViewItem.prototype.handleActionChangeEvent = function (event) {
+        if (event.enabled !== undefined) {
             this.updateEnabled();
         }
-        if (event.checked !== void 0) {
+        if (event.checked !== undefined) {
             this.updateChecked();
         }
-        if (event.class !== void 0) {
+        if (event.class !== undefined) {
             this.updateClass();
         }
-        if (event.label !== void 0) {
+        if (event.label !== undefined) {
             this.updateLabel();
             this.updateTooltip();
         }
-        if (event.tooltip !== void 0) {
+        if (event.tooltip !== undefined) {
             this.updateTooltip();
         }
     };
-    Object.defineProperty(BaseActionItem.prototype, "actionRunner", {
+    Object.defineProperty(BaseActionViewItem.prototype, "actionRunner", {
         get: function () {
+            if (!this._actionRunner) {
+                this._actionRunner = this._register(new ActionRunner());
+            }
             return this._actionRunner;
         },
         set: function (actionRunner) {
@@ -72,34 +77,37 @@ var BaseActionItem = /** @class */ (function (_super) {
         enumerable: true,
         configurable: true
     });
-    BaseActionItem.prototype.getAction = function () {
+    BaseActionViewItem.prototype.getAction = function () {
         return this._action;
     };
-    BaseActionItem.prototype.isEnabled = function () {
+    BaseActionViewItem.prototype.isEnabled = function () {
         return this._action.enabled;
     };
-    BaseActionItem.prototype.setActionContext = function (newContext) {
+    BaseActionViewItem.prototype.setActionContext = function (newContext) {
         this._context = newContext;
     };
-    BaseActionItem.prototype.render = function (container) {
+    BaseActionViewItem.prototype.render = function (container) {
         var _this = this;
-        this.element = container;
-        Gesture.addTarget(container);
+        var element = this.element = container;
+        this._register(Gesture.addTarget(container));
         var enableDragging = this.options && this.options.draggable;
         if (enableDragging) {
             container.draggable = true;
+            if (isFirefox) {
+                // Firefox: requires to set a text data transfer to get going
+                this._register(DOM.addDisposableListener(container, DOM.EventType.DRAG_START, function (e) { var _a; return (_a = e.dataTransfer) === null || _a === void 0 ? void 0 : _a.setData(DataTransfers.TEXT, _this._action.label); }));
+            }
         }
-        this._register(DOM.addDisposableListener(this.element, EventType.Tap, function (e) { return _this.onClick(e); }));
-        this._register(DOM.addDisposableListener(this.element, DOM.EventType.MOUSE_DOWN, function (e) {
+        this._register(DOM.addDisposableListener(element, EventType.Tap, function (e) { return _this.onClick(e); }));
+        this._register(DOM.addDisposableListener(element, DOM.EventType.MOUSE_DOWN, function (e) {
             if (!enableDragging) {
                 DOM.EventHelper.stop(e, true); // do not run when dragging is on because that would disable it
             }
-            var mouseEvent = e;
-            if (_this._action.enabled && mouseEvent.button === 0) {
-                DOM.addClass(_this.element, 'active');
+            if (_this._action.enabled && e.button === 0) {
+                DOM.addClass(element, 'active');
             }
         }));
-        this._register(DOM.addDisposableListener(this.element, DOM.EventType.CLICK, function (e) {
+        this._register(DOM.addDisposableListener(element, DOM.EventType.CLICK, function (e) {
             DOM.EventHelper.stop(e, true);
             // See https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Interact_with_the_clipboard
             // > Writing to the clipboard
@@ -115,17 +123,17 @@ var BaseActionItem = /** @class */ (function (_super) {
                 platform.setImmediate(function () { return _this.onClick(e); });
             }
         }));
-        this._register(DOM.addDisposableListener(this.element, DOM.EventType.DBLCLICK, function (e) {
+        this._register(DOM.addDisposableListener(element, DOM.EventType.DBLCLICK, function (e) {
             DOM.EventHelper.stop(e, true);
         }));
         [DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT].forEach(function (event) {
-            _this._register(DOM.addDisposableListener(_this.element, event, function (e) {
+            _this._register(DOM.addDisposableListener(element, event, function (e) {
                 DOM.EventHelper.stop(e);
-                DOM.removeClass(_this.element, 'active');
+                DOM.removeClass(element, 'active');
             }));
         });
     };
-    BaseActionItem.prototype.onClick = function (event) {
+    BaseActionViewItem.prototype.onClick = function (event) {
         DOM.EventHelper.stop(event, true);
         var context;
         if (types.isUndefinedOrNull(this._context)) {
@@ -137,51 +145,50 @@ var BaseActionItem = /** @class */ (function (_super) {
                 context.event = event;
             }
         }
-        this._actionRunner.run(this._action, context);
+        this.actionRunner.run(this._action, context);
     };
-    BaseActionItem.prototype.focus = function () {
+    BaseActionViewItem.prototype.focus = function () {
         if (this.element) {
             this.element.focus();
             DOM.addClass(this.element, 'focused');
         }
     };
-    BaseActionItem.prototype.blur = function () {
+    BaseActionViewItem.prototype.blur = function () {
         if (this.element) {
             this.element.blur();
             DOM.removeClass(this.element, 'focused');
         }
     };
-    BaseActionItem.prototype.updateEnabled = function () {
+    BaseActionViewItem.prototype.updateEnabled = function () {
         // implement in subclass
     };
-    BaseActionItem.prototype.updateLabel = function () {
+    BaseActionViewItem.prototype.updateLabel = function () {
         // implement in subclass
     };
-    BaseActionItem.prototype.updateTooltip = function () {
+    BaseActionViewItem.prototype.updateTooltip = function () {
         // implement in subclass
     };
-    BaseActionItem.prototype.updateClass = function () {
+    BaseActionViewItem.prototype.updateClass = function () {
         // implement in subclass
     };
-    BaseActionItem.prototype.updateChecked = function () {
+    BaseActionViewItem.prototype.updateChecked = function () {
         // implement in subclass
     };
-    BaseActionItem.prototype.dispose = function () {
+    BaseActionViewItem.prototype.dispose = function () {
         if (this.element) {
             DOM.removeNode(this.element);
-            this.element = null;
+            this.element = undefined;
         }
         _super.prototype.dispose.call(this);
     };
-    return BaseActionItem;
+    return BaseActionViewItem;
 }(Disposable));
-export { BaseActionItem };
+export { BaseActionViewItem };
 var Separator = /** @class */ (function (_super) {
     __extends(Separator, _super);
     function Separator(label) {
         var _this = _super.call(this, Separator.ID, label, label ? 'separator text' : 'separator') || this;
         _this.checked = false;
-        _this.radio = false;
         _this.enabled = false;
         return _this;
     }
@@ -189,9 +196,9 @@ var Separator = /** @class */ (function (_super) {
     return Separator;
 }(Action));
 export { Separator };
-var ActionItem = /** @class */ (function (_super) {
-    __extends(ActionItem, _super);
-    function ActionItem(context, action, options) {
+var ActionViewItem = /** @class */ (function (_super) {
+    __extends(ActionViewItem, _super);
+    function ActionViewItem(context, action, options) {
         if (options === void 0) { options = {}; }
         var _this = _super.call(this, context, action, options) || this;
         _this.options = options;
@@ -200,21 +207,25 @@ var ActionItem = /** @class */ (function (_super) {
         _this.cssClass = '';
         return _this;
     }
-    ActionItem.prototype.render = function (container) {
+    ActionViewItem.prototype.render = function (container) {
         _super.prototype.render.call(this, container);
-        this.label = DOM.append(this.element, DOM.$('a.action-label'));
-        if (this._action.id === Separator.ID) {
-            this.label.setAttribute('role', 'presentation'); // A separator is a presentation item
+        if (this.element) {
+            this.label = DOM.append(this.element, DOM.$('a.action-label'));
         }
-        else {
-            if (this.options.isMenu) {
-                this.label.setAttribute('role', 'menuitem');
+        if (this.label) {
+            if (this._action.id === Separator.ID) {
+                this.label.setAttribute('role', 'presentation'); // A separator is a presentation item
             }
             else {
-                this.label.setAttribute('role', 'button');
+                if (this.options.isMenu) {
+                    this.label.setAttribute('role', 'menuitem');
+                }
+                else {
+                    this.label.setAttribute('role', 'button');
+                }
             }
         }
-        if (this.options.label && this.options.keybinding) {
+        if (this.options.label && this.options.keybinding && this.element) {
             DOM.append(this.element, DOM.$('span.keybinding')).textContent = this.options.keybinding;
         }
         this.updateClass();
@@ -223,16 +234,18 @@ var ActionItem = /** @class */ (function (_super) {
         this.updateEnabled();
         this.updateChecked();
     };
-    ActionItem.prototype.focus = function () {
+    ActionViewItem.prototype.focus = function () {
         _super.prototype.focus.call(this);
-        this.label.focus();
+        if (this.label) {
+            this.label.focus();
+        }
     };
-    ActionItem.prototype.updateLabel = function () {
-        if (this.options.label) {
+    ActionViewItem.prototype.updateLabel = function () {
+        if (this.options.label && this.label) {
             this.label.textContent = this.getAction().label;
         }
     };
-    ActionItem.prototype.updateTooltip = function () {
+    ActionViewItem.prototype.updateTooltip = function () {
         var title = null;
         if (this.getAction().tooltip) {
             title = this.getAction().tooltip;
@@ -243,51 +256,65 @@ var ActionItem = /** @class */ (function (_super) {
                 title = nls.localize({ key: 'titleLabel', comment: ['action title', 'action keybinding'] }, "{0} ({1})", title, this.options.keybinding);
             }
         }
-        if (title) {
+        if (title && this.label) {
             this.label.title = title;
         }
     };
-    ActionItem.prototype.updateClass = function () {
-        if (this.cssClass) {
+    ActionViewItem.prototype.updateClass = function () {
+        if (this.cssClass && this.label) {
             DOM.removeClasses(this.label, this.cssClass);
         }
         if (this.options.icon) {
             this.cssClass = this.getAction().class;
-            DOM.addClass(this.label, 'icon');
-            if (this.cssClass) {
-                DOM.addClasses(this.label, this.cssClass);
+            if (this.label) {
+                DOM.addClass(this.label, 'codicon');
+                if (this.cssClass) {
+                    DOM.addClasses(this.label, this.cssClass);
+                }
             }
             this.updateEnabled();
         }
         else {
-            DOM.removeClass(this.label, 'icon');
+            if (this.label) {
+                DOM.removeClass(this.label, 'codicon');
+            }
         }
     };
-    ActionItem.prototype.updateEnabled = function () {
+    ActionViewItem.prototype.updateEnabled = function () {
         if (this.getAction().enabled) {
-            this.label.removeAttribute('aria-disabled');
-            DOM.removeClass(this.element, 'disabled');
-            DOM.removeClass(this.label, 'disabled');
-            this.label.tabIndex = 0;
+            if (this.label) {
+                this.label.removeAttribute('aria-disabled');
+                DOM.removeClass(this.label, 'disabled');
+                this.label.tabIndex = 0;
+            }
+            if (this.element) {
+                DOM.removeClass(this.element, 'disabled');
+            }
         }
         else {
-            this.label.setAttribute('aria-disabled', 'true');
-            DOM.addClass(this.element, 'disabled');
-            DOM.addClass(this.label, 'disabled');
-            DOM.removeTabIndexAndUpdateFocus(this.label);
+            if (this.label) {
+                this.label.setAttribute('aria-disabled', 'true');
+                DOM.addClass(this.label, 'disabled');
+                DOM.removeTabIndexAndUpdateFocus(this.label);
+            }
+            if (this.element) {
+                DOM.addClass(this.element, 'disabled');
+            }
         }
     };
-    ActionItem.prototype.updateChecked = function () {
-        if (this.getAction().checked) {
-            DOM.addClass(this.label, 'checked');
-        }
-        else {
-            DOM.removeClass(this.label, 'checked');
+    ActionViewItem.prototype.updateChecked = function () {
+        if (this.label) {
+            if (this.getAction().checked) {
+                DOM.addClass(this.label, 'checked');
+            }
+            else {
+                DOM.removeClass(this.label, 'checked');
+            }
         }
     };
-    return ActionItem;
-}(BaseActionItem));
-export { ActionItem };
+    return ActionViewItem;
+}(BaseActionViewItem));
+export { ActionViewItem };
 var defaultOptions = {
     orientation: 0 /* HORIZONTAL */,
     context: null,
@@ -302,22 +329,28 @@ var ActionBar = /** @class */ (function (_super) {
         if (options === void 0) { options = defaultOptions; }
         var _this = _super.call(this) || this;
         _this._onDidBlur = _this._register(new Emitter());
+        _this.onDidBlur = _this._onDidBlur.event;
         _this._onDidCancel = _this._register(new Emitter());
+        _this.onDidCancel = _this._onDidCancel.event;
         _this._onDidRun = _this._register(new Emitter());
+        _this.onDidRun = _this._onDidRun.event;
         _this._onDidBeforeRun = _this._register(new Emitter());
+        _this.onDidBeforeRun = _this._onDidBeforeRun.event;
         _this.options = options;
         _this._context = options.context;
-        _this._actionRunner = _this.options.actionRunner;
         if (!_this.options.triggerKeys) {
             _this.options.triggerKeys = defaultOptions.triggerKeys;
         }
-        if (!_this._actionRunner) {
+        if (_this.options.actionRunner) {
+            _this._actionRunner = _this.options.actionRunner;
+        }
+        else {
             _this._actionRunner = new ActionRunner();
             _this._register(_this._actionRunner);
         }
         _this._register(_this._actionRunner.onDidRun(function (e) { return _this._onDidRun.fire(e); }));
         _this._register(_this._actionRunner.onDidBeforeRun(function (e) { return _this._onDidBeforeRun.fire(e); }));
-        _this.items = [];
+        _this.viewItems = [];
         _this.focusedItem = undefined;
         _this.domNode = document.createElement('div');
         _this.domNode.className = 'monaco-action-bar';
@@ -377,7 +410,7 @@ var ActionBar = /** @class */ (function (_super) {
             var event = new StandardKeyboardEvent(e);
             // Run action on Enter/Space
             if (_this.isTriggerKeyEvent(event)) {
-                if (!_this.options.triggerKeys.keyDown) {
+                if (_this.options.triggerKeys && !_this.options.triggerKeys.keyDown) {
                     _this.doTrigger(event);
                 }
                 event.preventDefault();
@@ -406,26 +439,6 @@ var ActionBar = /** @class */ (function (_super) {
         container.appendChild(_this.domNode);
         return _this;
     }
-    Object.defineProperty(ActionBar.prototype, "onDidBlur", {
-        get: function () { return this._onDidBlur.event; },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(ActionBar.prototype, "onDidCancel", {
-        get: function () { return this._onDidCancel.event; },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(ActionBar.prototype, "onDidRun", {
-        get: function () { return this._onDidRun.event; },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(ActionBar.prototype, "onDidBeforeRun", {
-        get: function () { return this._onDidBeforeRun.event; },
-        enumerable: true,
-        configurable: true
-    });
     ActionBar.prototype.isTriggerKeyEvent = function (event) {
         var ret = false;
         if (this.options.triggerKeys) {
@@ -450,7 +463,7 @@ var ActionBar = /** @class */ (function (_super) {
         },
         set: function (context) {
             this._context = context;
-            this.items.forEach(function (i) { return i.setActionContext(context); });
+            this.viewItems.forEach(function (i) { return i.setActionContext(context); });
         },
         enumerable: true,
         configurable: true
@@ -461,64 +474,78 @@ var ActionBar = /** @class */ (function (_super) {
     ActionBar.prototype.push = function (arg, options) {
         var _this = this;
         if (options === void 0) { options = {}; }
-        var actions = !Array.isArray(arg) ? [arg] : arg;
+        var actions = Array.isArray(arg) ? arg : [arg];
         var index = types.isNumber(options.index) ? options.index : null;
         actions.forEach(function (action) {
-            var actionItemElement = document.createElement('li');
-            actionItemElement.className = 'action-item';
-            actionItemElement.setAttribute('role', 'presentation');
+            var actionViewItemElement = document.createElement('li');
+            actionViewItemElement.className = 'action-item';
+            actionViewItemElement.setAttribute('role', 'presentation');
             // Prevent native context menu on actions
-            _this._register(DOM.addDisposableListener(actionItemElement, DOM.EventType.CONTEXT_MENU, function (e) {
+            _this._register(DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, function (e) {
                 e.preventDefault();
                 e.stopPropagation();
             }));
-            var item = null;
-            if (_this.options.actionItemProvider) {
-                item = _this.options.actionItemProvider(action);
+            var item;
+            if (_this.options.actionViewItemProvider) {
+                item = _this.options.actionViewItemProvider(action);
             }
             if (!item) {
-                item = new ActionItem(_this.context, action, options);
+                item = new ActionViewItem(_this.context, action, options);
             }
             item.actionRunner = _this._actionRunner;
             item.setActionContext(_this.context);
-            item.render(actionItemElement);
+            item.render(actionViewItemElement);
             if (index === null || index < 0 || index >= _this.actionsList.children.length) {
-                _this.actionsList.appendChild(actionItemElement);
-                _this.items.push(item);
+                _this.actionsList.appendChild(actionViewItemElement);
+                _this.viewItems.push(item);
             }
             else {
-                _this.actionsList.insertBefore(actionItemElement, _this.actionsList.children[index]);
-                _this.items.splice(index, 0, item);
+                _this.actionsList.insertBefore(actionViewItemElement, _this.actionsList.children[index]);
+                _this.viewItems.splice(index, 0, item);
                 index++;
             }
         });
     };
     ActionBar.prototype.clear = function () {
-        this.items = dispose(this.items);
+        this.viewItems = dispose(this.viewItems);
         DOM.clearNode(this.actionsList);
     };
     ActionBar.prototype.isEmpty = function () {
-        return this.items.length === 0;
+        return this.viewItems.length === 0;
     };
-    ActionBar.prototype.focus = function (selectFirst) {
+    ActionBar.prototype.focus = function (arg) {
+        var selectFirst = false;
+        var index = undefined;
+        if (arg === undefined) {
+            selectFirst = true;
+        }
+        else if (typeof arg === 'number') {
+            index = arg;
+        }
+        else if (typeof arg === 'boolean') {
+            selectFirst = arg;
+        }
         if (selectFirst && typeof this.focusedItem === 'undefined') {
             // Focus the first enabled item
-            this.focusedItem = this.items.length - 1;
+            this.focusedItem = this.viewItems.length - 1;
             this.focusNext();
         }
         else {
+            if (index !== undefined) {
+                this.focusedItem = index;
+            }
             this.updateFocus();
         }
     };
     ActionBar.prototype.focusNext = function () {
         if (typeof this.focusedItem === 'undefined') {
-            this.focusedItem = this.items.length - 1;
+            this.focusedItem = this.viewItems.length - 1;
         }
         var startIndex = this.focusedItem;
         var item;
         do {
-            this.focusedItem = (this.focusedItem + 1) % this.items.length;
-            item = this.items[this.focusedItem];
+            this.focusedItem = (this.focusedItem + 1) % this.viewItems.length;
+            item = this.viewItems[this.focusedItem];
         } while (this.focusedItem !== startIndex && !item.isEnabled());
         if (this.focusedItem === startIndex && !item.isEnabled()) {
             this.focusedItem = undefined;
@@ -534,35 +561,35 @@ var ActionBar = /** @class */ (function (_super) {
         do {
             this.focusedItem = this.focusedItem - 1;
             if (this.focusedItem < 0) {
-                this.focusedItem = this.items.length - 1;
+                this.focusedItem = this.viewItems.length - 1;
             }
-            item = this.items[this.focusedItem];
+            item = this.viewItems[this.focusedItem];
         } while (this.focusedItem !== startIndex && !item.isEnabled());
         if (this.focusedItem === startIndex && !item.isEnabled()) {
             this.focusedItem = undefined;
         }
         this.updateFocus(true);
     };
-    ActionBar.prototype.updateFocus = function (fromRight) {
+    ActionBar.prototype.updateFocus = function (fromRight, preventScroll) {
         if (typeof this.focusedItem === 'undefined') {
-            this.actionsList.focus();
+            this.actionsList.focus({ preventScroll: preventScroll });
         }
-        for (var i = 0; i < this.items.length; i++) {
-            var item = this.items[i];
-            var actionItem = item;
+        for (var i = 0; i < this.viewItems.length; i++) {
+            var item = this.viewItems[i];
+            var actionViewItem = item;
             if (i === this.focusedItem) {
-                if (types.isFunction(actionItem.isEnabled)) {
-                    if (actionItem.isEnabled() && types.isFunction(actionItem.focus)) {
-                        actionItem.focus(fromRight);
+                if (types.isFunction(actionViewItem.isEnabled)) {
+                    if (actionViewItem.isEnabled() && types.isFunction(actionViewItem.focus)) {
+                        actionViewItem.focus(fromRight);
                     }
                     else {
-                        this.actionsList.focus();
+                        this.actionsList.focus({ preventScroll: preventScroll });
                     }
                 }
             }
             else {
-                if (types.isFunction(actionItem.blur)) {
-                    actionItem.blur();
+                if (types.isFunction(actionViewItem.blur)) {
+                    actionViewItem.blur();
                 }
             }
         }
@@ -572,10 +599,10 @@ var ActionBar = /** @class */ (function (_super) {
             return; //nothing to focus
         }
         // trigger action
-        var actionItem = this.items[this.focusedItem];
-        if (actionItem instanceof BaseActionItem) {
-            var context_1 = (actionItem._context === null || actionItem._context === undefined) ? event : actionItem._context;
-            this.run(actionItem._action, context_1);
+        var actionViewItem = this.viewItems[this.focusedItem];
+        if (actionViewItem instanceof BaseActionViewItem) {
+            var context = (actionViewItem._context === null || actionViewItem._context === undefined) ? event : actionViewItem._context;
+            this.run(actionViewItem._action, context);
         }
     };
     ActionBar.prototype.cancel = function () {
@@ -588,10 +615,8 @@ var ActionBar = /** @class */ (function (_super) {
         return this._actionRunner.run(action, context);
     };
     ActionBar.prototype.dispose = function () {
-        if (this.items !== null) {
-            dispose(this.items);
-        }
-        this.items = null;
+        dispose(this.viewItems);
+        this.viewItems = [];
         DOM.removeNode(this.getContainer());
         _super.prototype.dispose.call(this);
     };

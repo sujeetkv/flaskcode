@@ -14,6 +14,11 @@ var CharacterPairSupport = /** @class */ (function () {
         else {
             this._autoClosingPairs = [];
         }
+        if (config.__electricCharacterSupport && config.__electricCharacterSupport.docComment) {
+            var docComment = config.__electricCharacterSupport.docComment;
+            // IDocComment is legacy, only partially supported
+            this._autoClosingPairs.push(new StandardAutoClosingPairConditional({ open: docComment.open, close: docComment.close || '' }));
+        }
         this._autoCloseBefore = typeof config.autoCloseBefore === 'string' ? config.autoCloseBefore : CharacterPairSupport.DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED;
         this._surroundingPairs = config.surroundingPairs || this._autoClosingPairs;
     }
@@ -23,20 +28,14 @@ var CharacterPairSupport = /** @class */ (function () {
     CharacterPairSupport.prototype.getAutoCloseBeforeSet = function () {
         return this._autoCloseBefore;
     };
-    CharacterPairSupport.prototype.shouldAutoClosePair = function (character, context, column) {
+    CharacterPairSupport.shouldAutoClosePair = function (autoClosingPair, context, column) {
         // Always complete on empty line
         if (context.getTokenCount() === 0) {
             return true;
         }
         var tokenIndex = context.findTokenIndexAtOffset(column - 2);
         var standardTokenType = context.getStandardTokenType(tokenIndex);
-        for (var i = 0; i < this._autoClosingPairs.length; ++i) {
-            var autoClosingPair = this._autoClosingPairs[i];
-            if (autoClosingPair.open === character) {
-                return autoClosingPair.isOK(standardTokenType);
-            }
-        }
-        return false;
+        return autoClosingPair.isOK(standardTokenType);
     };
     CharacterPairSupport.prototype.getSurroundingPairs = function () {
         return this._surroundingPairs;

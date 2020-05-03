@@ -8,6 +8,7 @@ import { LineTokens } from '../../common/core/lineTokens.js';
 import { TokenizationRegistry } from '../../common/modes.js';
 import { RenderLineInput, renderViewLine2 as renderViewLine } from '../../common/viewLayout/viewLineRenderer.js';
 import { ViewLineRenderingData } from '../../common/viewModel/viewModel.js';
+import { MonarchTokenizer } from '../common/monarch/monarchLexer.js';
 var Colorizer = /** @class */ (function () {
     function Colorizer() {
     }
@@ -44,7 +45,16 @@ var Colorizer = /** @class */ (function () {
         modeService.triggerMode(language);
         var tokenizationSupport = TokenizationRegistry.get(language);
         if (tokenizationSupport) {
-            return Promise.resolve(_colorize(lines, tabSize, tokenizationSupport));
+            return _colorize(lines, tabSize, tokenizationSupport);
+        }
+        var tokenizationSupportPromise = TokenizationRegistry.getPromise(language);
+        if (tokenizationSupportPromise) {
+            // A tokenizer will be registered soon
+            return new Promise(function (resolve, reject) {
+                tokenizationSupportPromise.then(function (tokenizationSupport) {
+                    _colorize(lines, tabSize, tokenizationSupport).then(resolve, reject);
+                }, reject);
+            });
         }
         return new Promise(function (resolve, reject) {
             var listener = null;
@@ -60,9 +70,10 @@ var Colorizer = /** @class */ (function () {
                 }
                 var tokenizationSupport = TokenizationRegistry.get(language);
                 if (tokenizationSupport) {
-                    return resolve(_colorize(lines, tabSize, tokenizationSupport));
+                    _colorize(lines, tabSize, tokenizationSupport).then(resolve, reject);
+                    return;
                 }
-                return resolve(_fakeColorize(lines, tabSize));
+                resolve(_fakeColorize(lines, tabSize));
             };
             // wait 500ms for mode to load, then give up
             timeout = new TimeoutTimer();
@@ -78,7 +89,7 @@ var Colorizer = /** @class */ (function () {
         if (tabSize === void 0) { tabSize = 4; }
         var isBasicASCII = ViewLineRenderingData.isBasicASCII(line, mightContainNonBasicASCII);
         var containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, mightContainRTL);
-        var renderResult = renderViewLine(new RenderLineInput(false, true, line, false, isBasicASCII, containsRTL, 0, tokens, [], tabSize, 0, -1, 'none', false, false));
+        var renderResult = renderViewLine(new RenderLineInput(false, true, line, false, isBasicASCII, containsRTL, 0, tokens, [], tabSize, 0, 0, 0, -1, 'none', false, false, null));
         return renderResult.html;
     };
     Colorizer.colorizeModelLine = function (model, lineNumber, tabSize) {
@@ -93,7 +104,20 @@ var Colorizer = /** @class */ (function () {
 }());
 export { Colorizer };
 function _colorize(lines, tabSize, tokenizationSupport) {
-    return _actualColorize(lines, tabSize, tokenizationSupport);
+    return new Promise(function (c, e) {
+        var execute = function () {
+            var result = _actualColorize(lines, tabSize, tokenizationSupport);
+            if (tokenizationSupport instanceof MonarchTokenizer) {
+                var status_1 = tokenizationSupport.getLoadStatus();
+                if (status_1.loaded === false) {
+                    status_1.promise.then(execute, e);
+                    return;
+                }
+            }
+            c(result);
+        };
+        execute();
+    });
 }
 function _fakeColorize(lines, tabSize) {
     var html = [];
@@ -109,7 +133,7 @@ function _fakeColorize(lines, tabSize) {
         var lineTokens = new LineTokens(tokens, line);
         var isBasicASCII = ViewLineRenderingData.isBasicASCII(line, /* check for basic ASCII */ true);
         var containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, /* check for RTL */ true);
-        var renderResult = renderViewLine(new RenderLineInput(false, true, line, false, isBasicASCII, containsRTL, 0, lineTokens, [], tabSize, 0, -1, 'none', false, false));
+        var renderResult = renderViewLine(new RenderLineInput(false, true, line, false, isBasicASCII, containsRTL, 0, lineTokens, [], tabSize, 0, 0, 0, -1, 'none', false, false, null));
         html = html.concat(renderResult.html);
         html.push('<br/>');
     }
@@ -125,7 +149,7 @@ function _actualColorize(lines, tabSize, tokenizationSupport) {
         var lineTokens = new LineTokens(tokenizeResult.tokens, line);
         var isBasicASCII = ViewLineRenderingData.isBasicASCII(line, /* check for basic ASCII */ true);
         var containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, /* check for RTL */ true);
-        var renderResult = renderViewLine(new RenderLineInput(false, true, line, false, isBasicASCII, containsRTL, 0, lineTokens.inflate(), [], tabSize, 0, -1, 'none', false, false));
+        var renderResult = renderViewLine(new RenderLineInput(false, true, line, false, isBasicASCII, containsRTL, 0, lineTokens.inflate(), [], tabSize, 0, 0, 0, -1, 'none', false, false, null));
         html = html.concat(renderResult.html);
         html.push('<br/>');
         state = tokenizeResult.endState;

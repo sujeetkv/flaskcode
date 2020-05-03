@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { TPromise } from '../../../common/winjs.base.js';
 import { isFunction } from '../../../common/types.js';
 var DataSource = /** @class */ (function () {
     function DataSource(arg) {
@@ -17,14 +16,14 @@ var DataSource = /** @class */ (function () {
     };
     DataSource.prototype.hasChildren = function (tree, element) {
         var model = this.modelProvider.getModel();
-        return model && model === element && model.entries.length > 0;
+        return !!(model && model === element && model.entries.length > 0);
     };
     DataSource.prototype.getChildren = function (tree, element) {
         var model = this.modelProvider.getModel();
-        return TPromise.as(model === element ? model.entries : []);
+        return Promise.resolve(model === element ? model.entries : []);
     };
     DataSource.prototype.getParent = function (tree, element) {
-        return TPromise.as(null);
+        return Promise.resolve(null);
     };
     return DataSource;
 }());
@@ -35,7 +34,7 @@ var AccessibilityProvider = /** @class */ (function () {
     }
     AccessibilityProvider.prototype.getAriaLabel = function (tree, element) {
         var model = this.modelProvider.getModel();
-        return model.accessibilityProvider && model.accessibilityProvider.getAriaLabel(element);
+        return model.accessibilityProvider ? model.accessibilityProvider.getAriaLabel(element) : null;
     };
     AccessibilityProvider.prototype.getPosInSet = function (tree, element) {
         var model = this.modelProvider.getModel();

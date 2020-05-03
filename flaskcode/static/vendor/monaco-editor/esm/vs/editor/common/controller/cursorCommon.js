@@ -9,30 +9,41 @@ import { Range } from '../core/range.js';
 import { Selection } from '../core/selection.js';
 import { TextModel } from '../model/textModel.js';
 import { LanguageConfigurationRegistry } from '../modes/languageConfigurationRegistry.js';
-var autoCloseAlways = function (_) { return true; };
-var autoCloseNever = function (_) { return false; };
+var autoCloseAlways = function () { return true; };
+var autoCloseNever = function () { return false; };
 var autoCloseBeforeWhitespace = function (chr) { return (chr === ' ' || chr === '\t'); };
+function appendEntry(target, key, value) {
+    if (target.has(key)) {
+        target.get(key).push(value);
+    }
+    else {
+        target.set(key, [value]);
+    }
+}
 var CursorConfiguration = /** @class */ (function () {
-    function CursorConfiguration(languageIdentifier, oneIndent, modelOptions, configuration) {
+    function CursorConfiguration(languageIdentifier, modelOptions, configuration) {
         this._languageIdentifier = languageIdentifier;
-        var c = configuration.editor;
-        this.readOnly = c.readOnly;
+        var options = configuration.options;
+        var layoutInfo = options.get(107 /* layoutInfo */);
+        this.readOnly = options.get(68 /* readOnly */);
         this.tabSize = modelOptions.tabSize;
+        this.indentSize = modelOptions.indentSize;
         this.insertSpaces = modelOptions.insertSpaces;
-        this.oneIndent = oneIndent;
-        this.pageSize = Math.max(1, Math.floor(c.layoutInfo.height / c.fontInfo.lineHeight) - 2);
-        this.lineHeight = c.lineHeight;
-        this.useTabStops = c.useTabStops;
-        this.wordSeparators = c.wordSeparators;
-        this.emptySelectionClipboard = c.emptySelectionClipboard;
-        this.copyWithSyntaxHighlighting = c.copyWithSyntaxHighlighting;
-        this.multiCursorMergeOverlapping = c.multiCursorMergeOverlapping;
-        this.autoClosingBrackets = c.autoClosingBrackets;
-        this.autoClosingQuotes = c.autoClosingQuotes;
-        this.autoSurround = c.autoSurround;
-        this.autoIndent = c.autoIndent;
-        this.autoClosingPairsOpen = {};
-        this.autoClosingPairsClose = {};
+        this.lineHeight = options.get(49 /* lineHeight */);
+        this.pageSize = Math.max(1, Math.floor(layoutInfo.height / this.lineHeight) - 2);
+        this.useTabStops = options.get(95 /* useTabStops */);
+        this.wordSeparators = options.get(96 /* wordSeparators */);
+        this.emptySelectionClipboard = options.get(25 /* emptySelectionClipboard */);
+        this.copyWithSyntaxHighlighting = options.get(15 /* copyWithSyntaxHighlighting */);
+        this.multiCursorMergeOverlapping = options.get(58 /* multiCursorMergeOverlapping */);
+        this.multiCursorPaste = options.get(60 /* multiCursorPaste */);
+        this.autoClosingBrackets = options.get(5 /* autoClosingBrackets */);
+        this.autoClosingQuotes = options.get(7 /* autoClosingQuotes */);
+        this.autoClosingOvertype = options.get(6 /* autoClosingOvertype */);
+        this.autoSurround = options.get(10 /* autoSurround */);
+        this.autoIndent = options.get(8 /* autoIndent */);
+        this.autoClosingPairsOpen2 = new Map();
+        this.autoClosingPairsClose2 = new Map();
         this.surroundingPairs = {};
         this._electricChars = null;
         this.shouldAutoCloseBefore = {
@@ -41,29 +52,35 @@ var CursorConfiguration = /** @class */ (function () {
         };
         var autoClosingPairs = CursorConfiguration._getAutoClosingPairs(languageIdentifier);
         if (autoClosingPairs) {
-            for (var i = 0; i < autoClosingPairs.length; i++) {
-                this.autoClosingPairsOpen[autoClosingPairs[i].open] = autoClosingPairs[i].close;
-                this.autoClosingPairsClose[autoClosingPairs[i].close] = autoClosingPairs[i].open;
+            for (var _i = 0, autoClosingPairs_1 = autoClosingPairs; _i < autoClosingPairs_1.length; _i++) {
+                var pair = autoClosingPairs_1[_i];
+                appendEntry(this.autoClosingPairsOpen2, pair.open.charAt(pair.open.length - 1), pair);
+                if (pair.close.length === 1) {
+                    appendEntry(this.autoClosingPairsClose2, pair.close, pair);
+                }
             }
         }
         var surroundingPairs = CursorConfiguration._getSurroundingPairs(languageIdentifier);
         if (surroundingPairs) {
-            for (var i = 0; i < surroundingPairs.length; i++) {
-                this.surroundingPairs[surroundingPairs[i].open] = surroundingPairs[i].close;
+            for (var _a = 0, surroundingPairs_1 = surroundingPairs; _a < surroundingPairs_1.length; _a++) {
+                var pair = surroundingPairs_1[_a];
+                this.surroundingPairs[pair.open] = pair.close;
             }
         }
     }
     CursorConfiguration.shouldRecreate = function (e) {
-        return (e.layoutInfo
-            || e.wordSeparators
-            || e.emptySelectionClipboard
-            || e.multiCursorMergeOverlapping
-            || e.autoClosingBrackets
-            || e.autoClosingQuotes
-            || e.autoSurround
-            || e.useTabStops
-            || e.lineHeight
-            || e.readOnly);
+        return (e.hasChanged(107 /* layoutInfo */)
+            || e.hasChanged(96 /* wordSeparators */)
+            || e.hasChanged(25 /* emptySelectionClipboard */)
+            || e.hasChanged(58 /* multiCursorMergeOverlapping */)
+            || e.hasChanged(60 /* multiCursorPaste */)
+            || e.hasChanged(5 /* autoClosingBrackets */)
+            || e.hasChanged(7 /* autoClosingQuotes */)
+            || e.hasChanged(6 /* autoClosingOvertype */)
+            || e.hasChanged(10 /* autoSurround */)
+            || e.hasChanged(95 /* useTabStops */)
+            || e.hasChanged(49 /* lineHeight */)
+            || e.hasChanged(68 /* readOnly */));
     };
     Object.defineProperty(CursorConfiguration.prototype, "electricChars", {
         get: function () {
@@ -71,8 +88,9 @@ var CursorConfiguration = /** @class */ (function () {
                 this._electricChars = {};
                 var electricChars = CursorConfiguration._getElectricCharacters(this._languageIdentifier);
                 if (electricChars) {
-                    for (var i = 0; i < electricChars.length; i++) {
-                        this._electricChars[electricChars[i]] = true;
+                    for (var _i = 0, electricChars_1 = electricChars; _i < electricChars_1.length; _i++) {
+                        var char = electricChars_1[_i];
+                        this._electricChars[char] = true;
                     }
                 }
             }
@@ -82,7 +100,7 @@ var CursorConfiguration = /** @class */ (function () {
         configurable: true
     });
     CursorConfiguration.prototype.normalizeIndentation = function (str) {
-        return TextModel.normalizeIndentation(str, this.tabSize, this.insertSpaces);
+        return TextModel.normalizeIndentation(str, this.indentSize, this.insertSpaces);
     };
     CursorConfiguration._getElectricCharacters = function (languageIdentifier) {
         try {
@@ -197,7 +215,7 @@ var CursorContext = /** @class */ (function () {
     function CursorContext(configuration, model, viewModel) {
         this.model = model;
         this.viewModel = viewModel;
-        this.config = new CursorConfiguration(this.model.getLanguageIdentifier(), this.model.getOneIndent(), this.model.getOptions(), configuration);
+        this.config = new CursorConfiguration(this.model.getLanguageIdentifier(), this.model.getOptions(), configuration);
     }
     CursorContext.prototype.validateViewPosition = function (viewPosition, modelPosition) {
         return this.viewModel.coordinatesConverter.validateViewPosition(viewPosition, modelPosition);
@@ -300,39 +318,34 @@ export { EditOperationResult };
 var CursorColumns = /** @class */ (function () {
     function CursorColumns() {
     }
-    CursorColumns.isLowSurrogate = function (model, lineNumber, charOffset) {
-        var lineContent = model.getLineContent(lineNumber);
-        if (charOffset < 0 || charOffset >= lineContent.length) {
-            return false;
-        }
-        return strings.isLowSurrogate(lineContent.charCodeAt(charOffset));
-    };
-    CursorColumns.isHighSurrogate = function (model, lineNumber, charOffset) {
-        var lineContent = model.getLineContent(lineNumber);
-        if (charOffset < 0 || charOffset >= lineContent.length) {
-            return false;
-        }
-        return strings.isHighSurrogate(lineContent.charCodeAt(charOffset));
-    };
-    CursorColumns.isInsideSurrogatePair = function (model, lineNumber, column) {
-        return this.isHighSurrogate(model, lineNumber, column - 2);
-    };
     CursorColumns.visibleColumnFromColumn = function (lineContent, column, tabSize) {
-        var endOffset = lineContent.length;
-        if (endOffset > column - 1) {
-            endOffset = column - 1;
-        }
+        var lineContentLength = lineContent.length;
+        var endOffset = column - 1 < lineContentLength ? column - 1 : lineContentLength;
         var result = 0;
-        for (var i = 0; i < endOffset; i++) {
-            var charCode = lineContent.charCodeAt(i);
-            if (charCode === 9 /* Tab */) {
-                result = this.nextTabStop(result, tabSize);
-            }
-            else if (strings.isFullWidthCharacter(charCode)) {
-                result = result + 2;
+        var i = 0;
+        while (i < endOffset) {
+            var codePoint = strings.getNextCodePoint(lineContent, endOffset, i);
+            i += (codePoint >= 65536 /* UNICODE_SUPPLEMENTARY_PLANE_BEGIN */ ? 2 : 1);
+            if (codePoint === 9 /* Tab */) {
+                result = CursorColumns.nextRenderTabStop(result, tabSize);
             }
             else {
-                result = result + 1;
+                var graphemeBreakType = strings.getGraphemeBreakType(codePoint);
+                while (i < endOffset) {
+                    var nextCodePoint = strings.getNextCodePoint(lineContent, endOffset, i);
+                    var nextGraphemeBreakType = strings.getGraphemeBreakType(nextCodePoint);
+                    if (strings.breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
+                        break;
+                    }
+                    i += (nextCodePoint >= 65536 /* UNICODE_SUPPLEMENTARY_PLANE_BEGIN */ ? 2 : 1);
+                    graphemeBreakType = nextGraphemeBreakType;
+                }
+                if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
+                    result = result + 2;
+                }
+                else {
+                    result = result + 1;
+                }
             }
         }
         return result;
@@ -346,29 +359,46 @@ var CursorColumns = /** @class */ (function () {
         }
         var lineLength = lineContent.length;
         var beforeVisibleColumn = 0;
-        for (var i = 0; i < lineLength; i++) {
-            var charCode = lineContent.charCodeAt(i);
+        var beforeColumn = 1;
+        var i = 0;
+        while (i < lineLength) {
+            var codePoint = strings.getNextCodePoint(lineContent, lineLength, i);
+            i += (codePoint >= 65536 /* UNICODE_SUPPLEMENTARY_PLANE_BEGIN */ ? 2 : 1);
             var afterVisibleColumn = void 0;
-            if (charCode === 9 /* Tab */) {
-                afterVisibleColumn = this.nextTabStop(beforeVisibleColumn, tabSize);
-            }
-            else if (strings.isFullWidthCharacter(charCode)) {
-                afterVisibleColumn = beforeVisibleColumn + 2;
+            if (codePoint === 9 /* Tab */) {
+                afterVisibleColumn = CursorColumns.nextRenderTabStop(beforeVisibleColumn, tabSize);
             }
             else {
-                afterVisibleColumn = beforeVisibleColumn + 1;
-            }
-            if (afterVisibleColumn >= visibleColumn) {
-                var prevDelta = visibleColumn - beforeVisibleColumn;
-                var afterDelta = afterVisibleColumn - visibleColumn;
-                if (afterDelta < prevDelta) {
-                    return i + 2;
+                var graphemeBreakType = strings.getGraphemeBreakType(codePoint);
+                while (i < lineLength) {
+                    var nextCodePoint = strings.getNextCodePoint(lineContent, lineLength, i);
+                    var nextGraphemeBreakType = strings.getGraphemeBreakType(nextCodePoint);
+                    if (strings.breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
+                        break;
+                    }
+                    i += (nextCodePoint >= 65536 /* UNICODE_SUPPLEMENTARY_PLANE_BEGIN */ ? 2 : 1);
+                    graphemeBreakType = nextGraphemeBreakType;
+                }
+                if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
+                    afterVisibleColumn = beforeVisibleColumn + 2;
                 }
                 else {
-                    return i + 1;
+                    afterVisibleColumn = beforeVisibleColumn + 1;
+                }
+            }
+            var afterColumn = i + 1;
+            if (afterVisibleColumn >= visibleColumn) {
+                var beforeDelta = visibleColumn - beforeVisibleColumn;
+                var afterDelta = afterVisibleColumn - visibleColumn;
+                if (afterDelta < beforeDelta) {
+                    return afterColumn;
+                }
+                else {
+                    return beforeColumn;
                 }
             }
             beforeVisibleColumn = afterVisibleColumn;
+            beforeColumn = afterColumn;
         }
         // walked the entire string
         return lineLength + 1;
@@ -388,14 +418,26 @@ var CursorColumns = /** @class */ (function () {
     /**
      * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
      */
-    CursorColumns.nextTabStop = function (visibleColumn, tabSize) {
+    CursorColumns.nextRenderTabStop = function (visibleColumn, tabSize) {
         return visibleColumn + tabSize - visibleColumn % tabSize;
     };
     /**
      * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
      */
-    CursorColumns.prevTabStop = function (column, tabSize) {
+    CursorColumns.nextIndentTabStop = function (visibleColumn, indentSize) {
+        return visibleColumn + indentSize - visibleColumn % indentSize;
+    };
+    /**
+     * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
+     */
+    CursorColumns.prevRenderTabStop = function (column, tabSize) {
         return column - 1 - (column - 1) % tabSize;
+    };
+    /**
+     * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
+     */
+    CursorColumns.prevIndentTabStop = function (column, indentSize) {
+        return column - 1 - (column - 1) % indentSize;
     };
     return CursorColumns;
 }());

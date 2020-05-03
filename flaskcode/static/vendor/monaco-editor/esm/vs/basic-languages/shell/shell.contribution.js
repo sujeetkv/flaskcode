@@ -4,11 +4,9 @@
 *--------------------------------------------------------------------------------------------*/
 'use strict';
 import { registerLanguage } from '../_.contribution.js';
-// Allow for running under nodejs/requirejs in tests
-var _monaco = typeof monaco === 'undefined' ? self.monaco : monaco;
 registerLanguage({
     id: 'shell',
     extensions: ['.sh', '.bash'],
     aliases: ['Shell', 'sh'],
-    loader: function () { return _monaco.Promise.wrap(import('./shell.js')); },
+    loader: function () { return import('./shell.js'); },
 });

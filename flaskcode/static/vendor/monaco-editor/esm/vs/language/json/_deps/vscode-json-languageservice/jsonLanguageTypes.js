@@ -1,10 +1,6 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-'use strict';
-import { Range, TextEdit, Color, ColorInformation, ColorPresentation, FoldingRange, FoldingRangeKind } from './../vscode-languageserver-types/main.js';
-export { Range, TextEdit, Color, ColorInformation, ColorPresentation, FoldingRange, FoldingRangeKind };
+import { MarkupKind } from './../vscode-languageserver-types/main.js';
+export { TextDocument } from './../vscode-languageserver-textdocument/lib/esm/main.js';
+export * from './../vscode-languageserver-types/main.js';
 /**
  * Error codes used by diagnostics
  */
@@ -29,4 +25,16 @@ export var ErrorCode;
     ErrorCode[ErrorCode["CommentNotPermitted"] = 521] = "CommentNotPermitted";
     ErrorCode[ErrorCode["SchemaResolveError"] = 768] = "SchemaResolveError";
 })(ErrorCode || (ErrorCode = {}));
-//# sourceMappingURL=jsonLanguageTypes.js.map
+export var ClientCapabilities;
+(function (ClientCapabilities) {
+    ClientCapabilities.LATEST = {
+        textDocument: {
+            completion: {
+                completionItem: {
+                    documentationFormat: [MarkupKind.Markdown, MarkupKind.PlainText],
+                    commitCharactersSupport: true
+                }
+            }
+        }
+    };
+})(ClientCapabilities || (ClientCapabilities = {}));

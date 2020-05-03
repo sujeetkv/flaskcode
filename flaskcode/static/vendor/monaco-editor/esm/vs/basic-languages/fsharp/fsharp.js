@@ -112,9 +112,11 @@ export var language = {
             [/\/\/.*$/, 'comment'],
         ],
         comment: [
-            [/[^\*]+/, 'comment'],
+            [/[^*(]+/, 'comment'],
             [/\*\)/, 'comment', '@pop'],
-            [/\*/, 'comment']
+            [/\*/, 'comment'],
+            [/\(\*\)/, 'comment'],
+            [/\(/, 'comment']
         ],
         string: [
             [/[^\\"]+/, 'string'],

@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import { registerLanguage } from '../_.contribution.js';
-// Allow for running under nodejs/requirejs in tests
-var _monaco = (typeof monaco === 'undefined' ? self.monaco : monaco);
 registerLanguage({
     id: 'mysql',
     extensions: [],
     aliases: ['MySQL', 'mysql'],
-    loader: function () { return _monaco.Promise.wrap(import('./mysql.js')); }
+    loader: function () { return import('./mysql.js'); }
 });

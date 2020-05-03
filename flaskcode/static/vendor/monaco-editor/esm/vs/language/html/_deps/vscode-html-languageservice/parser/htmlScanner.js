@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 import * as nls from './../../../fillers/vscode-nls.js';
 import { TokenType, ScannerState } from '../htmlLanguageTypes.js';
 var localize = nls.loadMessageBundle();
@@ -306,8 +305,12 @@ export function createScanner(input, initialOffset, initialState) {
                 if (stream.skipWhitespace()) {
                     return finishToken(offset, TokenType.Whitespace);
                 }
-                var attributeValue = stream.advanceIfRegExp(/^[^\s"'`=<>\/]+/);
+                var attributeValue = stream.advanceIfRegExp(/^[^\s"'`=<>]+/);
                 if (attributeValue.length > 0) {
+                    if (stream.peekChar() === _RAN && stream.peekChar(-1) === _FSL) { // <foo bar=http://foo/>
+                        stream.goBack(1);
+                        attributeValue = attributeValue.substr(0, attributeValue.length - 1);
+                    }
                     if (lastAttributeName === 'type') {
                         lastTypeValue = attributeValue;
                     }
@@ -391,4 +394,3 @@ export function createScanner(input, initialOffset, initialState) {
         getTokenError: function () { return tokenError; }
     };
 }
-//# sourceMappingURL=htmlScanner.js.map

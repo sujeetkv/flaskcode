@@ -27,42 +27,47 @@ export function setARIAContainer(parent) {
 /**
  * Given the provided message, will make sure that it is read as alert to screen readers.
  */
-export function alert(msg) {
-    insertMessage(alertContainer, msg);
+export function alert(msg, disableRepeat) {
+    insertMessage(alertContainer, msg, disableRepeat);
 }
 /**
  * Given the provided message, will make sure that it is read as status to screen readers.
  */
-export function status(msg) {
+export function status(msg, disableRepeat) {
     if (isMacintosh) {
-        alert(msg); // VoiceOver does not seem to support status role
+        alert(msg, disableRepeat); // VoiceOver does not seem to support status role
     }
     else {
-        insertMessage(statusContainer, msg);
+        insertMessage(statusContainer, msg, disableRepeat);
     }
 }
 var repeatedTimes = 0;
 var prevText = undefined;
-function insertMessage(target, msg) {
+function insertMessage(target, msg, disableRepeat) {
     if (!ariaContainer) {
-        // console.warn('ARIA support needs a container. Call setARIAContainer() first.');
         return;
     }
-    if (prevText === msg) {
-        repeatedTimes++;
-    }
-    else {
-        prevText = msg;
-        repeatedTimes = 0;
-    }
-    switch (repeatedTimes) {
-        case 0: break;
-        case 1:
-            msg = nls.localize('repeated', "{0} (occurred again)", msg);
-            break;
-        default:
-            msg = nls.localize('repeatedNtimes', "{0} (occurred {1} times)", msg, repeatedTimes);
-            break;
+    // If the same message should be inserted that is already present, a screen reader would
+    // not announce this message because it matches the previous one. As a workaround, we
+    // alter the message with the number of occurences unless this is explicitly disabled
+    // via the disableRepeat flag.
+    if (!disableRepeat) {
+        if (prevText === msg) {
+            repeatedTimes++;
+        }
+        else {
+            prevText = msg;
+            repeatedTimes = 0;
+        }
+        switch (repeatedTimes) {
+            case 0: break;
+            case 1:
+                msg = nls.localize('repeated', "{0} (occurred again)", msg);
+                break;
+            default:
+                msg = nls.localize('repeatedNtimes', "{0} (occurred {1} times)", msg, repeatedTimes);
+                break;
+        }
     }
     dom.clearNode(target);
     target.textContent = msg;

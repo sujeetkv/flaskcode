@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -26,10 +26,14 @@ var IndentGuidesOverlay = /** @class */ (function (_super) {
         var _this = _super.call(this) || this;
         _this._context = context;
         _this._primaryLineNumber = 0;
-        _this._lineHeight = _this._context.configuration.editor.lineHeight;
-        _this._spaceWidth = _this._context.configuration.editor.fontInfo.spaceWidth;
-        _this._enabled = _this._context.configuration.editor.viewInfo.renderIndentGuides;
-        _this._activeIndentEnabled = _this._context.configuration.editor.viewInfo.highlightActiveIndentGuide;
+        var options = _this._context.configuration.options;
+        var wrappingInfo = options.get(108 /* wrappingInfo */);
+        var fontInfo = options.get(34 /* fontInfo */);
+        _this._lineHeight = options.get(49 /* lineHeight */);
+        _this._spaceWidth = fontInfo.spaceWidth;
+        _this._enabled = options.get(70 /* renderIndentGuides */);
+        _this._activeIndentEnabled = options.get(43 /* highlightActiveIndentGuide */);
+        _this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
         _this._renderResult = null;
         _this._context.addEventHandler(_this);
         return _this;
@@ -41,16 +45,14 @@ var IndentGuidesOverlay = /** @class */ (function (_super) {
     };
     // --- begin event handlers
     IndentGuidesOverlay.prototype.onConfigurationChanged = function (e) {
-        if (e.lineHeight) {
-            this._lineHeight = this._context.configuration.editor.lineHeight;
-        }
-        if (e.fontInfo) {
-            this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
-        }
-        if (e.viewInfo) {
-            this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
-            this._activeIndentEnabled = this._context.configuration.editor.viewInfo.highlightActiveIndentGuide;
-        }
+        var options = this._context.configuration.options;
+        var wrappingInfo = options.get(108 /* wrappingInfo */);
+        var fontInfo = options.get(34 /* fontInfo */);
+        this._lineHeight = options.get(49 /* lineHeight */);
+        this._spaceWidth = fontInfo.spaceWidth;
+        this._enabled = options.get(70 /* renderIndentGuides */);
+        this._activeIndentEnabled = options.get(43 /* highlightActiveIndentGuide */);
+        this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
         return true;
     };
     IndentGuidesOverlay.prototype.onCursorStateChanged = function (e) {
@@ -95,11 +97,10 @@ var IndentGuidesOverlay = /** @class */ (function (_super) {
         }
         var visibleStartLineNumber = ctx.visibleRange.startLineNumber;
         var visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-        var tabSize = this._context.model.getTabSize();
-        var tabWidth = tabSize * this._spaceWidth;
+        var indentSize = this._context.model.getOptions().indentSize;
+        var indentWidth = indentSize * this._spaceWidth;
         var scrollWidth = ctx.scrollWidth;
         var lineHeight = this._lineHeight;
-        var indentGuideWidth = tabWidth;
         var indents = this._context.model.getLinesIndentGuides(visibleStartLineNumber, visibleEndLineNumber);
         var activeIndentStartLineNumber = 0;
         var activeIndentEndLineNumber = 0;
@@ -116,14 +117,16 @@ var IndentGuidesOverlay = /** @class */ (function (_super) {
             var lineIndex = lineNumber - visibleStartLineNumber;
             var indent = indents[lineIndex];
             var result = '';
-            var leftMostVisiblePosition = ctx.visibleRangeForPosition(new Position(lineNumber, 1));
-            var left = leftMostVisiblePosition ? leftMostVisiblePosition.left : 0;
-            for (var i = 1; i <= indent; i++) {
-                var className = (containsActiveIndentGuide && i === activeIndentLevel ? 'cigra' : 'cigr');
-                result += "<div class=\"" + className + "\" style=\"left:" + left + "px;height:" + lineHeight + "px;width:" + indentGuideWidth + "px\"></div>";
-                left += tabWidth;
-                if (left > scrollWidth) {
-                    break;
+            if (indent >= 1) {
+                var leftMostVisiblePosition = ctx.visibleRangeForPosition(new Position(lineNumber, 1));
+                var left = leftMostVisiblePosition ? leftMostVisiblePosition.left : 0;
+                for (var i = 1; i <= indent; i++) {
+                    var className = (containsActiveIndentGuide && i === activeIndentLevel ? 'cigra' : 'cigr');
+                    result += "<div class=\"" + className + "\" style=\"left:" + left + "px;height:" + lineHeight + "px;width:" + indentWidth + "px\"></div>";
+                    left += indentWidth;
+                    if (left > scrollWidth || (this._maxIndentLeft > 0 && left > this._maxIndentLeft)) {
+                        break;
+                    }
                 }
             }
             output[lineIndex] = result;

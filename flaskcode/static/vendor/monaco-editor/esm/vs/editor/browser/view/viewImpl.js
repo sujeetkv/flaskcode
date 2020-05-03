@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -21,11 +21,11 @@ import { onUnexpectedError } from '../../../base/common/errors.js';
 import { PointerHandler } from '../controller/pointerHandler.js';
 import { TextAreaHandler } from '../controller/textAreaHandler.js';
 import { ViewController } from './viewController.js';
+import { ViewOutgoingEvents } from './viewOutgoingEvents.js';
 import { ContentViewOverlays, MarginViewOverlays } from './viewOverlays.js';
 import { PartFingerprints } from './viewPart.js';
 import { ViewContentWidgets } from '../viewParts/contentWidgets/contentWidgets.js';
-import { CurrentLineHighlightOverlay } from '../viewParts/currentLineHighlight/currentLineHighlight.js';
-import { CurrentLineMarginHighlightOverlay } from '../viewParts/currentLineMarginHighlight/currentLineMarginHighlight.js';
+import { CurrentLineHighlightOverlay, CurrentLineMarginHighlightOverlay } from '../viewParts/currentLineHighlight/currentLineHighlight.js';
 import { DecorationsOverlay } from '../viewParts/decorations/decorations.js';
 import { EditorScrollbar } from '../viewParts/editorScrollbar/editorScrollbar.js';
 import { GlyphMarginOverlay } from '../viewParts/glyphMargin/glyphMargin.js';
@@ -45,6 +45,7 @@ import { SelectionsOverlay } from '../viewParts/selections/selections.js';
 import { ViewCursors } from '../viewParts/viewCursors/viewCursors.js';
 import { ViewZones } from '../viewParts/viewZones/viewZones.js';
 import { Position } from '../../common/core/position.js';
+import { Range } from '../../common/core/range.js';
 import { RenderingContext } from '../../common/view/renderingContext.js';
 import { ViewContext } from '../../common/view/viewContext.js';
 import { ViewEventDispatcher } from '../../common/view/viewEventDispatcher.js';
@@ -52,7 +53,7 @@ import * as viewEvents from '../../common/view/viewEvents.js';
 import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import { ViewEventHandler } from '../../common/viewModel/viewEventHandler.js';
 import { getThemeTypeSelector } from '../../../platform/theme/common/themeService.js';
-var invalidFunc = function () { throw new Error("Invalid change accessor"); };
+import { PointerHandlerLastRenderData } from '../controller/mouseTarget.js';
 var View = /** @class */ (function (_super) {
     __extends(View, _super);
     function View(commandDelegate, configuration, themeService, model, cursor, outgoingEvents) {
@@ -76,10 +77,79 @@ var View = /** @class */ (function (_super) {
         // Keyboard handler
         _this._textAreaHandler = new TextAreaHandler(_this._context, viewController, _this.createTextAreaHandlerHelper());
         _this.viewParts.push(_this._textAreaHandler);
-        _this.createViewParts();
-        _this._setLayout();
+        // These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
+        _this.linesContent = createFastDomNode(document.createElement('div'));
+        _this.linesContent.setClassName('lines-content' + ' monaco-editor-background');
+        _this.linesContent.setPosition('absolute');
+        _this.domNode = createFastDomNode(document.createElement('div'));
+        _this.domNode.setClassName(_this.getEditorClassName());
+        _this.overflowGuardContainer = createFastDomNode(document.createElement('div'));
+        PartFingerprints.write(_this.overflowGuardContainer, 3 /* OverflowGuard */);
+        _this.overflowGuardContainer.setClassName('overflow-guard');
+        _this._scrollbar = new EditorScrollbar(_this._context, _this.linesContent, _this.domNode, _this.overflowGuardContainer);
+        _this.viewParts.push(_this._scrollbar);
+        // View Lines
+        _this.viewLines = new ViewLines(_this._context, _this.linesContent);
+        // View Zones
+        _this.viewZones = new ViewZones(_this._context);
+        _this.viewParts.push(_this.viewZones);
+        // Decorations overview ruler
+        var decorationsOverviewRuler = new DecorationsOverviewRuler(_this._context);
+        _this.viewParts.push(decorationsOverviewRuler);
+        var scrollDecoration = new ScrollDecorationViewPart(_this._context);
+        _this.viewParts.push(scrollDecoration);
+        var contentViewOverlays = new ContentViewOverlays(_this._context);
+        _this.viewParts.push(contentViewOverlays);
+        contentViewOverlays.addDynamicOverlay(new CurrentLineHighlightOverlay(_this._context));
+        contentViewOverlays.addDynamicOverlay(new SelectionsOverlay(_this._context));
+        contentViewOverlays.addDynamicOverlay(new IndentGuidesOverlay(_this._context));
+        contentViewOverlays.addDynamicOverlay(new DecorationsOverlay(_this._context));
+        var marginViewOverlays = new MarginViewOverlays(_this._context);
+        _this.viewParts.push(marginViewOverlays);
+        marginViewOverlays.addDynamicOverlay(new CurrentLineMarginHighlightOverlay(_this._context));
+        marginViewOverlays.addDynamicOverlay(new GlyphMarginOverlay(_this._context));
+        marginViewOverlays.addDynamicOverlay(new MarginViewLineDecorationsOverlay(_this._context));
+        marginViewOverlays.addDynamicOverlay(new LinesDecorationsOverlay(_this._context));
+        marginViewOverlays.addDynamicOverlay(new LineNumbersOverlay(_this._context));
+        var margin = new Margin(_this._context);
+        margin.getDomNode().appendChild(_this.viewZones.marginDomNode);
+        margin.getDomNode().appendChild(marginViewOverlays.getDomNode());
+        _this.viewParts.push(margin);
+        // Content widgets
+        _this.contentWidgets = new ViewContentWidgets(_this._context, _this.domNode);
+        _this.viewParts.push(_this.contentWidgets);
+        _this.viewCursors = new ViewCursors(_this._context);
+        _this.viewParts.push(_this.viewCursors);
+        // Overlay widgets
+        _this.overlayWidgets = new ViewOverlayWidgets(_this._context);
+        _this.viewParts.push(_this.overlayWidgets);
+        var rulers = new Rulers(_this._context);
+        _this.viewParts.push(rulers);
+        var minimap = new Minimap(_this._context);
+        _this.viewParts.push(minimap);
+        // -------------- Wire dom nodes up
+        if (decorationsOverviewRuler) {
+            var overviewRulerData = _this._scrollbar.getOverviewRulerLayoutInfo();
+            overviewRulerData.parent.insertBefore(decorationsOverviewRuler.getDomNode(), overviewRulerData.insertBefore);
+        }
+        _this.linesContent.appendChild(contentViewOverlays.getDomNode());
+        _this.linesContent.appendChild(rulers.domNode);
+        _this.linesContent.appendChild(_this.viewZones.domNode);
+        _this.linesContent.appendChild(_this.viewLines.getDomNode());
+        _this.linesContent.appendChild(_this.contentWidgets.domNode);
+        _this.linesContent.appendChild(_this.viewCursors.getDomNode());
+        _this.overflowGuardContainer.appendChild(margin.getDomNode());
+        _this.overflowGuardContainer.appendChild(_this._scrollbar.getDomNode());
+        _this.overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
+        _this.overflowGuardContainer.appendChild(_this._textAreaHandler.textArea);
+        _this.overflowGuardContainer.appendChild(_this._textAreaHandler.textAreaCover);
+        _this.overflowGuardContainer.appendChild(_this.overlayWidgets.getDomNode());
+        _this.overflowGuardContainer.appendChild(minimap.getDomNode());
+        _this.domNode.appendChild(_this.overflowGuardContainer);
+        _this.domNode.appendChild(_this.contentWidgets.overflowingContentWidgetsDomNode);
+        _this._applyLayout();
         // Pointer handler
-        _this.pointerHandler = new PointerHandler(_this._context, viewController, _this.createPointerHandlerHelper());
+        _this.pointerHandler = _this._register(new PointerHandler(_this._context, viewController, _this.createPointerHandlerHelper()));
         _this._register(model.addEventListener(function (events) {
             _this.eventDispatcher.emitMany(events);
         }));
@@ -88,78 +158,6 @@ var View = /** @class */ (function (_super) {
         }));
         return _this;
     }
-    View.prototype.createViewParts = function () {
-        // These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
-        this.linesContent = createFastDomNode(document.createElement('div'));
-        this.linesContent.setClassName('lines-content' + ' monaco-editor-background');
-        this.linesContent.setPosition('absolute');
-        this.domNode = createFastDomNode(document.createElement('div'));
-        this.domNode.setClassName(this.getEditorClassName());
-        this.overflowGuardContainer = createFastDomNode(document.createElement('div'));
-        PartFingerprints.write(this.overflowGuardContainer, 3 /* OverflowGuard */);
-        this.overflowGuardContainer.setClassName('overflow-guard');
-        this._scrollbar = new EditorScrollbar(this._context, this.linesContent, this.domNode, this.overflowGuardContainer);
-        this.viewParts.push(this._scrollbar);
-        // View Lines
-        this.viewLines = new ViewLines(this._context, this.linesContent);
-        // View Zones
-        this.viewZones = new ViewZones(this._context);
-        this.viewParts.push(this.viewZones);
-        // Decorations overview ruler
-        var decorationsOverviewRuler = new DecorationsOverviewRuler(this._context);
-        this.viewParts.push(decorationsOverviewRuler);
-        var scrollDecoration = new ScrollDecorationViewPart(this._context);
-        this.viewParts.push(scrollDecoration);
-        var contentViewOverlays = new ContentViewOverlays(this._context);
-        this.viewParts.push(contentViewOverlays);
-        contentViewOverlays.addDynamicOverlay(new CurrentLineHighlightOverlay(this._context));
-        contentViewOverlays.addDynamicOverlay(new SelectionsOverlay(this._context));
-        contentViewOverlays.addDynamicOverlay(new IndentGuidesOverlay(this._context));
-        contentViewOverlays.addDynamicOverlay(new DecorationsOverlay(this._context));
-        var marginViewOverlays = new MarginViewOverlays(this._context);
-        this.viewParts.push(marginViewOverlays);
-        marginViewOverlays.addDynamicOverlay(new CurrentLineMarginHighlightOverlay(this._context));
-        marginViewOverlays.addDynamicOverlay(new GlyphMarginOverlay(this._context));
-        marginViewOverlays.addDynamicOverlay(new MarginViewLineDecorationsOverlay(this._context));
-        marginViewOverlays.addDynamicOverlay(new LinesDecorationsOverlay(this._context));
-        marginViewOverlays.addDynamicOverlay(new LineNumbersOverlay(this._context));
-        var margin = new Margin(this._context);
-        margin.getDomNode().appendChild(this.viewZones.marginDomNode);
-        margin.getDomNode().appendChild(marginViewOverlays.getDomNode());
-        this.viewParts.push(margin);
-        // Content widgets
-        this.contentWidgets = new ViewContentWidgets(this._context, this.domNode);
-        this.viewParts.push(this.contentWidgets);
-        this.viewCursors = new ViewCursors(this._context);
-        this.viewParts.push(this.viewCursors);
-        // Overlay widgets
-        this.overlayWidgets = new ViewOverlayWidgets(this._context);
-        this.viewParts.push(this.overlayWidgets);
-        var rulers = new Rulers(this._context);
-        this.viewParts.push(rulers);
-        var minimap = new Minimap(this._context);
-        this.viewParts.push(minimap);
-        // -------------- Wire dom nodes up
-        if (decorationsOverviewRuler) {
-            var overviewRulerData = this._scrollbar.getOverviewRulerLayoutInfo();
-            overviewRulerData.parent.insertBefore(decorationsOverviewRuler.getDomNode(), overviewRulerData.insertBefore);
-        }
-        this.linesContent.appendChild(contentViewOverlays.getDomNode());
-        this.linesContent.appendChild(rulers.domNode);
-        this.linesContent.appendChild(this.viewZones.domNode);
-        this.linesContent.appendChild(this.viewLines.getDomNode());
-        this.linesContent.appendChild(this.contentWidgets.domNode);
-        this.linesContent.appendChild(this.viewCursors.getDomNode());
-        this.overflowGuardContainer.appendChild(margin.getDomNode());
-        this.overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
-        this.overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
-        this.overflowGuardContainer.appendChild(this._textAreaHandler.textArea);
-        this.overflowGuardContainer.appendChild(this._textAreaHandler.textAreaCover);
-        this.overflowGuardContainer.appendChild(this.overlayWidgets.getDomNode());
-        this.overflowGuardContainer.appendChild(minimap.getDomNode());
-        this.domNode.appendChild(this.overflowGuardContainer);
-        this.domNode.appendChild(this.contentWidgets.overflowingContentWidgetsDomNode);
-    };
     View.prototype._flushAccumulatedAndRenderNow = function () {
         this._renderNow();
     };
@@ -171,8 +169,10 @@ var View = /** @class */ (function (_super) {
             focusTextArea: function () {
                 _this.focus();
             },
-            getLastViewCursorsRenderData: function () {
-                return _this.viewCursors.getLastRenderData() || [];
+            getLastRenderData: function () {
+                var lastViewCursorsRenderData = _this.viewCursors.getLastRenderData() || [];
+                var lastTextareaPosition = _this._textAreaHandler.getLastRenderData();
+                return new PointerHandlerLastRenderData(lastViewCursorsRenderData, lastTextareaPosition);
             },
             shouldSuppressMouseDownOnViewZone: function (viewZoneId) {
                 return _this.viewZones.shouldSuppressMouseDownOnViewZone(viewZoneId);
@@ -184,7 +184,7 @@ var View = /** @class */ (function (_super) {
                 _this._flushAccumulatedAndRenderNow();
                 return _this.viewLines.getPositionFromDOMInfo(spanNode, offset);
             },
-            visibleRangeForPosition2: function (lineNumber, column) {
+            visibleRangeForPosition: function (lineNumber, column) {
                 _this._flushAccumulatedAndRenderNow();
                 return _this.viewLines.visibleRangeForPosition(new Position(lineNumber, column));
             },
@@ -203,8 +203,9 @@ var View = /** @class */ (function (_super) {
             }
         };
     };
-    View.prototype._setLayout = function () {
-        var layoutInfo = this._context.configuration.editor.layoutInfo;
+    View.prototype._applyLayout = function () {
+        var options = this._context.configuration.options;
+        var layoutInfo = options.get(107 /* layoutInfo */);
         this.domNode.setWidth(layoutInfo.width);
         this.domNode.setHeight(layoutInfo.height);
         this.overflowGuardContainer.setWidth(layoutInfo.width);
@@ -214,16 +215,16 @@ var View = /** @class */ (function (_super) {
     };
     View.prototype.getEditorClassName = function () {
         var focused = this._textAreaHandler.isFocused() ? ' focused' : '';
-        return this._context.configuration.editor.editorClassName + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
+        return this._context.configuration.options.get(104 /* editorClassName */) + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
     };
     // --- begin event handlers
     View.prototype.onConfigurationChanged = function (e) {
-        if (e.editorClassName) {
-            this.domNode.setClassName(this.getEditorClassName());
-        }
-        if (e.layoutInfo) {
-            this._setLayout();
-        }
+        this.domNode.setClassName(this.getEditorClassName());
+        this._applyLayout();
+        return false;
+    };
+    View.prototype.onContentSizeChanged = function (e) {
+        this.outgoingEvents.emitContentSizeChange(e);
         return false;
     };
     View.prototype.onFocusChanged = function (e) {
@@ -253,7 +254,6 @@ var View = /** @class */ (function (_super) {
         }
         this.eventDispatcher.removeEventHandler(this);
         this.outgoingEvents.dispose();
-        this.pointerHandler.dispose();
         this.viewLines.dispose();
         // Destroy view parts
         for (var i = 0, len = this.viewParts.length; i < len; i++) {
@@ -330,6 +330,7 @@ var View = /** @class */ (function (_super) {
     };
     View.prototype.restoreState = function (scrollPosition) {
         this._context.viewLayout.setScrollPositionNow({ scrollTop: scrollPosition.scrollTop });
+        this._context.model.tokenizeViewport();
         this._renderNow();
         this.viewLines.updateLineWidths();
         this._context.viewLayout.setScrollPositionNow({ scrollLeft: scrollPosition.scrollLeft });
@@ -348,44 +349,25 @@ var View = /** @class */ (function (_super) {
         return visibleRange.left;
     };
     View.prototype.getTargetAtClientPoint = function (clientX, clientY) {
-        return this.pointerHandler.getTargetAtClientPoint(clientX, clientY);
+        var mouseTarget = this.pointerHandler.getTargetAtClientPoint(clientX, clientY);
+        if (!mouseTarget) {
+            return null;
+        }
+        return ViewOutgoingEvents.convertViewToModelMouseTarget(mouseTarget, this._context.model.coordinatesConverter);
     };
     View.prototype.createOverviewRuler = function (cssClassName) {
         return new OverviewRuler(this._context, cssClassName);
     };
     View.prototype.change = function (callback) {
         var _this = this;
-        var zonesHaveChanged = false;
-        this._renderOnce(function () {
-            var changeAccessor = {
-                addZone: function (zone) {
-                    zonesHaveChanged = true;
-                    return _this.viewZones.addZone(zone);
-                },
-                removeZone: function (id) {
-                    if (!id) {
-                        return;
-                    }
-                    zonesHaveChanged = _this.viewZones.removeZone(id) || zonesHaveChanged;
-                },
-                layoutZone: function (id) {
-                    if (!id) {
-                        return;
-                    }
-                    zonesHaveChanged = _this.viewZones.layoutZone(id) || zonesHaveChanged;
-                }
-            };
-            safeInvoke1Arg(callback, changeAccessor);
-            // Invalidate changeAccessor
-            changeAccessor.addZone = invalidFunc;
-            changeAccessor.removeZone = invalidFunc;
-            changeAccessor.layoutZone = invalidFunc;
+        return this._renderOnce(function () {
+            var zonesHaveChanged = _this.viewZones.changeViewZones(callback);
             if (zonesHaveChanged) {
                 _this._context.viewLayout.onHeightMaybeChanged();
                 _this._context.privateViewEventBus.emit(new viewEvents.ViewZonesChangedEvent());
             }
+            return zonesHaveChanged;
         });
-        return zonesHaveChanged;
     };
     View.prototype.render = function (now, everything) {
         if (everything) {
@@ -409,16 +391,24 @@ var View = /** @class */ (function (_super) {
     View.prototype.isFocused = function () {
         return this._textAreaHandler.isFocused();
     };
+    View.prototype.setAriaOptions = function (options) {
+        this._textAreaHandler.setAriaOptions(options);
+    };
     View.prototype.addContentWidget = function (widgetData) {
         this.contentWidgets.addWidget(widgetData.widget);
         this.layoutContentWidget(widgetData);
         this._scheduleRender();
     };
     View.prototype.layoutContentWidget = function (widgetData) {
-        var newPosition = widgetData.position ? widgetData.position.position : null;
-        var newRange = widgetData.position ? widgetData.position.range : null;
+        var newRange = widgetData.position ? widgetData.position.range || null : null;
+        if (newRange === null) {
+            var newPosition = widgetData.position ? widgetData.position.position : null;
+            if (newPosition !== null) {
+                newRange = new Range(newPosition.lineNumber, newPosition.column, newPosition.lineNumber, newPosition.column);
+            }
+        }
         var newPreference = widgetData.position ? widgetData.position.preference : null;
-        this.contentWidgets.setWidgetPosition(widgetData.widget, newPosition, newRange, newPreference);
+        this.contentWidgets.setWidgetPosition(widgetData.widget, newRange, newPreference);
         this._scheduleRender();
     };
     View.prototype.removeContentWidget = function (widgetData) {
@@ -447,14 +437,6 @@ export { View };
 function safeInvokeNoArg(func) {
     try {
         return func();
-    }
-    catch (e) {
-        onUnexpectedError(e);
-    }
-}
-function safeInvoke1Arg(func, arg1) {
-    try {
-        return func(arg1);
     }
     catch (e) {
         onUnexpectedError(e);

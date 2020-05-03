@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -22,7 +22,7 @@ export function values(forEachable) {
 }
 export function keys(map) {
     var result = [];
-    map.forEach(function (value, key) { return result.push(key); });
+    map.forEach(function (_value, key) { return result.push(key); });
     return result;
 }
 var StringIterator = /** @class */ (function () {
@@ -54,7 +54,9 @@ var StringIterator = /** @class */ (function () {
 }());
 export { StringIterator };
 var PathIterator = /** @class */ (function () {
-    function PathIterator() {
+    function PathIterator(_splitOnBackslash) {
+        if (_splitOnBackslash === void 0) { _splitOnBackslash = true; }
+        this._splitOnBackslash = _splitOnBackslash;
     }
     PathIterator.prototype.reset = function (key) {
         this._value = key.replace(/\\$|\/$/, '');
@@ -71,7 +73,7 @@ var PathIterator = /** @class */ (function () {
         var justSeps = true;
         for (; this._to < this._value.length; this._to++) {
             var ch = this._value.charCodeAt(this._to);
-            if (ch === 47 /* Slash */ || ch === 92 /* Backslash */) {
+            if (ch === 47 /* Slash */ || this._splitOnBackslash && ch === 92 /* Backslash */) {
                 if (justSeps) {
                     this._from++;
                 }
@@ -327,6 +329,19 @@ var LinkedMap = /** @class */ (function () {
             this._size++;
         }
     };
+    LinkedMap.prototype.delete = function (key) {
+        return !!this.remove(key);
+    };
+    LinkedMap.prototype.remove = function (key) {
+        var item = this._map.get(key);
+        if (!item) {
+            return undefined;
+        }
+        this._map.delete(key);
+        this.removeItem(item);
+        this._size--;
+        return item.value;
+    };
     LinkedMap.prototype.forEach = function (callbackfn, thisArg) {
         var current = this._head;
         while (current) {
@@ -340,15 +355,15 @@ var LinkedMap = /** @class */ (function () {
         }
     };
     /* VS Code / Monaco editor runs on es5 which has no Symbol.iterator
-    public keys(): IterableIterator<K> {
-        let current = this._head;
-        let iterator: IterableIterator<K> = {
+    keys(): IterableIterator<K> {
+        const current = this._head;
+        const iterator: IterableIterator<K> = {
             [Symbol.iterator]() {
                 return iterator;
             },
             next():IteratorResult<K> {
                 if (current) {
-                    let result = { value: current.key, done: false };
+                    const result = { value: current.key, done: false };
                     current = current.next;
                     return result;
                 } else {
@@ -359,15 +374,15 @@ var LinkedMap = /** @class */ (function () {
         return iterator;
     }
 
-    public values(): IterableIterator<V> {
-        let current = this._head;
-        let iterator: IterableIterator<V> = {
+    values(): IterableIterator<V> {
+        const current = this._head;
+        const iterator: IterableIterator<V> = {
             [Symbol.iterator]() {
                 return iterator;
             },
             next():IteratorResult<V> {
                 if (current) {
-                    let result = { value: current.value, done: false };
+                    const result = { value: current.value, done: false };
                     current = current.next;
                     return result;
                 } else {
@@ -396,7 +411,7 @@ var LinkedMap = /** @class */ (function () {
         this._head = current;
         this._size = currentSize;
         if (current) {
-            current.previous = void 0;
+            current.previous = undefined;
         }
     };
     LinkedMap.prototype.addItemFirst = function (item) {
@@ -427,6 +442,41 @@ var LinkedMap = /** @class */ (function () {
         }
         this._tail = item;
     };
+    LinkedMap.prototype.removeItem = function (item) {
+        if (item === this._head && item === this._tail) {
+            this._head = undefined;
+            this._tail = undefined;
+        }
+        else if (item === this._head) {
+            // This can only happend if size === 1 which is handle
+            // by the case above.
+            if (!item.next) {
+                throw new Error('Invalid list');
+            }
+            item.next.previous = undefined;
+            this._head = item.next;
+        }
+        else if (item === this._tail) {
+            // This can only happend if size === 1 which is handle
+            // by the case above.
+            if (!item.previous) {
+                throw new Error('Invalid list');
+            }
+            item.previous.next = undefined;
+            this._tail = item.previous;
+        }
+        else {
+            var next = item.next;
+            var previous = item.previous;
+            if (!next || !previous) {
+                throw new Error('Invalid list');
+            }
+            next.previous = previous;
+            previous.next = next;
+        }
+        item.next = undefined;
+        item.previous = undefined;
+    };
     LinkedMap.prototype.touch = function (item, touch) {
         if (!this._head || !this._tail) {
             throw new Error('Invalid list');
@@ -444,7 +494,7 @@ var LinkedMap = /** @class */ (function () {
             if (item === this._tail) {
                 // previous must be defined since item was not head but is tail
                 // So there are more than on item in the map
-                previous.next = void 0;
+                previous.next = undefined;
                 this._tail = previous;
             }
             else {
@@ -453,7 +503,7 @@ var LinkedMap = /** @class */ (function () {
                 previous.next = next;
             }
             // Insert the node at head
-            item.previous = void 0;
+            item.previous = undefined;
             item.next = this._head;
             this._head.previous = item;
             this._head = item;
@@ -468,7 +518,7 @@ var LinkedMap = /** @class */ (function () {
             if (item === this._head) {
                 // next must be defined since item was not tail but is head
                 // So there are more than on item in the map
-                next.previous = void 0;
+                next.previous = undefined;
                 this._head = next;
             }
             else {
@@ -476,7 +526,7 @@ var LinkedMap = /** @class */ (function () {
                 next.previous = previous;
                 previous.next = next;
             }
-            item.next = void 0;
+            item.next = undefined;
             item.previous = this._tail;
             this._tail.next = item;
             this._tail = item;
@@ -503,6 +553,9 @@ var LRUCache = /** @class */ (function (_super) {
     }
     LRUCache.prototype.get = function (key) {
         return _super.prototype.get.call(this, key, 2 /* AsNew */);
+    };
+    LRUCache.prototype.peek = function (key) {
+        return _super.prototype.get.call(this, key, 0 /* None */);
     };
     LRUCache.prototype.set = function (key, value) {
         _super.prototype.set.call(this, key, value, 2 /* AsNew */);

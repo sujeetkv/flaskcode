@@ -8,35 +8,22 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
     };
 })();
-import { KeyCodeUtils, ResolvedKeybinding, ResolvedKeybindingPart } from '../../../base/common/keyCodes.js';
-import { AriaLabelProvider, UILabelProvider } from '../../../base/common/keybindingLabels.js';
+import { KeyCodeUtils } from '../../../base/common/keyCodes.js';
+import { BaseResolvedKeybinding } from './baseResolvedKeybinding.js';
 /**
  * Do not instantiate. Use KeybindingService to get a ResolvedKeybinding seeded with information about the current kb layout.
  */
 var USLayoutResolvedKeybinding = /** @class */ (function (_super) {
     __extends(USLayoutResolvedKeybinding, _super);
-    function USLayoutResolvedKeybinding(actual, OS) {
-        var _this = _super.call(this) || this;
-        _this._os = OS;
-        if (!actual) {
-            throw new Error("Invalid USLayoutResolvedKeybinding");
-        }
-        else if (actual.type === 2 /* Chord */) {
-            _this._firstPart = actual.firstPart;
-            _this._chordPart = actual.chordPart;
-        }
-        else {
-            _this._firstPart = actual;
-            _this._chordPart = null;
-        }
-        return _this;
+    function USLayoutResolvedKeybinding(actual, os) {
+        return _super.call(this, os, actual.parts) || this;
     }
     USLayoutResolvedKeybinding.prototype._keyCodeToUILabel = function (keyCode) {
         if (this._os === 2 /* Macintosh */) {
@@ -53,50 +40,20 @@ var USLayoutResolvedKeybinding = /** @class */ (function (_super) {
         }
         return KeyCodeUtils.toString(keyCode);
     };
-    USLayoutResolvedKeybinding.prototype._getUILabelForKeybinding = function (keybinding) {
-        if (!keybinding) {
-            return null;
-        }
+    USLayoutResolvedKeybinding.prototype._getLabel = function (keybinding) {
         if (keybinding.isDuplicateModifierCase()) {
             return '';
         }
         return this._keyCodeToUILabel(keybinding.keyCode);
     };
-    USLayoutResolvedKeybinding.prototype.getLabel = function () {
-        var firstPart = this._getUILabelForKeybinding(this._firstPart);
-        var chordPart = this._getUILabelForKeybinding(this._chordPart);
-        return UILabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._os);
-    };
-    USLayoutResolvedKeybinding.prototype._getAriaLabelForKeybinding = function (keybinding) {
-        if (!keybinding) {
-            return null;
-        }
+    USLayoutResolvedKeybinding.prototype._getAriaLabel = function (keybinding) {
         if (keybinding.isDuplicateModifierCase()) {
             return '';
         }
         return KeyCodeUtils.toString(keybinding.keyCode);
     };
-    USLayoutResolvedKeybinding.prototype.getAriaLabel = function () {
-        var firstPart = this._getAriaLabelForKeybinding(this._firstPart);
-        var chordPart = this._getAriaLabelForKeybinding(this._chordPart);
-        return AriaLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._os);
-    };
-    USLayoutResolvedKeybinding.prototype.isChord = function () {
-        return (this._chordPart ? true : false);
-    };
-    USLayoutResolvedKeybinding.prototype.getParts = function () {
-        return [
-            this._toResolvedKeybindingPart(this._firstPart),
-            this._chordPart ? this._toResolvedKeybindingPart(this._chordPart) : null
-        ];
-    };
-    USLayoutResolvedKeybinding.prototype._toResolvedKeybindingPart = function (keybinding) {
-        return new ResolvedKeybindingPart(keybinding.ctrlKey, keybinding.shiftKey, keybinding.altKey, keybinding.metaKey, this._getUILabelForKeybinding(keybinding), this._getAriaLabelForKeybinding(keybinding));
-    };
-    USLayoutResolvedKeybinding.prototype.getDispatchParts = function () {
-        var firstPart = this._firstPart ? USLayoutResolvedKeybinding.getDispatchStr(this._firstPart) : null;
-        var chordPart = this._chordPart ? USLayoutResolvedKeybinding.getDispatchStr(this._chordPart) : null;
-        return [firstPart, chordPart];
+    USLayoutResolvedKeybinding.prototype._getDispatchPart = function (keybinding) {
+        return USLayoutResolvedKeybinding.getDispatchStr(keybinding);
     };
     USLayoutResolvedKeybinding.getDispatchStr = function (keybinding) {
         if (keybinding.isModifierKey()) {
@@ -119,5 +76,5 @@ var USLayoutResolvedKeybinding = /** @class */ (function (_super) {
         return result;
     };
     return USLayoutResolvedKeybinding;
-}(ResolvedKeybinding));
+}(BaseResolvedKeybinding));
 export { USLayoutResolvedKeybinding };

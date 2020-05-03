@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import { registerLanguage } from '../_.contribution.js';
-// Allow for running under nodejs/requirejs in tests
-var _monaco = typeof monaco === 'undefined' ? self.monaco : monaco;
 registerLanguage({
     id: 'clojure',
-    extensions: ['.clj', '.clojure'],
+    extensions: ['.clj', '.cljs', '.cljc', '.edn'],
     aliases: ['clojure', 'Clojure'],
-    loader: function () { return _monaco.Promise.wrap(import('./clojure.js')); },
+    loader: function () { return import('./clojure.js'); }
 });

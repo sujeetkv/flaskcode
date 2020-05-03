@@ -4,16 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import * as nodes from '../parser/cssNodes.js';
-import * as languageFacts from './languageFacts.js';
+import * as languageFacts from '../languageFacts/facts.js';
 import { difference } from '../utils/strings.js';
 import { Rules } from '../services/lintRules.js';
-import { Command, TextEdit } from './../../vscode-languageserver-types/main.js';
+import { Command, TextEdit, CodeAction, CodeActionKind, TextDocumentEdit, VersionedTextDocumentIdentifier } from '../cssLanguageTypes.js';
 import * as nls from './../../../fillers/vscode-nls.js';
 var localize = nls.loadMessageBundle();
 var CSSCodeActions = /** @class */ (function () {
     function CSSCodeActions() {
     }
     CSSCodeActions.prototype.doCodeActions = function (document, range, context, stylesheet) {
+        return this.doCodeActions2(document, range, context, stylesheet).map(function (ca) {
+            var textDocumentEdit = ca.edit && ca.edit.documentChanges && ca.edit.documentChanges[0];
+            return Command.create(ca.title, '_css.applyCodeAction', document.uri, document.version, textDocumentEdit && textDocumentEdit.edits);
+        });
+    };
+    CSSCodeActions.prototype.doCodeActions2 = function (document, range, context, stylesheet) {
         var result = [];
         if (context.diagnostics) {
             for (var _i = 0, _a = context.diagnostics; _i < _a.length; _i++) {
@@ -26,12 +32,12 @@ var CSSCodeActions = /** @class */ (function () {
     CSSCodeActions.prototype.getFixesForUnknownProperty = function (document, property, marker, result) {
         var propertyName = property.getName();
         var candidates = [];
-        for (var p in languageFacts.getProperties()) {
-            var score = difference(propertyName, p);
+        languageFacts.cssDataManager.getProperties().forEach(function (p) {
+            var score = difference(propertyName, p.name);
             if (score >= propertyName.length / 2 /*score_lim*/) {
-                candidates.push({ property: p, score: score });
+                candidates.push({ property: p.name, score: score });
             }
-        }
+        });
         // Sort in descending order.
         candidates.sort(function (a, b) {
             return b.score - a.score;
@@ -42,7 +48,11 @@ var CSSCodeActions = /** @class */ (function () {
             var propertyName_1 = candidate.property;
             var title = localize('css.codeaction.rename', "Rename to '{0}'", propertyName_1);
             var edit = TextEdit.replace(marker.range, propertyName_1);
-            result.push(Command.create(title, '_css.applyCodeAction', document.uri, document.version, [edit]));
+            var documentIdentifier = VersionedTextDocumentIdentifier.create(document.uri, document.version);
+            var workspaceEdit = { documentChanges: [TextDocumentEdit.create(documentIdentifier, [edit])] };
+            var codeAction = CodeAction.create(title, workspaceEdit, CodeActionKind.QuickFix);
+            codeAction.diagnostics = [marker];
+            result.push(codeAction);
             if (--maxActions <= 0) {
                 return;
             }
@@ -69,4 +79,3 @@ var CSSCodeActions = /** @class */ (function () {
     return CSSCodeActions;
 }());
 export { CSSCodeActions };
-//# sourceMappingURL=cssCodeActions.js.map

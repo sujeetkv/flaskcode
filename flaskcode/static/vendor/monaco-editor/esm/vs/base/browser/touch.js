@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -37,9 +37,12 @@ var Gesture = /** @class */ (function (_super) {
     __extends(Gesture, _super);
     function Gesture() {
         var _this = _super.call(this) || this;
+        _this.dispatched = false;
         _this.activeTouches = {};
         _this.handle = null;
         _this.targets = [];
+        _this.ignoreTargets = [];
+        _this._lastSetTapCountTime = 0;
         _this._register(DomUtils.addDisposableListener(document, 'touchstart', function (e) { return _this.onTouchStart(e); }));
         _this._register(DomUtils.addDisposableListener(document, 'touchend', function (e) { return _this.onTouchEnd(e); }));
         _this._register(DomUtils.addDisposableListener(document, 'touchmove', function (e) { return _this.onTouchMove(e); }));
@@ -47,12 +50,31 @@ var Gesture = /** @class */ (function (_super) {
     }
     Gesture.addTarget = function (element) {
         if (!Gesture.isTouchDevice()) {
-            return;
+            return Disposable.None;
         }
         if (!Gesture.INSTANCE) {
             Gesture.INSTANCE = new Gesture();
         }
         Gesture.INSTANCE.targets.push(element);
+        return {
+            dispose: function () {
+                Gesture.INSTANCE.targets = Gesture.INSTANCE.targets.filter(function (t) { return t !== element; });
+            }
+        };
+    };
+    Gesture.ignoreTarget = function (element) {
+        if (!Gesture.isTouchDevice()) {
+            return Disposable.None;
+        }
+        if (!Gesture.INSTANCE) {
+            Gesture.INSTANCE = new Gesture();
+        }
+        Gesture.INSTANCE.ignoreTargets.push(element);
+        return {
+            dispose: function () {
+                Gesture.INSTANCE.ignoreTargets = Gesture.INSTANCE.ignoreTargets.filter(function (t) { return t !== element; });
+            }
+        };
     };
     Gesture.isTouchDevice = function () {
         return 'ontouchstart' in window || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0;
@@ -150,14 +172,36 @@ var Gesture = /** @class */ (function (_super) {
             this.dispatched = false;
         }
     };
-    Gesture.prototype.newGestureEvent = function (type, intialTarget) {
+    Gesture.prototype.newGestureEvent = function (type, initialTarget) {
         var event = document.createEvent('CustomEvent');
         event.initEvent(type, false, true);
-        event.initialTarget = intialTarget;
+        event.initialTarget = initialTarget;
+        event.tapCount = 0;
         return event;
     };
     Gesture.prototype.dispatchEvent = function (event) {
         var _this = this;
+        if (event.type === EventType.Tap) {
+            var currentTime = (new Date()).getTime();
+            var setTapCount = 0;
+            if (currentTime - this._lastSetTapCountTime > Gesture.CLEAR_TAP_COUNT_TIME) {
+                setTapCount = 1;
+            }
+            else {
+                setTapCount = 2;
+            }
+            this._lastSetTapCountTime = currentTime;
+            event.tapCount = setTapCount;
+        }
+        else if (event.type === EventType.Change || event.type === EventType.Contextmenu) {
+            // tap is canceled by scrolling or context menu
+            this._lastSetTapCountTime = 0;
+        }
+        for (var i = 0; i < this.ignoreTargets.length; i++) {
+            if (event.initialTarget instanceof Node && this.ignoreTargets[i].contains(event.initialTarget)) {
+                return;
+            }
+        }
         this.targets.forEach(function (target) {
             if (event.initialTarget instanceof Node && target.contains(event.initialTarget)) {
                 target.dispatchEvent(event);
@@ -224,6 +268,7 @@ var Gesture = /** @class */ (function (_super) {
     };
     Gesture.SCROLL_FRICTION = -0.005;
     Gesture.HOLD_DELAY = 700;
+    Gesture.CLEAR_TAP_COUNT_TIME = 400; // ms
     __decorate([
         memoize
     ], Gesture, "isTouchDevice", null);

@@ -184,6 +184,7 @@ export var language = {
             { include: 'handlebarsRoot' }
         ],
         handlebarsRoot: [
+            [/"[^"]*"/, 'string.handlebars'],
             [/[#/][^\s}]+/, 'keyword.helper.handlebars'],
             [/else\b/, 'keyword.helper.handlebars'],
             [/[\s]+/],

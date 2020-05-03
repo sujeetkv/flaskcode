@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 import { Emitter } from '../../../base/common/event.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
+import { withUndefinedAsNull } from '../../../base/common/types.js';
+import { keys } from '../../../base/common/map.js';
 var TokenizationRegistryImpl = /** @class */ (function () {
     function TokenizationRegistryImpl() {
+        this._map = new Map();
+        this._promises = new Map();
         this._onDidChange = new Emitter();
         this.onDidChange = this._onDidChange.event;
-        this._map = Object.create(null);
-        this._promises = Object.create(null);
         this._colorMap = null;
     }
     TokenizationRegistryImpl.prototype.fire = function (languages) {
@@ -20,14 +22,32 @@ var TokenizationRegistryImpl = /** @class */ (function () {
     };
     TokenizationRegistryImpl.prototype.register = function (language, support) {
         var _this = this;
-        this._map[language] = support;
+        this._map.set(language, support);
         this.fire([language]);
         return toDisposable(function () {
-            if (_this._map[language] !== support) {
+            if (_this._map.get(language) !== support) {
                 return;
             }
-            delete _this._map[language];
+            _this._map.delete(language);
             _this.fire([language]);
+        });
+    };
+    TokenizationRegistryImpl.prototype.registerPromise = function (language, supportPromise) {
+        var _this = this;
+        var registration = null;
+        var isDisposed = false;
+        this._promises.set(language, supportPromise.then(function (support) {
+            _this._promises.delete(language);
+            if (isDisposed || !support) {
+                return;
+            }
+            registration = _this.register(language, support);
+        }));
+        return toDisposable(function () {
+            isDisposed = true;
+            if (registration) {
+                registration.dispose();
+            }
         });
     };
     TokenizationRegistryImpl.prototype.getPromise = function (language) {
@@ -36,19 +56,19 @@ var TokenizationRegistryImpl = /** @class */ (function () {
         if (support) {
             return Promise.resolve(support);
         }
-        var promise = this._promises[language];
+        var promise = this._promises.get(language);
         if (promise) {
             return promise.then(function (_) { return _this.get(language); });
         }
         return null;
     };
     TokenizationRegistryImpl.prototype.get = function (language) {
-        return (this._map[language] || null);
+        return withUndefinedAsNull(this._map.get(language));
     };
     TokenizationRegistryImpl.prototype.setColorMap = function (colorMap) {
         this._colorMap = colorMap;
         this._onDidChange.fire({
-            changedLanguages: Object.keys(this._map),
+            changedLanguages: keys(this._map),
             changedColorMap: true
         });
     };

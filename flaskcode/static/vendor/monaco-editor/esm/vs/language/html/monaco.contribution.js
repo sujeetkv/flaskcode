@@ -7,10 +7,11 @@ import '../../editor/editor.api.js';
 var Emitter = monaco.Emitter;
 // --- HTML configuration and defaults ---------
 var LanguageServiceDefaultsImpl = /** @class */ (function () {
-    function LanguageServiceDefaultsImpl(languageId, options) {
+    function LanguageServiceDefaultsImpl(languageId, options, modeConfiguration) {
         this._onDidChange = new Emitter();
         this._languageId = languageId;
         this.setOptions(options);
+        this.setModeConfiguration(modeConfiguration);
     }
     Object.defineProperty(LanguageServiceDefaultsImpl.prototype, "onDidChange", {
         get: function () {
@@ -33,10 +34,22 @@ var LanguageServiceDefaultsImpl = /** @class */ (function () {
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(LanguageServiceDefaultsImpl.prototype, "modeConfiguration", {
+        get: function () {
+            return this._modeConfiguration;
+        },
+        enumerable: true,
+        configurable: true
+    });
     LanguageServiceDefaultsImpl.prototype.setOptions = function (options) {
         this._options = options || Object.create(null);
         this._onDidChange.fire(this);
     };
+    LanguageServiceDefaultsImpl.prototype.setModeConfiguration = function (modeConfiguration) {
+        this._modeConfiguration = modeConfiguration || Object.create(null);
+        this._onDidChange.fire(this);
+    };
+    ;
     return LanguageServiceDefaultsImpl;
 }());
 export { LanguageServiceDefaultsImpl };
@@ -66,12 +79,28 @@ var razorOptionsDefault = {
     format: formatDefaults,
     suggest: { html5: true, razor: true }
 };
+function getConfigurationDefault(languageId) {
+    return {
+        completionItems: true,
+        hovers: true,
+        documentSymbols: true,
+        links: true,
+        documentHighlights: true,
+        rename: true,
+        colors: true,
+        foldingRanges: true,
+        selectionRanges: true,
+        diagnostics: languageId === htmlLanguageId,
+        documentFormattingEdits: languageId === htmlLanguageId,
+        documentRangeFormattingEdits: languageId === htmlLanguageId // turned off for Razor and Handlebar
+    };
+}
 var htmlLanguageId = 'html';
 var handlebarsLanguageId = 'handlebars';
 var razorLanguageId = 'razor';
-var htmlDefaults = new LanguageServiceDefaultsImpl(htmlLanguageId, htmlOptionsDefault);
-var handlebarDefaults = new LanguageServiceDefaultsImpl(handlebarsLanguageId, handlebarOptionsDefault);
-var razorDefaults = new LanguageServiceDefaultsImpl(razorLanguageId, razorOptionsDefault);
+var htmlDefaults = new LanguageServiceDefaultsImpl(htmlLanguageId, htmlOptionsDefault, getConfigurationDefault(htmlLanguageId));
+var handlebarDefaults = new LanguageServiceDefaultsImpl(handlebarsLanguageId, handlebarOptionsDefault, getConfigurationDefault(handlebarsLanguageId));
+var razorDefaults = new LanguageServiceDefaultsImpl(razorLanguageId, razorOptionsDefault, getConfigurationDefault(razorLanguageId));
 // Export API
 function createAPI() {
     return {
@@ -83,7 +112,7 @@ function createAPI() {
 monaco.languages.html = createAPI();
 // --- Registration to monaco editor ---
 function getMode() {
-    return monaco.Promise.wrap(import('./htmlMode.js'));
+    return import('./htmlMode.js');
 }
 monaco.languages.onLanguage(htmlLanguageId, function () {
     getMode().then(function (mode) { return mode.setupMode(htmlDefaults); });

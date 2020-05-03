@@ -4,19 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import { createScanner } from './scanner.js';
+var ParseOptions;
+(function (ParseOptions) {
+    ParseOptions.DEFAULT = {
+        allowTrailingComma: false
+    };
+})(ParseOptions || (ParseOptions = {}));
 /**
  * For a given offset, evaluate the location in the JSON document. Each segment in the location path is either a property name or an array index.
  */
 export function getLocation(text, position) {
     var segments = []; // strings or numbers
     var earlyReturnException = new Object();
-    var previousNode = void 0;
+    var previousNode = undefined;
     var previousNodeInst = {
         value: {},
         offset: 0,
         length: 0,
         type: 'object',
-        parent: void 0
+        parent: undefined
     };
     var isAtPropertyKey = false;
     function setPreviousNode(value, offset, length, type) {
@@ -24,7 +30,7 @@ export function getLocation(text, position) {
         previousNodeInst.offset = offset;
         previousNodeInst.length = length;
         previousNodeInst.type = type;
-        previousNodeInst.colonOffset = void 0;
+        previousNodeInst.colonOffset = undefined;
         previousNode = previousNodeInst;
     }
     try {
@@ -33,7 +39,7 @@ export function getLocation(text, position) {
                 if (position <= offset) {
                     throw earlyReturnException;
                 }
-                previousNode = void 0;
+                previousNode = undefined;
                 isAtPropertyKey = position > offset;
                 segments.push(''); // push a placeholder (will be replaced)
             },
@@ -51,28 +57,28 @@ export function getLocation(text, position) {
                 if (position <= offset) {
                     throw earlyReturnException;
                 }
-                previousNode = void 0;
+                previousNode = undefined;
                 segments.pop();
             },
             onArrayBegin: function (offset, length) {
                 if (position <= offset) {
                     throw earlyReturnException;
                 }
-                previousNode = void 0;
+                previousNode = undefined;
                 segments.push(0);
             },
             onArrayEnd: function (offset, length) {
                 if (position <= offset) {
                     throw earlyReturnException;
                 }
-                previousNode = void 0;
+                previousNode = undefined;
                 segments.pop();
             },
             onLiteralValue: function (value, offset, length) {
                 if (position < offset) {
                     throw earlyReturnException;
                 }
-                setPreviousNode(value, offset, length, getLiteralNodeType(value));
+                setPreviousNode(value, offset, length, getNodeType(value));
                 if (position <= offset + length) {
                     throw earlyReturnException;
                 }
@@ -84,7 +90,7 @@ export function getLocation(text, position) {
                 if (sep === ':' && previousNode && previousNode.type === 'property') {
                     previousNode.colonOffset = offset;
                     isAtPropertyKey = false;
-                    previousNode = void 0;
+                    previousNode = undefined;
                 }
                 else if (sep === ',') {
                     var last = segments[segments.length - 1];
@@ -95,7 +101,7 @@ export function getLocation(text, position) {
                         isAtPropertyKey = true;
                         segments[segments.length - 1] = '';
                     }
-                    previousNode = void 0;
+                    previousNode = undefined;
                 }
             }
         });
@@ -129,6 +135,7 @@ export function getLocation(text, position) {
  */
 export function parse(text, errors, options) {
     if (errors === void 0) { errors = []; }
+    if (options === void 0) { options = ParseOptions.DEFAULT; }
     var currentProperty = null;
     var currentParent = [];
     var previousParents = [];
@@ -136,7 +143,7 @@ export function parse(text, errors, options) {
         if (Array.isArray(currentParent)) {
             currentParent.push(value);
         }
-        else if (currentProperty) {
+        else if (currentProperty !== null) {
             currentParent[currentProperty] = value;
         }
     }
@@ -177,7 +184,8 @@ export function parse(text, errors, options) {
  */
 export function parseTree(text, errors, options) {
     if (errors === void 0) { errors = []; }
-    var currentParent = { type: 'array', offset: -1, length: -1, children: [], parent: void 0 }; // artificial root
+    if (options === void 0) { options = ParseOptions.DEFAULT; }
+    var currentParent = { type: 'array', offset: -1, length: -1, children: [], parent: undefined }; // artificial root
     function ensurePropertyComplete(endOffset) {
         if (currentParent.type === 'property') {
             currentParent.length = endOffset - currentParent.offset;
@@ -210,7 +218,7 @@ export function parseTree(text, errors, options) {
             ensurePropertyComplete(offset + length);
         },
         onLiteralValue: function (value, offset, length) {
-            onValue({ type: getLiteralNodeType(value), offset: offset, length: length, parent: currentParent, value: value });
+            onValue({ type: getNodeType(value), offset: offset, length: length, parent: currentParent, value: value });
             ensurePropertyComplete(offset + length);
         },
         onSeparator: function (sep, offset, length) {
@@ -239,14 +247,14 @@ export function parseTree(text, errors, options) {
  */
 export function findNodeAtLocation(root, path) {
     if (!root) {
-        return void 0;
+        return undefined;
     }
     var node = root;
     for (var _i = 0, path_1 = path; _i < path_1.length; _i++) {
         var segment = path_1[_i];
         if (typeof segment === 'string') {
             if (node.type !== 'object' || !Array.isArray(node.children)) {
-                return void 0;
+                return undefined;
             }
             var found = false;
             for (var _a = 0, _b = node.children; _a < _b.length; _a++) {
@@ -258,13 +266,13 @@ export function findNodeAtLocation(root, path) {
                 }
             }
             if (!found) {
-                return void 0;
+                return undefined;
             }
         }
         else {
             var index = segment;
             if (node.type !== 'array' || index < 0 || !Array.isArray(node.children) || index >= node.children.length) {
-                return void 0;
+                return undefined;
             }
             node = node.children[index];
         }
@@ -314,7 +322,7 @@ export function getNodeValue(node) {
         case 'boolean':
             return node.value;
         default:
-            return void 0;
+            return undefined;
     }
 }
 export function contains(node, offset, includeRightBound) {
@@ -338,18 +346,19 @@ export function findNodeAtOffset(node, offset, includeRightBound) {
         }
         return node;
     }
-    return void 0;
+    return undefined;
 }
 /**
  * Parses the given text and invokes the visitor functions for each object, array and literal reached.
  */
 export function visit(text, visitor, options) {
+    if (options === void 0) { options = ParseOptions.DEFAULT; }
     var _scanner = createScanner(text, false);
     function toNoArgVisit(visitFunction) {
-        return visitFunction ? function () { return visitFunction(_scanner.getTokenOffset(), _scanner.getTokenLength()); } : function () { return true; };
+        return visitFunction ? function () { return visitFunction(_scanner.getTokenOffset(), _scanner.getTokenLength(), _scanner.getTokenStartLine(), _scanner.getTokenStartCharacter()); } : function () { return true; };
     }
     function toOneArgVisit(visitFunction) {
-        return visitFunction ? function (arg) { return visitFunction(arg, _scanner.getTokenOffset(), _scanner.getTokenLength()); } : function () { return true; };
+        return visitFunction ? function (arg) { return visitFunction(arg, _scanner.getTokenOffset(), _scanner.getTokenLength(), _scanner.getTokenStartLine(), _scanner.getTokenStartCharacter()); } : function () { return true; };
     }
     var onObjectBegin = toNoArgVisit(visitor.onObjectBegin), onObjectProperty = toOneArgVisit(visitor.onObjectProperty), onObjectEnd = toNoArgVisit(visitor.onObjectEnd), onArrayBegin = toNoArgVisit(visitor.onArrayBegin), onArrayEnd = toNoArgVisit(visitor.onArrayEnd), onLiteralValue = toOneArgVisit(visitor.onLiteralValue), onSeparator = toOneArgVisit(visitor.onSeparator), onComment = toNoArgVisit(visitor.onComment), onError = toOneArgVisit(visitor.onError);
     var disallowComments = options && options.disallowComments;
@@ -556,7 +565,11 @@ export function visit(text, visitor, options) {
     }
     scanNext();
     if (_scanner.getToken() === 17 /* EOF */) {
-        return true;
+        if (options.allowEmptyContent) {
+            return true;
+        }
+        handleError(4 /* ValueExpected */, [], []);
+        return false;
     }
     if (!parseValue()) {
         handleError(4 /* ValueExpected */, [], []);
@@ -584,7 +597,7 @@ export function stripComments(text, replaceCh) {
                 if (offset !== pos) {
                     parts.push(text.substring(offset, pos));
                 }
-                if (replaceCh !== void 0) {
+                if (replaceCh !== undefined) {
                     parts.push(_scanner.getTokenValue().replace(/[^\r\n]/g, replaceCh));
                 }
                 offset = _scanner.getPosition();
@@ -593,12 +606,20 @@ export function stripComments(text, replaceCh) {
     } while (kind !== 17 /* EOF */);
     return parts.join('');
 }
-function getLiteralNodeType(value) {
+export function getNodeType(value) {
     switch (typeof value) {
         case 'boolean': return 'boolean';
         case 'number': return 'number';
         case 'string': return 'string';
+        case 'object': {
+            if (!value) {
+                return 'null';
+            }
+            else if (Array.isArray(value)) {
+                return 'array';
+            }
+            return 'object';
+        }
         default: return 'null';
     }
 }
-//# sourceMappingURL=parser.js.map

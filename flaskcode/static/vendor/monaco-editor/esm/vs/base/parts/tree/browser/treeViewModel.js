@@ -14,7 +14,7 @@ var HeightMap = /** @class */ (function () {
     };
     HeightMap.prototype.onInsertItems = function (iterator, afterItemId) {
         if (afterItemId === void 0) { afterItemId = null; }
-        var item;
+        var item = null;
         var viewItem;
         var i, j;
         var totalSize;
@@ -60,10 +60,10 @@ var HeightMap = /** @class */ (function () {
     };
     // Contiguous items
     HeightMap.prototype.onRemoveItems = function (iterator) {
-        var itemId;
+        var itemId = null;
         var viewItem;
         var startIndex = null;
-        var i;
+        var i = 0;
         var sizeDiff = 0;
         while (itemId = iterator.next()) {
             i = this.indexes[itemId];
@@ -79,7 +79,7 @@ var HeightMap = /** @class */ (function () {
                 startIndex = i;
             }
         }
-        if (sizeDiff === 0) {
+        if (sizeDiff === 0 || startIndex === null) {
             return;
         }
         this.heightMap.splice(startIndex, i - startIndex + 1);
@@ -100,7 +100,7 @@ var HeightMap = /** @class */ (function () {
     };
     // Ordered, but not necessarily contiguous items
     HeightMap.prototype.onRefreshItems = function (iterator) {
-        var item;
+        var item = null;
         var viewItem;
         var newHeight;
         var i, j = null;
@@ -169,8 +169,8 @@ var HeightMap = /** @class */ (function () {
         throw new Error('not implemented');
     };
     HeightMap.prototype.dispose = function () {
-        this.heightMap = null;
-        this.indexes = null;
+        this.heightMap = [];
+        this.indexes = {};
     };
     return HeightMap;
 }());

@@ -2,9 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = function (d, b) {
+        extendStatics = Object.setPrototypeOf ||
+            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        return extendStatics(d, b);
+    };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
 import * as assert from '../../../base/common/assert.js';
 import { Emitter } from '../../../base/common/event.js';
-import { dispose } from '../../../base/common/lifecycle.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import * as objects from '../../../base/common/objects.js';
 import { Range } from '../../common/core/range.js';
 var defaultOptions = {
@@ -15,37 +28,38 @@ var defaultOptions = {
 /**
  * Create a new diff navigator for the provided diff editor.
  */
-var DiffNavigator = /** @class */ (function () {
+var DiffNavigator = /** @class */ (function (_super) {
+    __extends(DiffNavigator, _super);
     function DiffNavigator(editor, options) {
         if (options === void 0) { options = {}; }
-        var _this = this;
-        this._onDidUpdate = new Emitter();
-        this._editor = editor;
-        this._options = objects.mixin(options, defaultOptions, false);
-        this.disposed = false;
-        this._disposables = [];
-        this.nextIdx = -1;
-        this.ranges = [];
-        this.ignoreSelectionChange = false;
-        this.revealFirst = Boolean(this._options.alwaysRevealFirst);
+        var _this = _super.call(this) || this;
+        _this._onDidUpdate = _this._register(new Emitter());
+        _this._editor = editor;
+        _this._options = objects.mixin(options, defaultOptions, false);
+        _this.disposed = false;
+        _this.nextIdx = -1;
+        _this.ranges = [];
+        _this.ignoreSelectionChange = false;
+        _this.revealFirst = Boolean(_this._options.alwaysRevealFirst);
         // hook up to diff editor for diff, disposal, and caret move
-        this._disposables.push(this._editor.onDidDispose(function () { return _this.dispose(); }));
-        this._disposables.push(this._editor.onDidUpdateDiff(function () { return _this._onDiffUpdated(); }));
-        if (this._options.followsCaret) {
-            this._disposables.push(this._editor.getModifiedEditor().onDidChangeCursorPosition(function (e) {
+        _this._register(_this._editor.onDidDispose(function () { return _this.dispose(); }));
+        _this._register(_this._editor.onDidUpdateDiff(function () { return _this._onDiffUpdated(); }));
+        if (_this._options.followsCaret) {
+            _this._register(_this._editor.getModifiedEditor().onDidChangeCursorPosition(function (e) {
                 if (_this.ignoreSelectionChange) {
                     return;
                 }
                 _this.nextIdx = -1;
             }));
         }
-        if (this._options.alwaysRevealFirst) {
-            this._disposables.push(this._editor.getModifiedEditor().onDidChangeModel(function (e) {
+        if (_this._options.alwaysRevealFirst) {
+            _this._register(_this._editor.getModifiedEditor().onDidChangeModel(function (e) {
                 _this.revealFirst = true;
             }));
         }
         // init things
-        this._init();
+        _this._init();
+        return _this;
     }
     DiffNavigator.prototype._init = function () {
         var changes = this._editor.getLineChanges();
@@ -167,12 +181,10 @@ var DiffNavigator = /** @class */ (function () {
         this._move(false, scrollType);
     };
     DiffNavigator.prototype.dispose = function () {
-        dispose(this._disposables);
-        this._disposables.length = 0;
-        this._onDidUpdate.dispose();
+        _super.prototype.dispose.call(this);
         this.ranges = [];
         this.disposed = true;
     };
     return DiffNavigator;
-}());
+}(Disposable));
 export { DiffNavigator };

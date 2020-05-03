@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -25,7 +25,6 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 import './inspectTokens.css';
-import * as nls from '../../../../nls.js';
 import { Color } from '../../../../base/common/color.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { escape } from '../../../../base/common/strings.js';
@@ -34,8 +33,9 @@ import { TokenMetadata, TokenizationRegistry } from '../../../common/modes.js';
 import { NULL_STATE, nullTokenize, nullTokenize2 } from '../../../common/modes/nullMode.js';
 import { IModeService } from '../../../common/services/modeService.js';
 import { IStandaloneThemeService } from '../../common/standaloneThemeService.js';
-import { editorHoverBackground, editorHoverBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { HIGH_CONTRAST, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { InspectTokensNLS } from '../../../common/standaloneStrings.js';
 var InspectTokensController = /** @class */ (function (_super) {
     __extends(InspectTokensController, _super);
     function InspectTokensController(editor, standaloneColorService, modeService) {
@@ -50,9 +50,6 @@ var InspectTokensController = /** @class */ (function (_super) {
     }
     InspectTokensController.get = function (editor) {
         return editor.getContribution(InspectTokensController.ID);
-    };
-    InspectTokensController.prototype.getId = function () {
-        return InspectTokensController.ID;
     };
     InspectTokensController.prototype.dispose = function () {
         this.stop();
@@ -85,9 +82,9 @@ var InspectTokens = /** @class */ (function (_super) {
     function InspectTokens() {
         return _super.call(this, {
             id: 'editor.action.inspectTokens',
-            label: nls.localize('inspectTokens', "Developer: Inspect Tokens"),
+            label: InspectTokensNLS.inspectTokensAction,
             alias: 'Developer: Inspect Tokens',
-            precondition: null
+            precondition: undefined
         }) || this;
     }
     InspectTokens.prototype.run = function (accessor, editor) {
@@ -272,7 +269,7 @@ var InspectTokensWidget = /** @class */ (function (_super) {
     InspectTokensWidget._ID = 'editor.contrib.inspectTokensWidget';
     return InspectTokensWidget;
 }(Disposable));
-registerEditorContribution(InspectTokensController);
+registerEditorContribution(InspectTokensController.ID, InspectTokensController);
 registerEditorAction(InspectTokens);
 registerThemingParticipant(function (theme, collector) {
     var border = theme.getColor(editorHoverBorder);
@@ -284,5 +281,9 @@ registerThemingParticipant(function (theme, collector) {
     var background = theme.getColor(editorHoverBackground);
     if (background) {
         collector.addRule(".monaco-editor .tokens-inspect-widget { background-color: " + background + "; }");
+    }
+    var foreground = theme.getColor(editorHoverForeground);
+    if (foreground) {
+        collector.addRule(".monaco-editor .tokens-inspect-widget { color: " + foreground + "; }");
     }
 });

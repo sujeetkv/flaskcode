@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-import { TextDocument, Position, CompletionItem, CompletionList, Hover, Range, SymbolInformation, Diagnostic, TextEdit, FormattingOptions, MarkedString } from './../vscode-languageserver-types/main.js';
 import { JSONCompletion } from './services/jsonCompletion.js';
 import { JSONHover } from './services/jsonHover.js';
 import { JSONValidation } from './services/jsonValidation.js';
@@ -12,14 +10,15 @@ import { parse as parseJSON, newJSONDocument } from './parser/jsonParser.js';
 import { schemaContributions } from './services/configuration.js';
 import { JSONSchemaService } from './services/jsonSchemaService.js';
 import { getFoldingRanges } from './services/jsonFolding.js';
+import { getSelectionRanges } from './services/jsonSelectionRanges.js';
 import { format as formatJSON } from './../jsonc-parser/main.js';
+import { Range, TextEdit } from './jsonLanguageTypes.js';
 export * from './jsonLanguageTypes.js';
-export { TextDocument, Position, CompletionItem, CompletionList, Hover, Range, SymbolInformation, Diagnostic, TextEdit, FormattingOptions, MarkedString };
 export function getLanguageService(params) {
     var promise = params.promiseConstructor || Promise;
     var jsonSchemaService = new JSONSchemaService(params.schemaRequestService, params.workspaceContext, promise);
     jsonSchemaService.setSchemaContributions(schemaContributions);
-    var jsonCompletion = new JSONCompletion(jsonSchemaService, params.contributions, promise);
+    var jsonCompletion = new JSONCompletion(jsonSchemaService, params.contributions, promise, params.clientCapabilities);
     var jsonHover = new JSONHover(jsonSchemaService, params.contributions, promise);
     var jsonDocumentSymbols = new JSONDocumentSymbols(jsonSchemaService);
     var jsonValidation = new JSONValidation(jsonSchemaService, promise);
@@ -46,6 +45,7 @@ export function getLanguageService(params) {
         getColorPresentations: jsonDocumentSymbols.getColorPresentations.bind(jsonDocumentSymbols),
         doHover: jsonHover.doHover.bind(jsonHover),
         getFoldingRanges: getFoldingRanges,
+        getSelectionRanges: getSelectionRanges,
         format: function (d, r, o) {
             var range = void 0;
             if (r) {
@@ -60,4 +60,3 @@ export function getLanguageService(params) {
         }
     };
 }
-//# sourceMappingURL=jsonLanguageService.js.map

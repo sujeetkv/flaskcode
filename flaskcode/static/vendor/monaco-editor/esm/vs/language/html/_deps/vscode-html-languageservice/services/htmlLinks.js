@@ -2,20 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 import { createScanner } from '../parser/htmlScanner.js';
-import { Range } from './../../vscode-languageserver-types/main.js';
+import { Range } from './../_deps/vscode-languageserver-types/main.js';
 import * as strings from '../utils/strings.js';
-import Uri from './../../vscode-uri/index.js';
+import { URI as Uri } from './../../vscode-uri/index.js';
 import { TokenType } from '../htmlLanguageTypes.js';
-function normalizeRef(url, languageId) {
+function normalizeRef(url) {
     var first = url[0];
     var last = url[url.length - 1];
     if (first === last && (first === '\'' || first === '\"')) {
         url = url.substr(1, url.length - 2);
-    }
-    if (languageId === 'razor' && url[0] === '~') {
-        url = url.substr(1);
     }
     return url;
 }
@@ -26,24 +22,19 @@ function validateRef(url, languageId) {
     if (languageId === 'handlebars' && /{{.*}}/.test(url)) {
         return false;
     }
-    if (languageId === 'razor' && /@/.test(url)) {
-        return false;
-    }
-    try {
-        return !!Uri.parse(url);
-    }
-    catch (e) {
-        return false;
-    }
+    return /\b(w[\w\d+.-]*:\/\/)?[^\s()<>]+(?:\([\w\d]+\)|([^[:punct:]\s]|\/?))/.test(url);
 }
 function getWorkspaceUrl(documentUri, tokenContent, documentContext, base) {
-    if (/^\s*javascript\:/i.test(tokenContent) || /^\s*\#/i.test(tokenContent) || /[\n\r]/.test(tokenContent)) {
-        return null;
+    if (/^\s*javascript\:/i.test(tokenContent) || /[\n\r]/.test(tokenContent)) {
+        return undefined;
     }
     tokenContent = tokenContent.replace(/^\s*/g, '');
     if (/^https?:\/\//i.test(tokenContent) || /^file:\/\//i.test(tokenContent)) {
         // Absolute link that needs no treatment
         return tokenContent;
+    }
+    if (/^\#/i.test(tokenContent)) {
+        return documentUri + tokenContent;
     }
     if (/^\/\//i.test(tokenContent)) {
         // Absolute link (that does not name the protocol)
@@ -56,9 +47,9 @@ function getWorkspaceUrl(documentUri, tokenContent, documentContext, base) {
     return tokenContent;
 }
 function createLink(document, documentContext, attributeValue, startOffset, endOffset, base) {
-    var tokenContent = normalizeRef(attributeValue, document.languageId);
+    var tokenContent = normalizeRef(attributeValue);
     if (!validateRef(tokenContent, document.languageId)) {
-        return null;
+        return undefined;
     }
     if (tokenContent.length < attributeValue.length) {
         startOffset++;
@@ -66,7 +57,7 @@ function createLink(document, documentContext, attributeValue, startOffset, endO
     }
     var workspaceUrl = getWorkspaceUrl(document.uri, tokenContent, documentContext, base);
     if (!workspaceUrl || !isValidURI(workspaceUrl)) {
-        return null;
+        return undefined;
     }
     return {
         range: Range.create(document.positionAt(startOffset), document.positionAt(endOffset)),
@@ -84,12 +75,12 @@ function isValidURI(uri) {
 }
 export function findDocumentLinks(document, documentContext) {
     var newLinks = [];
-    var rootAbsoluteUrl = null;
     var scanner = createScanner(document.getText(), 0);
     var token = scanner.scan();
-    var afterHrefOrSrc = false;
+    var lastAttributeName = undefined;
     var afterBase = false;
     var base = void 0;
+    var idLocations = {};
     while (token !== TokenType.EOS) {
         switch (token) {
             case TokenType.StartTag:
@@ -99,11 +90,10 @@ export function findDocumentLinks(document, documentContext) {
                 }
                 break;
             case TokenType.AttributeName:
-                var attributeName = scanner.getTokenText().toLowerCase();
-                afterHrefOrSrc = attributeName === 'src' || attributeName === 'href';
+                lastAttributeName = scanner.getTokenText().toLowerCase();
                 break;
             case TokenType.AttributeValue:
-                if (afterHrefOrSrc) {
+                if (lastAttributeName === 'src' || lastAttributeName === 'href') {
                     var attributeValue = scanner.getTokenText();
                     if (!afterBase) { // don't highlight the base link itself
                         var link = createLink(document, documentContext, attributeValue, scanner.getTokenOffset(), scanner.getTokenEnd(), base);
@@ -112,18 +102,34 @@ export function findDocumentLinks(document, documentContext) {
                         }
                     }
                     if (afterBase && typeof base === 'undefined') {
-                        base = normalizeRef(attributeValue, document.languageId);
+                        base = normalizeRef(attributeValue);
                         if (base && documentContext) {
                             base = documentContext.resolveReference(base, document.uri);
                         }
                     }
                     afterBase = false;
-                    afterHrefOrSrc = false;
+                    lastAttributeName = undefined;
+                }
+                else if (lastAttributeName === 'id') {
+                    var id = normalizeRef(scanner.getTokenText());
+                    idLocations[id] = scanner.getTokenOffset();
                 }
                 break;
         }
         token = scanner.scan();
     }
+    // change local links with ids to actual positions
+    for (var _i = 0, newLinks_1 = newLinks; _i < newLinks_1.length; _i++) {
+        var link = newLinks_1[_i];
+        var localWithHash = document.uri + '#';
+        if (link.target && strings.startsWith(link.target, localWithHash)) {
+            var target = link.target.substr(localWithHash.length);
+            var offset = idLocations[target];
+            if (offset !== undefined) {
+                var pos = document.positionAt(offset);
+                link.target = "" + localWithHash + (pos.line + 1) + "," + (pos.character + 1);
+            }
+        }
+    }
     return newLinks;
 }
-//# sourceMappingURL=htmlLinks.js.map

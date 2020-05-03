@@ -2,7 +2,6 @@
 *  Copyright (c) Microsoft Corporation. All rights reserved.
 *  Licensed under the MIT License. See License.txt in the project root for license information.
 *--------------------------------------------------------------------------------------------*/
-'use strict';
 export function equals(one, other) {
     if (one === other) {
         return true;
@@ -52,4 +51,15 @@ export function equals(one, other) {
     }
     return true;
 }
-//# sourceMappingURL=objects.js.map
+export function isNumber(val) {
+    return typeof val === 'number';
+}
+export function isDefined(val) {
+    return typeof val !== 'undefined';
+}
+export function isBoolean(val) {
+    return typeof val === 'boolean';
+}
+export function isString(val) {
+    return typeof val === 'string';
+}

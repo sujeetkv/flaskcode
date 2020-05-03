@@ -13,17 +13,18 @@ export var Extensions = {
 };
 var EditorModesRegistry = /** @class */ (function () {
     function EditorModesRegistry() {
-        this._onDidAddLanguages = new Emitter();
-        this.onDidAddLanguages = this._onDidAddLanguages.event;
+        this._onDidChangeLanguages = new Emitter();
+        this.onDidChangeLanguages = this._onDidChangeLanguages.event;
         this._languages = [];
+        this._dynamicLanguages = [];
     }
     // --- languages
     EditorModesRegistry.prototype.registerLanguage = function (def) {
         this._languages.push(def);
-        this._onDidAddLanguages.fire([def]);
+        this._onDidChangeLanguages.fire(undefined);
     };
     EditorModesRegistry.prototype.getLanguages = function () {
-        return this._languages.slice(0);
+        return [].concat(this._languages).concat(this._dynamicLanguages);
     };
     return EditorModesRegistry;
 }());
@@ -43,5 +44,17 @@ LanguageConfigurationRegistry.register(PLAINTEXT_LANGUAGE_IDENTIFIER, {
         ['(', ')'],
         ['[', ']'],
         ['{', '}'],
-    ]
+    ],
+    surroundingPairs: [
+        { open: '{', close: '}' },
+        { open: '[', close: ']' },
+        { open: '(', close: ')' },
+        { open: '<', close: '>' },
+        { open: '\"', close: '\"' },
+        { open: '\'', close: '\'' },
+        { open: '`', close: '`' },
+    ],
+    folding: {
+        offSide: true
+    }
 });

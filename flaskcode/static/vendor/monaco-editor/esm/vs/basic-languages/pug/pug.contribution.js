@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import { registerLanguage } from '../_.contribution.js';
-// Allow for running under nodejs/requirejs in tests
-var _monaco = (typeof monaco === 'undefined' ? self.monaco : monaco);
 registerLanguage({
     id: 'pug',
     extensions: ['.jade', '.pug'],
     aliases: ['Pug', 'Jade', 'jade'],
-    loader: function () { return _monaco.Promise.wrap(import('./pug.js')); }
+    loader: function () { return import('./pug.js'); }
 });

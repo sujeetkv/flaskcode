@@ -47,7 +47,7 @@ function computeFoldingRanges(document) {
     scanner.ignoreComment = false;
     scanner.setSource(document.getText());
     var token = scanner.scan();
-    var prevToken;
+    var prevToken = null;
     var _loop_1 = function () {
         switch (token.type) {
             case TokenType.CurlyL:
@@ -70,7 +70,7 @@ function computeFoldingRanges(document) {
                          *   color: red; }
                          * Use endLine minus one to show ending curly brace
                          */
-                        if (getEndLine(prevToken) !== endLine) {
+                        if (prevToken && getEndLine(prevToken) !== endLine) {
                             endLine--;
                         }
                         if (prevDelimiter.line !== endLine) {
@@ -191,4 +191,3 @@ function limitFoldingRanges(ranges, context) {
         return validRanges.slice(0, maxRanges);
     }
 }
-//# sourceMappingURL=cssFolding.js.map

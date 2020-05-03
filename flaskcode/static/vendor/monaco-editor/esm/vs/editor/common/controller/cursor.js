@@ -8,36 +8,39 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
     };
 })();
-import * as nls from '../../../nls.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import * as strings from '../../../base/common/strings.js';
 import { CursorCollection } from './cursorCollection.js';
 import { CursorColumns, CursorConfiguration, CursorContext, CursorState, EditOperationResult } from './cursorCommon.js';
 import { DeleteOperations } from './cursorDeleteOperations.js';
-import { TypeOperations } from './cursorTypeOperations.js';
+import { TypeOperations, TypeWithAutoClosingCommand } from './cursorTypeOperations.js';
 import { Range } from '../core/range.js';
 import { Selection } from '../core/selection.js';
 import * as editorCommon from '../editorCommon.js';
 import * as viewEvents from '../view/viewEvents.js';
+import { dispose } from '../../../base/common/lifecycle.js';
 function containsLineMappingChanged(events) {
     for (var i = 0, len = events.length; i < len; i++) {
-        if (events[i].type === 6 /* ViewLineMappingChanged */) {
+        if (events[i].type === 8 /* ViewLineMappingChanged */) {
             return true;
         }
     }
     return false;
 }
 var CursorStateChangedEvent = /** @class */ (function () {
-    function CursorStateChangedEvent(selections, source, reason) {
+    function CursorStateChangedEvent(selections, modelVersionId, oldSelections, oldModelVersionId, source, reason) {
         this.selections = selections;
+        this.modelVersionId = modelVersionId;
+        this.oldSelections = oldSelections;
+        this.oldModelVersionId = oldModelVersionId;
         this.source = source;
         this.reason = reason;
     }
@@ -72,6 +75,60 @@ var CursorModelState = /** @class */ (function () {
     return CursorModelState;
 }());
 export { CursorModelState };
+var AutoClosedAction = /** @class */ (function () {
+    function AutoClosedAction(model, autoClosedCharactersDecorations, autoClosedEnclosingDecorations) {
+        this._model = model;
+        this._autoClosedCharactersDecorations = autoClosedCharactersDecorations;
+        this._autoClosedEnclosingDecorations = autoClosedEnclosingDecorations;
+    }
+    AutoClosedAction.getAllAutoClosedCharacters = function (autoClosedActions) {
+        var autoClosedCharacters = [];
+        for (var _i = 0, autoClosedActions_1 = autoClosedActions; _i < autoClosedActions_1.length; _i++) {
+            var autoClosedAction = autoClosedActions_1[_i];
+            autoClosedCharacters = autoClosedCharacters.concat(autoClosedAction.getAutoClosedCharactersRanges());
+        }
+        return autoClosedCharacters;
+    };
+    AutoClosedAction.prototype.dispose = function () {
+        this._autoClosedCharactersDecorations = this._model.deltaDecorations(this._autoClosedCharactersDecorations, []);
+        this._autoClosedEnclosingDecorations = this._model.deltaDecorations(this._autoClosedEnclosingDecorations, []);
+    };
+    AutoClosedAction.prototype.getAutoClosedCharactersRanges = function () {
+        var result = [];
+        for (var i = 0; i < this._autoClosedCharactersDecorations.length; i++) {
+            var decorationRange = this._model.getDecorationRange(this._autoClosedCharactersDecorations[i]);
+            if (decorationRange) {
+                result.push(decorationRange);
+            }
+        }
+        return result;
+    };
+    AutoClosedAction.prototype.isValid = function (selections) {
+        var enclosingRanges = [];
+        for (var i = 0; i < this._autoClosedEnclosingDecorations.length; i++) {
+            var decorationRange = this._model.getDecorationRange(this._autoClosedEnclosingDecorations[i]);
+            if (decorationRange) {
+                enclosingRanges.push(decorationRange);
+                if (decorationRange.startLineNumber !== decorationRange.endLineNumber) {
+                    // Stop tracking if the range becomes multiline...
+                    return false;
+                }
+            }
+        }
+        enclosingRanges.sort(Range.compareRangesUsingStarts);
+        selections.sort(Range.compareRangesUsingStarts);
+        for (var i = 0; i < selections.length; i++) {
+            if (i >= enclosingRanges.length) {
+                return false;
+            }
+            if (!enclosingRanges[i].strictContainsRange(selections[i])) {
+                return false;
+            }
+        }
+        return true;
+    };
+    return AutoClosedAction;
+}());
 var Cursor = /** @class */ (function (_super) {
     __extends(Cursor, _super);
     function Cursor(configuration, model, viewModel) {
@@ -90,7 +147,9 @@ var Cursor = /** @class */ (function (_super) {
         _this._cursors = new CursorCollection(_this.context);
         _this._isHandling = false;
         _this._isDoingComposition = false;
+        _this._selectionsWhenCompositionStarted = null;
         _this._columnSelectData = null;
+        _this._autoClosedActions = [];
         _this._prevEditOperationType = 0 /* Other */;
         _this._register(_this._model.onDidChangeRawContent(function (e) {
             _this._knownModelVersionId = e.versionId;
@@ -139,7 +198,21 @@ var Cursor = /** @class */ (function (_super) {
     }
     Cursor.prototype.dispose = function () {
         this._cursors.dispose();
+        this._autoClosedActions = dispose(this._autoClosedActions);
         _super.prototype.dispose.call(this);
+    };
+    Cursor.prototype._validateAutoClosedActions = function () {
+        if (this._autoClosedActions.length > 0) {
+            var selections = this._cursors.getSelections();
+            for (var i = 0; i < this._autoClosedActions.length; i++) {
+                var autoClosedAction = this._autoClosedActions[i];
+                if (!autoClosedAction.isValid(selections)) {
+                    autoClosedAction.dispose();
+                    this._autoClosedActions.splice(i, 1);
+                    i--;
+                }
+            }
+        }
     };
     // ------ some getters/setters
     Cursor.prototype.getPrimaryCursor = function () {
@@ -154,22 +227,23 @@ var Cursor = /** @class */ (function (_super) {
     Cursor.prototype.setStates = function (source, reason, states) {
         if (states !== null && states.length > Cursor.MAX_CURSOR_COUNT) {
             states = states.slice(0, Cursor.MAX_CURSOR_COUNT);
-            this._onDidReachMaxCursorCount.fire(void 0);
+            this._onDidReachMaxCursorCount.fire(undefined);
         }
         var oldState = new CursorModelState(this._model, this);
         this._cursors.setStates(states);
         this._cursors.normalize();
         this._columnSelectData = null;
+        this._validateAutoClosedActions();
         this._emitStateChangedIfNecessary(source, reason, oldState);
     };
     Cursor.prototype.setColumnSelectData = function (columnSelectData) {
         this._columnSelectData = columnSelectData;
     };
-    Cursor.prototype.reveal = function (horizontal, target, scrollType) {
-        this._revealRange(target, 0 /* Simple */, horizontal, scrollType);
+    Cursor.prototype.reveal = function (source, horizontal, target, scrollType) {
+        this._revealRange(source, target, 0 /* Simple */, horizontal, scrollType);
     };
-    Cursor.prototype.revealRange = function (revealHorizontal, viewRange, verticalType, scrollType) {
-        this.emitCursorRevealRange(viewRange, verticalType, revealHorizontal, scrollType);
+    Cursor.prototype.revealRange = function (source, revealHorizontal, viewRange, verticalType, scrollType) {
+        this.emitCursorRevealRange(source, viewRange, verticalType, revealHorizontal, scrollType);
     };
     Cursor.prototype.scrollTo = function (desiredScrollTop) {
         this._viewModel.viewLayout.setScrollPositionSmooth({
@@ -225,7 +299,7 @@ var Cursor = /** @class */ (function (_super) {
             });
         }
         this.setStates('restoreState', 0 /* NotSet */, CursorState.fromModelSelections(desiredSelections));
-        this.reveal(true, 0 /* Primary */, 1 /* Immediate */);
+        this.reveal('restoreState', true, 0 /* Primary */, 1 /* Immediate */);
     };
     Cursor.prototype._onModelContentChanged = function (hadFlushEvent) {
         this._prevEditOperationType = 0 /* Other */;
@@ -233,6 +307,7 @@ var Cursor = /** @class */ (function (_super) {
             // a model.setValue() was called
             this._cursors.dispose();
             this._cursors = new CursorCollection(this.context);
+            this._validateAutoClosedActions();
             this._emitStateChangedIfNecessary('model', 1 /* ContentFlush */, null);
         }
         else {
@@ -248,10 +323,15 @@ var Cursor = /** @class */ (function (_super) {
             return this._columnSelectData;
         }
         var primaryCursor = this._cursors.getPrimaryCursor();
-        var primaryPos = primaryCursor.viewState.position;
+        var primaryPos = primaryCursor.viewState.selectionStart.getStartPosition();
+        var viewLineNumber = primaryPos.lineNumber;
+        var viewVisualColumn = CursorColumns.visibleColumnFromColumn2(this.context.config, this.context.viewModel, primaryPos);
         return {
-            toViewLineNumber: primaryPos.lineNumber,
-            toViewVisualColumn: CursorColumns.visibleColumnFromColumn2(this.context.config, this.context.viewModel, primaryPos)
+            isReal: false,
+            fromViewLineNumber: viewLineNumber,
+            fromViewVisualColumn: viewVisualColumn,
+            toViewLineNumber: viewLineNumber,
+            toViewVisualColumn: viewVisualColumn,
         };
     };
     Cursor.prototype.getSelections = function () {
@@ -273,6 +353,28 @@ var Cursor = /** @class */ (function (_super) {
         this._prevEditOperationType = type;
     };
     // ------ auxiliary handling logic
+    Cursor.prototype._pushAutoClosedAction = function (autoClosedCharactersRanges, autoClosedEnclosingRanges) {
+        var autoClosedCharactersDeltaDecorations = [];
+        var autoClosedEnclosingDeltaDecorations = [];
+        for (var i = 0, len = autoClosedCharactersRanges.length; i < len; i++) {
+            autoClosedCharactersDeltaDecorations.push({
+                range: autoClosedCharactersRanges[i],
+                options: {
+                    inlineClassName: 'auto-closed-character',
+                    stickiness: 1 /* NeverGrowsWhenTypingAtEdges */
+                }
+            });
+            autoClosedEnclosingDeltaDecorations.push({
+                range: autoClosedEnclosingRanges[i],
+                options: {
+                    stickiness: 1 /* NeverGrowsWhenTypingAtEdges */
+                }
+            });
+        }
+        var autoClosedCharactersDecorations = this._model.deltaDecorations([], autoClosedCharactersDeltaDecorations);
+        var autoClosedEnclosingDecorations = this._model.deltaDecorations([], autoClosedEnclosingDeltaDecorations);
+        this._autoClosedActions.push(new AutoClosedAction(this._model, autoClosedCharactersDecorations, autoClosedEnclosingDecorations));
+    };
     Cursor.prototype._executeEditOperation = function (opResult) {
         if (!opResult) {
             // Nothing to execute
@@ -285,6 +387,19 @@ var Cursor = /** @class */ (function (_super) {
         if (result) {
             // The commands were applied correctly
             this._interpretCommandResult(result);
+            // Check for auto-closing closed characters
+            var autoClosedCharactersRanges = [];
+            var autoClosedEnclosingRanges = [];
+            for (var i = 0; i < opResult.commands.length; i++) {
+                var command = opResult.commands[i];
+                if (command instanceof TypeWithAutoClosingCommand && command.enclosingRange && command.closeCharacterRange) {
+                    autoClosedCharactersRanges.push(command.closeCharacterRange);
+                    autoClosedEnclosingRanges.push(command.enclosingRange);
+                }
+            }
+            if (autoClosedCharactersRanges.length > 0) {
+                this._pushAutoClosedAction(autoClosedCharactersRanges, autoClosedEnclosingRanges);
+            }
             this._prevEditOperationType = opResult.type;
         }
         if (opResult.shouldPushStackElementAfter) {
@@ -311,7 +426,7 @@ var Cursor = /** @class */ (function (_super) {
         // Let the view get the event first.
         try {
             var eventsCollector = this._beginEmit();
-            eventsCollector.emit(new viewEvents.ViewCursorStateChangedEvent(viewSelections));
+            eventsCollector.emit(new viewEvents.ViewCursorStateChangedEvent(viewSelections, selections));
         }
         finally {
             this._endEmit();
@@ -320,11 +435,13 @@ var Cursor = /** @class */ (function (_super) {
         if (!oldState
             || oldState.cursorState.length !== newState.cursorState.length
             || newState.cursorState.some(function (newCursorState, i) { return !newCursorState.modelState.equals(oldState.cursorState[i].modelState); })) {
-            this._onDidChange.fire(new CursorStateChangedEvent(selections, source || 'keyboard', reason));
+            var oldSelections = oldState ? oldState.cursorState.map(function (s) { return s.modelState.selection; }) : null;
+            var oldModelVersionId = oldState ? oldState.modelVersionId : 0;
+            this._onDidChange.fire(new CursorStateChangedEvent(selections, newState.modelVersionId, oldSelections, oldModelVersionId, source || 'keyboard', reason));
         }
         return true;
     };
-    Cursor.prototype._revealRange = function (revealTarget, verticalType, revealHorizontal, scrollType) {
+    Cursor.prototype._revealRange = function (source, revealTarget, verticalType, revealHorizontal, scrollType) {
         var viewPositions = this._cursors.getViewPositions();
         var viewPosition = viewPositions[0];
         if (revealTarget === 1 /* TopMost */) {
@@ -348,12 +465,12 @@ var Cursor = /** @class */ (function (_super) {
             }
         }
         var viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-        this.emitCursorRevealRange(viewRange, verticalType, revealHorizontal, scrollType);
+        this.emitCursorRevealRange(source, viewRange, verticalType, revealHorizontal, scrollType);
     };
-    Cursor.prototype.emitCursorRevealRange = function (viewRange, verticalType, revealHorizontal, scrollType) {
+    Cursor.prototype.emitCursorRevealRange = function (source, viewRange, verticalType, revealHorizontal, scrollType) {
         try {
             var eventsCollector = this._beginEmit();
-            eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(viewRange, verticalType, revealHorizontal, scrollType));
+            eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, verticalType, revealHorizontal, scrollType));
         }
         finally {
             this._endEmit();
@@ -361,19 +478,88 @@ var Cursor = /** @class */ (function (_super) {
     };
     // -----------------------------------------------------------------------------------------------------------
     // ----- handlers beyond this point
+    Cursor.prototype._findAutoClosingPairs = function (edits) {
+        if (!edits.length) {
+            return null;
+        }
+        var indices = [];
+        for (var i = 0, len = edits.length; i < len; i++) {
+            var edit = edits[i];
+            if (!edit.text || edit.text.indexOf('\n') >= 0) {
+                return null;
+            }
+            var m = edit.text.match(/([)\]}>'"`])([^)\]}>'"`]*)$/);
+            if (!m) {
+                return null;
+            }
+            var closeChar = m[1];
+            var autoClosingPairsCandidates = this.context.config.autoClosingPairsClose2.get(closeChar);
+            if (!autoClosingPairsCandidates || autoClosingPairsCandidates.length !== 1) {
+                return null;
+            }
+            var openChar = autoClosingPairsCandidates[0].open;
+            var closeCharIndex = edit.text.length - m[2].length - 1;
+            var openCharIndex = edit.text.lastIndexOf(openChar, closeCharIndex - 1);
+            if (openCharIndex === -1) {
+                return null;
+            }
+            indices.push([openCharIndex, closeCharIndex]);
+        }
+        return indices;
+    };
+    Cursor.prototype.executeEdits = function (source, edits, cursorStateComputer) {
+        var _this = this;
+        var autoClosingIndices = null;
+        if (source === 'snippet') {
+            autoClosingIndices = this._findAutoClosingPairs(edits);
+        }
+        if (autoClosingIndices) {
+            edits[0]._isTracked = true;
+        }
+        var autoClosedCharactersRanges = [];
+        var autoClosedEnclosingRanges = [];
+        var selections = this._model.pushEditOperations(this.getSelections(), edits, function (undoEdits) {
+            if (autoClosingIndices) {
+                for (var i = 0, len = autoClosingIndices.length; i < len; i++) {
+                    var _a = autoClosingIndices[i], openCharInnerIndex = _a[0], closeCharInnerIndex = _a[1];
+                    var undoEdit = undoEdits[i];
+                    var lineNumber = undoEdit.range.startLineNumber;
+                    var openCharIndex = undoEdit.range.startColumn - 1 + openCharInnerIndex;
+                    var closeCharIndex = undoEdit.range.startColumn - 1 + closeCharInnerIndex;
+                    autoClosedCharactersRanges.push(new Range(lineNumber, closeCharIndex + 1, lineNumber, closeCharIndex + 2));
+                    autoClosedEnclosingRanges.push(new Range(lineNumber, openCharIndex + 1, lineNumber, closeCharIndex + 2));
+                }
+            }
+            var selections = cursorStateComputer(undoEdits);
+            if (selections) {
+                // Don't recover the selection from markers because
+                // we know what it should be.
+                _this._isHandling = true;
+            }
+            return selections;
+        });
+        if (selections) {
+            this._isHandling = false;
+            this.setSelections(source, selections);
+        }
+        if (autoClosedCharactersRanges.length > 0) {
+            this._pushAutoClosedAction(autoClosedCharactersRanges, autoClosedEnclosingRanges);
+        }
+    };
     Cursor.prototype.trigger = function (source, handlerId, payload) {
         var H = editorCommon.Handler;
         if (handlerId === H.CompositionStart) {
             this._isDoingComposition = true;
+            this._selectionsWhenCompositionStarted = this.getSelections().slice(0);
             return;
         }
         if (handlerId === H.CompositionEnd) {
             this._isDoingComposition = false;
         }
-        if (this._configuration.editor.readOnly) {
+        if (this._configuration.options.get(68 /* readOnly */)) {
             // All the remaining handlers will try to edit the model,
             // but we cannot edit when read only...
-            this._onDidAttemptReadOnlyEdit.fire(void 0);
+            this._onDidAttemptReadOnlyEdit.fire(undefined);
             return;
         }
         var oldState = new CursorModelState(this._model, this);
@@ -396,7 +582,7 @@ var Cursor = /** @class */ (function (_super) {
                     break;
                 case H.Paste:
                     cursorChangeReason = 4 /* Paste */;
-                    this._paste(payload.text, payload.pasteOnNewLine, payload.multicursorText);
+                    this._paste(payload.text, payload.pasteOnNewLine, payload.multicursorText || []);
                     break;
                 case H.Cut:
                     this._cut();
@@ -427,31 +613,31 @@ var Cursor = /** @class */ (function (_super) {
         if (handlerId !== H.Undo && handlerId !== H.Redo) {
             this._cursors.startTrackingSelections();
         }
+        this._validateAutoClosedActions();
         if (this._emitStateChangedIfNecessary(source, cursorChangeReason, oldState)) {
-            this._revealRange(0 /* Primary */, 0 /* Simple */, true, 0 /* Smooth */);
+            this._revealRange(source, 0 /* Primary */, 0 /* Simple */, true, 0 /* Smooth */);
         }
     };
     Cursor.prototype._interpretCompositionEnd = function (source) {
         if (!this._isDoingComposition && source === 'keyboard') {
             // composition finishes, let's check if we need to auto complete if necessary.
-            this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections()));
+            var autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
+            this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this._selectionsWhenCompositionStarted, this.getSelections(), autoClosedCharacters));
+            this._selectionsWhenCompositionStarted = null;
         }
     };
     Cursor.prototype._type = function (source, text) {
         if (!this._isDoingComposition && source === 'keyboard') {
             // If this event is coming straight from the keyboard, look for electric characters and enter
-            for (var i = 0, len = text.length; i < len; i++) {
-                var charCode = text.charCodeAt(i);
-                var chr = void 0;
-                if (strings.isHighSurrogate(charCode) && i + 1 < len) {
-                    chr = text.charAt(i) + text.charAt(i + 1);
-                    i++;
-                }
-                else {
-                    chr = text.charAt(i);
-                }
-                // Here we must interpret each typed character individually, that's why we create a new context
-                this._executeEditOperation(TypeOperations.typeWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), chr));
+            var len = text.length;
+            var offset = 0;
+            while (offset < len) {
+                var charLength = strings.nextCharLength(text, offset);
+                var chr = text.substr(offset, charLength);
+                // Here we must interpret each typed character individually
+                var autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
+                this._executeEditOperation(TypeOperations.typeWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), autoClosedCharacters, chr));
+                offset += charLength;
             }
         }
         else {
@@ -532,8 +718,8 @@ var CommandExecutor = /** @class */ (function () {
             for (var i = 0; i < ctx.selectionsBefore.length; i++) {
                 groupedInverseEditOperations[i] = [];
             }
-            for (var i = 0; i < inverseEditOperations.length; i++) {
-                var op = inverseEditOperations[i];
+            for (var _i = 0, inverseEditOperations_1 = inverseEditOperations; _i < inverseEditOperations_1.length; _i++) {
+                var op = inverseEditOperations_1[_i];
                 if (!op.identifier) {
                     // perhaps auto whitespace trim edits
                     continue;
@@ -585,8 +771,9 @@ var CommandExecutor = /** @class */ (function () {
             return b - a;
         });
         // Remove losing cursors
-        for (var i = 0; i < losingCursors.length; i++) {
-            selectionsAfter.splice(losingCursors[i], 1);
+        for (var _i = 0, losingCursors_1 = losingCursors; _i < losingCursors_1.length; _i++) {
+            var losingCursor = losingCursors_1[_i];
+            selectionsAfter.splice(losingCursor, 1);
         }
         return selectionsAfter;
     };
@@ -619,7 +806,8 @@ var CommandExecutor = /** @class */ (function () {
         // everything it has done is ignored
         var operations = [];
         var operationMinor = 0;
-        var addEditOperation = function (selection, text) {
+        var addEditOperation = function (selection, text, forceMoveMarkers) {
+            if (forceMoveMarkers === void 0) { forceMoveMarkers = false; }
             if (selection.isEmpty() && text === '') {
                 // This command wants to add a no-op => no thank you
                 return;
@@ -631,14 +819,14 @@ var CommandExecutor = /** @class */ (function () {
                 },
                 range: selection,
                 text: text,
-                forceMoveMarkers: false,
+                forceMoveMarkers: forceMoveMarkers,
                 isAutoWhitespaceEdit: command.insertsAutoWhitespace
             });
         };
         var hadTrackedEditOperation = false;
-        var addTrackedEditOperation = function (selection, text) {
+        var addTrackedEditOperation = function (selection, text, forceMoveMarkers) {
             hadTrackedEditOperation = true;
-            addEditOperation(selection, text);
+            addEditOperation(selection, text, forceMoveMarkers);
         };
         var trackSelection = function (selection, trackPreviousOnEmpty) {
             var stickiness;
@@ -680,7 +868,8 @@ var CommandExecutor = /** @class */ (function () {
             command.getEditOperations(ctx.model, editOperationBuilder);
         }
         catch (e) {
-            e.friendlyMessage = nls.localize('corrupt.commands', "Unexpected exception while executing command.");
+            // TODO@Alex use notification service if this should be user facing
+            // e.friendlyMessage = nls.localize('corrupt.commands', "Unexpected exception while executing command.");
             onUnexpectedError(e);
             return {
                 operations: [],

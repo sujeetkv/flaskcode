@@ -34,11 +34,24 @@ export var MarkerSeverity;
         }
     }
     MarkerSeverity.fromSeverity = fromSeverity;
+    function toSeverity(severity) {
+        switch (severity) {
+            case MarkerSeverity.Error: return Severity.Error;
+            case MarkerSeverity.Warning: return Severity.Warning;
+            case MarkerSeverity.Info: return Severity.Info;
+            case MarkerSeverity.Hint: return Severity.Ignore;
+        }
+    }
+    MarkerSeverity.toSeverity = toSeverity;
 })(MarkerSeverity || (MarkerSeverity = {}));
 export var IMarkerData;
 (function (IMarkerData) {
     var emptyString = '';
     function makeKey(markerData) {
+        return makeKeyOptionalMessage(markerData, true);
+    }
+    IMarkerData.makeKey = makeKey;
+    function makeKeyOptionalMessage(markerData, useMessage) {
         var result = [emptyString];
         if (markerData.source) {
             result.push(markerData.source.replace('¦', '\¦'));
@@ -47,42 +60,49 @@ export var IMarkerData;
             result.push(emptyString);
         }
         if (markerData.code) {
-            result.push(markerData.code.replace('¦', '\¦'));
+            if (typeof markerData.code === 'string') {
+                result.push(markerData.code.replace('¦', '\¦'));
+            }
+            else {
+                result.push(markerData.code.value.replace('¦', '\¦'));
+            }
         }
         else {
             result.push(emptyString);
         }
-        if (markerData.severity !== void 0 && markerData.severity !== null) {
+        if (markerData.severity !== undefined && markerData.severity !== null) {
             result.push(MarkerSeverity.toString(markerData.severity));
         }
         else {
             result.push(emptyString);
         }
-        if (markerData.message) {
+        // Modifed to not include the message as part of the marker key to work around
+        // https://github.com/microsoft/vscode/issues/77475
+        if (markerData.message && useMessage) {
             result.push(markerData.message.replace('¦', '\¦'));
         }
         else {
             result.push(emptyString);
         }
-        if (markerData.startLineNumber !== void 0 && markerData.startLineNumber !== null) {
+        if (markerData.startLineNumber !== undefined && markerData.startLineNumber !== null) {
             result.push(markerData.startLineNumber.toString());
         }
         else {
             result.push(emptyString);
         }
-        if (markerData.startColumn !== void 0 && markerData.startColumn !== null) {
+        if (markerData.startColumn !== undefined && markerData.startColumn !== null) {
             result.push(markerData.startColumn.toString());
         }
         else {
             result.push(emptyString);
         }
-        if (markerData.endLineNumber !== void 0 && markerData.endLineNumber !== null) {
+        if (markerData.endLineNumber !== undefined && markerData.endLineNumber !== null) {
             result.push(markerData.endLineNumber.toString());
         }
         else {
             result.push(emptyString);
         }
-        if (markerData.endColumn !== void 0 && markerData.endColumn !== null) {
+        if (markerData.endColumn !== undefined && markerData.endColumn !== null) {
             result.push(markerData.endColumn.toString());
         }
         else {
@@ -91,6 +111,6 @@ export var IMarkerData;
         result.push(emptyString);
         return result.join('¦');
     }
-    IMarkerData.makeKey = makeKey;
+    IMarkerData.makeKeyOptionalMessage = makeKeyOptionalMessage;
 })(IMarkerData || (IMarkerData = {}));
 export var IMarkerService = createDecorator('markerService');

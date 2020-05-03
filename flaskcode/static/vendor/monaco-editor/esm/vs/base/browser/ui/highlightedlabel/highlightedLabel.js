@@ -2,15 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as dom from '../../dom.js';
 import * as objects from '../../../common/objects.js';
-import { renderOcticons } from '../octiconLabel/octiconLabel.js';
+import { renderCodicons } from '../../../common/codicons.js';
+import { escape } from '../../../common/strings.js';
 var HighlightedLabel = /** @class */ (function () {
-    function HighlightedLabel(container, supportOcticons) {
-        this.supportOcticons = supportOcticons;
+    function HighlightedLabel(container, supportCodicons) {
+        this.supportCodicons = supportCodicons;
+        this.text = '';
+        this.title = '';
+        this.highlights = [];
+        this.didEverRender = false;
         this.domNode = document.createElement('span');
         this.domNode.className = 'monaco-highlighted-label';
-        this.didEverRender = false;
         container.appendChild(this.domNode);
     }
     Object.defineProperty(HighlightedLabel.prototype, "element", {
@@ -42,44 +45,50 @@ var HighlightedLabel = /** @class */ (function () {
         this.render();
     };
     HighlightedLabel.prototype.render = function () {
-        dom.clearNode(this.domNode);
-        var htmlContent = [], highlight, pos = 0;
-        for (var i = 0; i < this.highlights.length; i++) {
-            highlight = this.highlights[i];
+        var htmlContent = '';
+        var pos = 0;
+        for (var _i = 0, _a = this.highlights; _i < _a.length; _i++) {
+            var highlight = _a[_i];
             if (highlight.end === highlight.start) {
                 continue;
             }
             if (pos < highlight.start) {
-                htmlContent.push('<span>');
+                htmlContent += '<span>';
                 var substring_1 = this.text.substring(pos, highlight.start);
-                htmlContent.push(this.supportOcticons ? renderOcticons(substring_1) : substring_1);
-                htmlContent.push('</span>');
+                htmlContent += this.supportCodicons ? renderCodicons(escape(substring_1)) : escape(substring_1);
+                htmlContent += '</span>';
                 pos = highlight.end;
             }
-            htmlContent.push('<span class="highlight">');
+            if (highlight.extraClasses) {
+                htmlContent += "<span class=\"highlight " + highlight.extraClasses + "\">";
+            }
+            else {
+                htmlContent += "<span class=\"highlight\">";
+            }
             var substring = this.text.substring(highlight.start, highlight.end);
-            htmlContent.push(this.supportOcticons ? renderOcticons(substring) : substring);
-            htmlContent.push('</span>');
+            htmlContent += this.supportCodicons ? renderCodicons(escape(substring)) : escape(substring);
+            htmlContent += '</span>';
             pos = highlight.end;
         }
         if (pos < this.text.length) {
-            htmlContent.push('<span>');
+            htmlContent += '<span>';
             var substring = this.text.substring(pos);
-            htmlContent.push(this.supportOcticons ? renderOcticons(substring) : substring);
-            htmlContent.push('</span>');
+            htmlContent += this.supportCodicons ? renderCodicons(escape(substring)) : escape(substring);
+            htmlContent += '</span>';
         }
-        this.domNode.innerHTML = htmlContent.join('');
-        this.domNode.title = this.title;
+        this.domNode.innerHTML = htmlContent;
+        if (this.title) {
+            this.domNode.title = this.title;
+        }
+        else {
+            this.domNode.removeAttribute('title');
+        }
         this.didEverRender = true;
-    };
-    HighlightedLabel.prototype.dispose = function () {
-        this.text = null; // StrictNullOverride: nulling out ok in dispose
-        this.highlights = null; // StrictNullOverride: nulling out ok in dispose
     };
     HighlightedLabel.escapeNewLines = function (text, highlights) {
         var total = 0;
         var extra = 0;
-        return text.replace(/\r\n|\r|\n/, function (match, offset) {
+        return text.replace(/\r\n|\r|\n/g, function (match, offset) {
             extra = match === '\r\n' ? -1 : 0;
             offset += total;
             for (var _i = 0, highlights_1 = highlights; _i < highlights_1.length; _i++) {

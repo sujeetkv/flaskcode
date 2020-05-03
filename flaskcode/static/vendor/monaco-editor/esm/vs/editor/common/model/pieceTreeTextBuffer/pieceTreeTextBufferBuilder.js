@@ -72,7 +72,7 @@ var PieceTreeTextBufferBuilder = /** @class */ (function () {
             }
         }
         var lastChar = chunk.charCodeAt(chunk.length - 1);
-        if (lastChar === 13 /* CarriageReturn */ || (lastChar >= 0xd800 && lastChar <= 0xdbff)) {
+        if (lastChar === 13 /* CarriageReturn */ || (lastChar >= 0xD800 && lastChar <= 0xDBFF)) {
             // last character is \r or a high surrogate => keep it back
             this._acceptChunk1(chunk.substr(0, chunk.length - 1), false);
             this._hasPreviousChar = true;

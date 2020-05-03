@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import { registerLanguage } from '../_.contribution.js';
-// Allow for running under nodejs/requirejs in tests
-var _monaco = (typeof monaco === 'undefined' ? self.monaco : monaco);
 registerLanguage({
     id: 'powerquery',
     extensions: ['.pq', '.pqm'],
     aliases: ['PQ', 'M', 'Power Query', 'Power Query M'],
-    loader: function () { return _monaco.Promise.wrap(import('./powerquery.js')); }
+    loader: function () { return import('./powerquery.js'); }
 });

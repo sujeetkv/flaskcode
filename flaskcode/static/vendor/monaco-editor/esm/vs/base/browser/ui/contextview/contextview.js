@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -17,8 +17,10 @@ var __extends = (this && this.__extends) || (function () {
 })();
 import './contextview.css';
 import * as DOM from '../../dom.js';
-import { dispose, toDisposable, combinedDisposable, Disposable } from '../../../common/lifecycle.js';
+import * as platform from '../../../common/platform.js';
+import { toDisposable, Disposable, DisposableStore } from '../../../common/lifecycle.js';
 import { Range } from '../../../common/range.js';
+import { BrowserFeatures } from '../../canIUse.js';
 /**
  * Lays out a one dimensional view next to an anchor in a viewport.
  *
@@ -49,6 +51,10 @@ var ContextView = /** @class */ (function (_super) {
     __extends(ContextView, _super);
     function ContextView(container) {
         var _this = _super.call(this) || this;
+        _this.container = null;
+        _this.delegate = null;
+        _this.toDisposeOnClean = Disposable.None;
+        _this.toDisposeOnSetContainer = Disposable.None;
         _this.view = DOM.$('.context-view');
         DOM.hide(_this.view);
         _this.setContainer(container);
@@ -58,25 +64,25 @@ var ContextView = /** @class */ (function (_super) {
     ContextView.prototype.setContainer = function (container) {
         var _this = this;
         if (this.container) {
-            this.toDisposeOnSetContainer = dispose(this.toDisposeOnSetContainer);
+            this.toDisposeOnSetContainer.dispose();
             this.container.removeChild(this.view);
             this.container = null;
         }
         if (container) {
             this.container = container;
             this.container.appendChild(this.view);
-            var toDisposeOnSetContainer_1 = [];
+            var toDisposeOnSetContainer_1 = new DisposableStore();
             ContextView.BUBBLE_UP_EVENTS.forEach(function (event) {
-                toDisposeOnSetContainer_1.push(DOM.addStandardDisposableListener(_this.container, event, function (e) {
-                    _this.onDOMEvent(e, document.activeElement, false);
+                toDisposeOnSetContainer_1.add(DOM.addStandardDisposableListener(_this.container, event, function (e) {
+                    _this.onDOMEvent(e, false);
                 }));
             });
             ContextView.BUBBLE_DOWN_EVENTS.forEach(function (event) {
-                toDisposeOnSetContainer_1.push(DOM.addStandardDisposableListener(_this.container, event, function (e) {
-                    _this.onDOMEvent(e, document.activeElement, true);
+                toDisposeOnSetContainer_1.add(DOM.addStandardDisposableListener(_this.container, event, function (e) {
+                    _this.onDOMEvent(e, true);
                 }, true));
             });
-            this.toDisposeOnSetContainer = combinedDisposable(toDisposeOnSetContainer_1);
+            this.toDisposeOnSetContainer = toDisposeOnSetContainer_1;
         }
     };
     ContextView.prototype.show = function (delegate) {
@@ -90,7 +96,7 @@ var ContextView = /** @class */ (function (_super) {
         this.view.style.left = '0px';
         DOM.show(this.view);
         // Render content
-        this.toDisposeOnClean = delegate.render(this.view);
+        this.toDisposeOnClean = delegate.render(this.view) || Disposable.None;
         // Set active delegate
         this.delegate = delegate;
         // Layout
@@ -104,7 +110,7 @@ var ContextView = /** @class */ (function (_super) {
         if (!this.isVisible()) {
             return;
         }
-        if (this.delegate.canRelayout === false) {
+        if (this.delegate.canRelayout === false && !(platform.isIOS && BrowserFeatures.pointerEvents)) {
             this.hide();
             return;
         }
@@ -133,12 +139,11 @@ var ContextView = /** @class */ (function (_super) {
             };
         }
         else {
-            var realAnchor = anchor;
             around = {
-                top: realAnchor.y,
-                left: realAnchor.x,
-                width: realAnchor.width || 1,
-                height: realAnchor.height || 2
+                top: anchor.y,
+                left: anchor.x,
+                width: anchor.width || 1,
+                height: anchor.height || 2
             };
         }
         var viewSizeWidth = DOM.getTotalWidth(this.view);
@@ -157,6 +162,9 @@ var ContextView = /** @class */ (function (_super) {
         // if view intersects vertically with anchor, shift it horizontally
         if (Range.intersects({ start: top, end: top + viewSizeHeight }, { start: verticalAnchor.offset, end: verticalAnchor.offset + verticalAnchor.size })) {
             horizontalAnchor.size = around.width;
+            if (anchorAlignment === 1 /* RIGHT */) {
+                horizontalAnchor.offset = around.left;
+            }
         }
         var left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor);
         DOM.removeClasses(this.view, 'top', 'bottom', 'left', 'right');
@@ -168,20 +176,18 @@ var ContextView = /** @class */ (function (_super) {
         this.view.style.width = 'initial';
     };
     ContextView.prototype.hide = function (data) {
-        if (this.delegate && this.delegate.onHide) {
-            this.delegate.onHide(data);
-        }
+        var delegate = this.delegate;
         this.delegate = null;
-        if (this.toDisposeOnClean) {
-            this.toDisposeOnClean.dispose();
-            this.toDisposeOnClean = null;
+        if (delegate === null || delegate === void 0 ? void 0 : delegate.onHide) {
+            delegate.onHide(data);
         }
+        this.toDisposeOnClean.dispose();
         DOM.hide(this.view);
     };
     ContextView.prototype.isVisible = function () {
         return !!this.delegate;
     };
-    ContextView.prototype.onDOMEvent = function (e, element, onCapture) {
+    ContextView.prototype.onDOMEvent = function (e, onCapture) {
         if (this.delegate) {
             if (this.delegate.onDOMEvent) {
                 this.delegate.onDOMEvent(e, document.activeElement);

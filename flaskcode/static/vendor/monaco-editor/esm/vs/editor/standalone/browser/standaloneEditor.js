@@ -6,9 +6,9 @@ import './standalone-tokens.css';
 import { ICodeEditorService } from '../../browser/services/codeEditorService.js';
 import { OpenerService } from '../../browser/services/openerService.js';
 import { DiffNavigator } from '../../browser/widget/diffNavigator.js';
-import * as editorOptions from '../../common/config/editorOptions.js';
+import { EditorOptions, ConfigurationChangedEvent } from '../../common/config/editorOptions.js';
 import { BareFontInfo, FontInfo } from '../../common/config/fontInfo.js';
-import * as editorCommon from '../../common/editorCommon.js';
+import { EditorType } from '../../common/editorCommon.js';
 import { FindMatch, TextModelResolvedOptions } from '../../common/model.js';
 import * as modes from '../../common/modes.js';
 import { NULL_STATE, nullTokenize } from '../../common/modes/nullMode.js';
@@ -24,16 +24,19 @@ import { IStandaloneThemeService } from '../common/standaloneThemeService.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
-import { IContextViewService } from '../../../platform/contextview/browser/contextView.js';
+import { IContextViewService, IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { clearAllFontInfos } from '../../browser/config/configuration.js';
+import { IEditorProgressService } from '../../../platform/progress/common/progress.js';
 function withAllStandaloneServices(domElement, override, callback) {
     var services = new DynamicStandaloneServices(domElement, override);
     var simpleEditorModelResolverService = null;
     if (!services.has(ITextModelService)) {
-        simpleEditorModelResolverService = new SimpleEditorModelResolverService();
+        simpleEditorModelResolverService = new SimpleEditorModelResolverService(StaticServices.modelService.get());
         services.set(ITextModelService, simpleEditorModelResolverService);
     }
     if (!services.has(IOpenerService)) {
@@ -52,7 +55,7 @@ function withAllStandaloneServices(domElement, override, callback) {
  */
 export function create(domElement, options, override) {
     return withAllStandaloneServices(domElement, override || {}, function (services) {
-        return new StandaloneEditor(domElement, options, services, services.get(IInstantiationService), services.get(ICodeEditorService), services.get(ICommandService), services.get(IContextKeyService), services.get(IKeybindingService), services.get(IContextViewService), services.get(IStandaloneThemeService), services.get(INotificationService), services.get(IConfigurationService));
+        return new StandaloneEditor(domElement, options, services, services.get(IInstantiationService), services.get(ICodeEditorService), services.get(ICommandService), services.get(IContextKeyService), services.get(IKeybindingService), services.get(IContextViewService), services.get(IStandaloneThemeService), services.get(INotificationService), services.get(IConfigurationService), services.get(IAccessibilityService));
     });
 }
 /**
@@ -71,8 +74,8 @@ export function onDidCreateEditor(listener) {
  * The editor will read the size of `domElement`.
  */
 export function createDiffEditor(domElement, options, override) {
-    return withAllStandaloneServices(domElement, override, function (services) {
-        return new StandaloneDiffEditor(domElement, options, services, services.get(IInstantiationService), services.get(IContextKeyService), services.get(IKeybindingService), services.get(IContextViewService), services.get(IEditorWorkerService), services.get(ICodeEditorService), services.get(IStandaloneThemeService), services.get(INotificationService), services.get(IConfigurationService));
+    return withAllStandaloneServices(domElement, override || {}, function (services) {
+        return new StandaloneDiffEditor(domElement, options, services, services.get(IInstantiationService), services.get(IContextKeyService), services.get(IKeybindingService), services.get(IContextViewService), services.get(IEditorWorkerService), services.get(ICodeEditorService), services.get(IStandaloneThemeService), services.get(INotificationService), services.get(IConfigurationService), services.get(IContextMenuService), services.get(IEditorProgressService), null);
     });
 }
 export function createDiffNavigator(diffEditor, opts) {
@@ -88,13 +91,12 @@ function doCreateModel(value, languageSelection, uri) {
 export function createModel(value, language, uri) {
     value = value || '';
     if (!language) {
-        var path = uri ? uri.path : null;
         var firstLF = value.indexOf('\n');
         var firstLine = value;
         if (firstLF !== -1) {
             firstLine = value.substring(0, firstLF);
         }
-        return doCreateModel(value, StaticServices.modeService.get().createByFilepathOrFirstLine(path, firstLine), uri);
+        return doCreateModel(value, StaticServices.modeService.get().createByFilepathOrFirstLine(uri || null, firstLine), uri);
     }
     return doCreateModel(value, StaticServices.modeService.get().create(language), uri);
 }
@@ -114,8 +116,8 @@ export function setModelMarkers(model, owner, markers) {
 }
 /**
  * Get markers for owner and/or resource
- * @returns {IMarker[]} list of markers
- * @param filter
+ *
+ * @returns list of markers
  */
 export function getModelMarkers(filter) {
     return StaticServices.markerService.get().read(filter);
@@ -194,8 +196,7 @@ function getSafeTokenizationSupport(language) {
     }
     return {
         getInitialState: function () { return NULL_STATE; },
-        tokenize: function (line, state, deltaOffset) { return nullTokenize(language, line, state, deltaOffset); },
-        tokenize2: undefined,
+        tokenize: function (line, state, deltaOffset) { return nullTokenize(language, line, state, deltaOffset); }
     };
 }
 /**
@@ -230,6 +231,12 @@ export function setTheme(themeName) {
     StaticServices.standaloneThemeService.get().setTheme(themeName);
 }
 /**
+ * Clears all cached font measurements and triggers re-measurement.
+ */
+export function remeasureFonts() {
+    clearAllFontInfos();
+}
+/**
  * @internal
  */
 export function createMonacoEditorAPI() {
@@ -255,30 +262,36 @@ export function createMonacoEditorAPI() {
         tokenize: tokenize,
         defineTheme: defineTheme,
         setTheme: setTheme,
+        remeasureFonts: remeasureFonts,
         // enums
-        ScrollbarVisibility: standaloneEnums.ScrollbarVisibility,
-        WrappingIndent: standaloneEnums.WrappingIndent,
-        OverviewRulerLane: standaloneEnums.OverviewRulerLane,
-        EndOfLinePreference: standaloneEnums.EndOfLinePreference,
-        DefaultEndOfLine: standaloneEnums.DefaultEndOfLine,
-        EndOfLineSequence: standaloneEnums.EndOfLineSequence,
-        TrackedRangeStickiness: standaloneEnums.TrackedRangeStickiness,
-        CursorChangeReason: standaloneEnums.CursorChangeReason,
-        MouseTargetType: standaloneEnums.MouseTargetType,
-        TextEditorCursorStyle: standaloneEnums.TextEditorCursorStyle,
-        TextEditorCursorBlinkingStyle: standaloneEnums.TextEditorCursorBlinkingStyle,
+        AccessibilitySupport: standaloneEnums.AccessibilitySupport,
         ContentWidgetPositionPreference: standaloneEnums.ContentWidgetPositionPreference,
+        CursorChangeReason: standaloneEnums.CursorChangeReason,
+        DefaultEndOfLine: standaloneEnums.DefaultEndOfLine,
+        EditorAutoIndentStrategy: standaloneEnums.EditorAutoIndentStrategy,
+        EditorOption: standaloneEnums.EditorOption,
+        EndOfLinePreference: standaloneEnums.EndOfLinePreference,
+        EndOfLineSequence: standaloneEnums.EndOfLineSequence,
+        MinimapPosition: standaloneEnums.MinimapPosition,
+        MouseTargetType: standaloneEnums.MouseTargetType,
         OverlayWidgetPositionPreference: standaloneEnums.OverlayWidgetPositionPreference,
-        RenderMinimap: standaloneEnums.RenderMinimap,
-        ScrollType: standaloneEnums.ScrollType,
+        OverviewRulerLane: standaloneEnums.OverviewRulerLane,
         RenderLineNumbersType: standaloneEnums.RenderLineNumbersType,
+        RenderMinimap: standaloneEnums.RenderMinimap,
+        ScrollbarVisibility: standaloneEnums.ScrollbarVisibility,
+        ScrollType: standaloneEnums.ScrollType,
+        TextEditorCursorBlinkingStyle: standaloneEnums.TextEditorCursorBlinkingStyle,
+        TextEditorCursorStyle: standaloneEnums.TextEditorCursorStyle,
+        TrackedRangeStickiness: standaloneEnums.TrackedRangeStickiness,
+        WrappingIndent: standaloneEnums.WrappingIndent,
         // classes
-        InternalEditorOptions: editorOptions.InternalEditorOptions,
+        ConfigurationChangedEvent: ConfigurationChangedEvent,
         BareFontInfo: BareFontInfo,
         FontInfo: FontInfo,
         TextModelResolvedOptions: TextModelResolvedOptions,
         FindMatch: FindMatch,
         // vars
-        EditorType: editorCommon.EditorType
+        EditorType: EditorType,
+        EditorOptions: EditorOptions
     };
 }

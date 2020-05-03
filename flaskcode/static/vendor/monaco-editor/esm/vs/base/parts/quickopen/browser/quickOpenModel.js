@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -16,13 +16,14 @@ var __extends = (this && this.__extends) || (function () {
     };
 })();
 import * as nls from '../../../../nls.js';
-import { TPromise } from '../../../common/winjs.base.js';
+import * as types from '../../../common/types.js';
 import { IconLabel } from '../../../browser/ui/iconLabel/iconLabel.js';
 import { ActionBar } from '../../../browser/ui/actionbar/actionbar.js';
 import { HighlightedLabel } from '../../../browser/ui/highlightedlabel/highlightedLabel.js';
 import * as DOM from '../../../browser/dom.js';
 import { KeybindingLabel } from '../../../browser/ui/keybindingLabel/keybindingLabel.js';
 import { OS } from '../../../common/platform.js';
+import { coalesce } from '../../../common/arrays.js';
 var IDS = 0;
 var QuickOpenEntry = /** @class */ (function () {
     function QuickOpenEntry(highlights) {
@@ -41,63 +42,62 @@ var QuickOpenEntry = /** @class */ (function () {
      * The label of the entry to identify it from others in the list
      */
     QuickOpenEntry.prototype.getLabel = function () {
-        return null;
+        return undefined;
     };
     /**
      * The options for the label to use for this entry
      */
     QuickOpenEntry.prototype.getLabelOptions = function () {
-        return null;
+        return undefined;
     };
     /**
      * The label of the entry to use when a screen reader wants to read about the entry
      */
     QuickOpenEntry.prototype.getAriaLabel = function () {
-        return [this.getLabel(), this.getDescription(), this.getDetail()]
-            .filter(function (s) { return !!s; })
+        return coalesce([this.getLabel(), this.getDescription(), this.getDetail()])
             .join(', ');
     };
     /**
      * Detail information about the entry that is optional and can be shown below the label
      */
     QuickOpenEntry.prototype.getDetail = function () {
-        return null;
+        return undefined;
     };
     /**
      * The icon of the entry to identify it from others in the list
      */
     QuickOpenEntry.prototype.getIcon = function () {
-        return null;
+        return undefined;
     };
     /**
      * A secondary description that is optional and can be shown right to the label
      */
     QuickOpenEntry.prototype.getDescription = function () {
-        return null;
+        return undefined;
     };
     /**
      * A tooltip to show when hovering over the entry.
      */
     QuickOpenEntry.prototype.getTooltip = function () {
-        return null;
+        return undefined;
     };
     /**
      * A tooltip to show when hovering over the description portion of the entry.
      */
     QuickOpenEntry.prototype.getDescriptionTooltip = function () {
-        return null;
+        return undefined;
     };
     /**
      * An optional keybinding to show for an entry.
      */
     QuickOpenEntry.prototype.getKeybinding = function () {
-        return null;
+        return undefined;
     };
     /**
      * Allows to reuse the same model while filtering. Hidden entries will not show up in the viewer.
      */
     QuickOpenEntry.prototype.isHidden = function () {
-        return this.hidden;
+        return !!this.hidden;
     };
     /**
      * Allows to set highlight ranges that should show up for the entry label and optionally description if set.
@@ -147,7 +147,7 @@ var QuickOpenEntryGroup = /** @class */ (function (_super) {
      * Whether to show a border on top of the group entry or not.
      */
     QuickOpenEntryGroup.prototype.showBorder = function () {
-        return this.withBorder;
+        return !!this.withBorder;
     };
     QuickOpenEntryGroup.prototype.setShowBorder = function (showBorder) {
         this.withBorder = showBorder;
@@ -192,7 +192,7 @@ var NoActionProvider = /** @class */ (function () {
         return false;
     };
     NoActionProvider.prototype.getActions = function (tree, element) {
-        return TPromise.as(null);
+        return null;
     };
     return NoActionProvider;
 }());
@@ -201,7 +201,6 @@ var templateEntryGroup = 'quickOpenEntryGroup';
 var Renderer = /** @class */ (function () {
     function Renderer(actionProvider, actionRunner) {
         if (actionProvider === void 0) { actionProvider = new NoActionProvider(); }
-        if (actionRunner === void 0) { actionRunner = null; }
         this.actionProvider = actionProvider;
         this.actionRunner = actionRunner;
     }
@@ -224,13 +223,13 @@ var Renderer = /** @class */ (function () {
         // Entry
         var row1 = DOM.$('.quick-open-row');
         var row2 = DOM.$('.quick-open-row');
-        var entry = DOM.$('.quick-open-entry', null, row1, row2);
+        var entry = DOM.$('.quick-open-entry', undefined, row1, row2);
         entryContainer.appendChild(entry);
         // Icon
         var icon = document.createElement('span');
         row1.appendChild(icon);
         // Label
-        var label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true });
+        var label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportCodicons: true });
         // Keybinding
         var keybindingContainer = document.createElement('span');
         row1.appendChild(keybindingContainer);
@@ -276,14 +275,13 @@ var Renderer = /** @class */ (function () {
             DOM.removeClass(data.container, 'has-actions');
         }
         data.actionBar.context = entry; // make sure the context is the current element
-        this.actionProvider.getActions(null, entry).then(function (actions) {
-            if (data.actionBar.isEmpty() && actions && actions.length > 0) {
-                data.actionBar.push(actions, { icon: true, label: false });
-            }
-            else if (!data.actionBar.isEmpty() && (!actions || actions.length === 0)) {
-                data.actionBar.clear();
-            }
-        });
+        var actions = this.actionProvider.getActions(null, entry);
+        if (data.actionBar.isEmpty() && actions && actions.length > 0) {
+            data.actionBar.push(actions, { icon: true, label: false });
+        }
+        else if (!data.actionBar.isEmpty() && (!actions || actions.length === 0)) {
+            data.actionBar.clear();
+        }
         // Entry group class
         if (entry instanceof QuickOpenEntryGroup && entry.getGroupLabel()) {
             DOM.addClass(data.container, 'has-group-label');
@@ -298,16 +296,22 @@ var Renderer = /** @class */ (function () {
             // Border
             if (group.showBorder()) {
                 DOM.addClass(groupData.container, 'results-group-separator');
-                groupData.container.style.borderTopColor = styles.pickerGroupBorder.toString();
+                if (styles.pickerGroupBorder) {
+                    groupData.container.style.borderTopColor = styles.pickerGroupBorder.toString();
+                }
             }
             else {
                 DOM.removeClass(groupData.container, 'results-group-separator');
-                groupData.container.style.borderTopColor = null;
+                groupData.container.style.borderTopColor = '';
             }
             // Group Label
             var groupLabel = group.getGroupLabel() || '';
-            groupData.group.textContent = groupLabel;
-            groupData.group.style.color = styles.pickerGroupForeground.toString();
+            if (groupData.group) {
+                groupData.group.textContent = groupLabel;
+                if (styles.pickerGroupForeground) {
+                    groupData.group.style.color = styles.pickerGroupForeground.toString();
+                }
+            }
         }
         // Normal Entry
         if (entry instanceof QuickOpenEntry) {
@@ -321,27 +325,24 @@ var Renderer = /** @class */ (function () {
             options.title = entry.getTooltip();
             options.descriptionTitle = entry.getDescriptionTooltip() || entry.getDescription(); // tooltip over description because it could overflow
             options.descriptionMatches = descriptionHighlights || [];
-            data.label.setValue(entry.getLabel(), entry.getDescription(), options);
+            data.label.setLabel(entry.getLabel() || '', entry.getDescription(), options);
             // Meta
             data.detail.set(entry.getDetail(), detailHighlights);
             // Keybinding
-            data.keybinding.set(entry.getKeybinding(), null);
+            data.keybinding.set(entry.getKeybinding());
         }
     };
     Renderer.prototype.disposeTemplate = function (templateId, templateData) {
-        var data = templateData;
-        data.actionBar.dispose();
-        data.actionBar = null;
-        data.container = null;
-        data.entry = null;
-        data.keybinding.dispose();
-        data.keybinding = null;
-        data.detail.dispose();
-        data.detail = null;
-        data.group = null;
-        data.icon = null;
-        data.label.dispose();
-        data.label = null;
+        templateData.actionBar.dispose();
+        templateData.actionBar = null;
+        templateData.container = null;
+        templateData.entry = null;
+        templateData.keybinding = null;
+        templateData.detail = null;
+        templateData.group = null;
+        templateData.icon = null;
+        templateData.label.dispose();
+        templateData.label = null;
     };
     return Renderer;
 }());
@@ -393,7 +394,7 @@ var QuickOpenModel = /** @class */ (function () {
         return entry.getId();
     };
     QuickOpenModel.prototype.getLabel = function (entry) {
-        return entry.getLabel();
+        return types.withUndefinedAsNull(entry.getLabel());
     };
     QuickOpenModel.prototype.getAriaLabel = function (entry) {
         var ariaLabel = entry.getAriaLabel();

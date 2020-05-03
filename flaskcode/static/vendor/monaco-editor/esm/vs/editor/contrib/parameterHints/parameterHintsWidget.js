@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -24,268 +24,124 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import './parameterHints.css';
-import * as nls from '../../../nls.js';
-import { dispose, Disposable } from '../../../base/common/lifecycle.js';
 import * as dom from '../../../base/browser/dom.js';
-import * as aria from '../../../base/browser/ui/aria/aria.js';
-import * as modes from '../../common/modes.js';
-import { RunOnceScheduler, createCancelablePromise } from '../../../base/common/async.js';
-import { onUnexpectedError } from '../../../base/common/errors.js';
-import { Emitter, chain } from '../../../base/common/event.js';
 import { domEvent, stop } from '../../../base/browser/event.js';
-import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
-import { Context, provideSignatureHelp } from './provideSignatureHelp.js';
+import * as aria from '../../../base/browser/ui/aria/aria.js';
 import { DomScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { CharacterSet } from '../../common/core/characterClassifier.js';
-import { registerThemingParticipant, HIGH_CONTRAST } from '../../../platform/theme/common/themeService.js';
-import { editorHoverBackground, editorHoverBorder, textLinkForeground, textCodeBlockBackground } from '../../../platform/theme/common/colorRegistry.js';
-import { IOpenerService } from '../../../platform/opener/common/opener.js';
+import { Event } from '../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import './parameterHints.css';
 import { IModeService } from '../../common/services/modeService.js';
 import { MarkdownRenderer } from '../markdown/markdownRenderer.js';
+import { Context } from './provideSignatureHelp.js';
+import * as nls from '../../../nls.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IOpenerService } from '../../../platform/opener/common/opener.js';
+import { editorHoverBackground, editorHoverBorder, textCodeBlockBackground, textLinkForeground, editorHoverForeground } from '../../../platform/theme/common/colorRegistry.js';
+import { HIGH_CONTRAST, registerThemingParticipant } from '../../../platform/theme/common/themeService.js';
+import { ParameterHintsModel } from './parameterHintsModel.js';
+import { pad } from '../../../base/common/strings.js';
 var $ = dom.$;
-var ParameterHintsModel = /** @class */ (function (_super) {
-    __extends(ParameterHintsModel, _super);
-    function ParameterHintsModel(editor, delay) {
-        if (delay === void 0) { delay = ParameterHintsModel.DEFAULT_DELAY; }
-        var _this = _super.call(this) || this;
-        _this._onHint = _this._register(new Emitter());
-        _this.onHint = _this._onHint.event;
-        _this._onCancel = _this._register(new Emitter());
-        _this.onCancel = _this._onCancel.event;
-        _this.active = false;
-        _this.pending = false;
-        _this.triggerChars = new CharacterSet();
-        _this.retriggerChars = new CharacterSet();
-        _this.editor = editor;
-        _this.enabled = false;
-        _this.triggerCharactersListeners = [];
-        _this.throttledDelayer = new RunOnceScheduler(function () { return _this.doTrigger(); }, delay);
-        _this._register(_this.editor.onDidChangeConfiguration(function () { return _this.onEditorConfigurationChange(); }));
-        _this._register(_this.editor.onDidChangeModel(function (e) { return _this.onModelChanged(); }));
-        _this._register(_this.editor.onDidChangeModelLanguage(function (_) { return _this.onModelChanged(); }));
-        _this._register(_this.editor.onDidChangeCursorSelection(function (e) { return _this.onCursorChange(e); }));
-        _this._register(_this.editor.onDidChangeModelContent(function (e) { return _this.onModelContentChange(); }));
-        _this._register(modes.SignatureHelpProviderRegistry.onDidChange(_this.onModelChanged, _this));
-        _this._register(_this.editor.onDidType(function (text) { return _this.onDidType(text); }));
-        _this.onEditorConfigurationChange();
-        _this.onModelChanged();
-        return _this;
-    }
-    ParameterHintsModel.prototype.cancel = function (silent) {
-        if (silent === void 0) { silent = false; }
-        this.active = false;
-        this.pending = false;
-        this.triggerContext = undefined;
-        this.throttledDelayer.cancel();
-        if (!silent) {
-            this._onCancel.fire(void 0);
-        }
-        if (this.provideSignatureHelpRequest) {
-            this.provideSignatureHelpRequest.cancel();
-            this.provideSignatureHelpRequest = undefined;
-        }
-    };
-    ParameterHintsModel.prototype.trigger = function (context, delay) {
-        if (!modes.SignatureHelpProviderRegistry.has(this.editor.getModel())) {
-            return;
-        }
-        var wasTriggered = this.isTriggered;
-        this.cancel(true);
-        this.triggerContext = {
-            triggerReason: context.triggerReason,
-            triggerCharacter: context.triggerCharacter,
-            isRetrigger: wasTriggered
-        };
-        return this.throttledDelayer.schedule(delay);
-    };
-    ParameterHintsModel.prototype.doTrigger = function () {
-        var _this = this;
-        if (this.provideSignatureHelpRequest) {
-            this.provideSignatureHelpRequest.cancel();
-        }
-        this.pending = true;
-        var triggerContext = this.triggerContext || { triggerReason: modes.SignatureHelpTriggerReason.Invoke, isRetrigger: false };
-        this.triggerContext = undefined;
-        this.provideSignatureHelpRequest = createCancelablePromise(function (token) {
-            return provideSignatureHelp(_this.editor.getModel(), _this.editor.getPosition(), triggerContext, token);
-        });
-        this.provideSignatureHelpRequest.then(function (result) {
-            _this.pending = false;
-            if (!result || !result.signatures || result.signatures.length === 0) {
-                _this.cancel();
-                _this._onCancel.fire(void 0);
-                return false;
-            }
-            _this.active = true;
-            var event = { hints: result };
-            _this._onHint.fire(event);
-            return true;
-        }).catch(function (error) {
-            _this.pending = false;
-            onUnexpectedError(error);
-        });
-    };
-    Object.defineProperty(ParameterHintsModel.prototype, "isTriggered", {
-        get: function () {
-            return this.active || this.pending || this.throttledDelayer.isScheduled();
-        },
-        enumerable: true,
-        configurable: true
-    });
-    ParameterHintsModel.prototype.onModelChanged = function () {
-        this.cancel();
-        // Update trigger characters
-        this.triggerChars = new CharacterSet();
-        this.retriggerChars = new CharacterSet();
-        var model = this.editor.getModel();
-        if (!model) {
-            return;
-        }
-        for (var _i = 0, _a = modes.SignatureHelpProviderRegistry.ordered(model); _i < _a.length; _i++) {
-            var support = _a[_i];
-            if (Array.isArray(support.signatureHelpTriggerCharacters)) {
-                for (var _b = 0, _c = support.signatureHelpTriggerCharacters; _b < _c.length; _b++) {
-                    var ch = _c[_b];
-                    this.triggerChars.add(ch.charCodeAt(0));
-                    // All trigger characters are also considered retrigger characters
-                    this.retriggerChars.add(ch.charCodeAt(0));
-                }
-            }
-            if (Array.isArray(support.signatureHelpRetriggerCharacters)) {
-                for (var _d = 0, _e = support.signatureHelpRetriggerCharacters; _d < _e.length; _d++) {
-                    var ch = _e[_d];
-                    this.retriggerChars.add(ch.charCodeAt(0));
-                }
-            }
-        }
-    };
-    ParameterHintsModel.prototype.onDidType = function (text) {
-        if (!this.enabled) {
-            return;
-        }
-        var lastCharIndex = text.length - 1;
-        var triggerCharCode = text.charCodeAt(lastCharIndex);
-        if (this.triggerChars.has(triggerCharCode) || this.isTriggered && this.retriggerChars.has(triggerCharCode)) {
-            this.trigger({
-                triggerReason: modes.SignatureHelpTriggerReason.TriggerCharacter,
-                triggerCharacter: text.charAt(lastCharIndex),
-            });
-        }
-    };
-    ParameterHintsModel.prototype.onCursorChange = function (e) {
-        if (e.source === 'mouse') {
-            this.cancel();
-        }
-        else if (this.isTriggered) {
-            this.trigger({ triggerReason: modes.SignatureHelpTriggerReason.ContentChange });
-        }
-    };
-    ParameterHintsModel.prototype.onModelContentChange = function () {
-        if (this.isTriggered) {
-            this.trigger({ triggerReason: modes.SignatureHelpTriggerReason.ContentChange });
-        }
-    };
-    ParameterHintsModel.prototype.onEditorConfigurationChange = function () {
-        this.enabled = this.editor.getConfiguration().contribInfo.parameterHints.enabled;
-        if (!this.enabled) {
-            this.cancel();
-        }
-    };
-    ParameterHintsModel.prototype.dispose = function () {
-        this.cancel(true);
-        this.triggerCharactersListeners = dispose(this.triggerCharactersListeners);
-        _super.prototype.dispose.call(this);
-    };
-    ParameterHintsModel.DEFAULT_DELAY = 120; // ms
-    return ParameterHintsModel;
-}(Disposable));
-export { ParameterHintsModel };
-var ParameterHintsWidget = /** @class */ (function () {
+var ParameterHintsWidget = /** @class */ (function (_super) {
+    __extends(ParameterHintsWidget, _super);
     function ParameterHintsWidget(editor, contextKeyService, openerService, modeService) {
-        var _this = this;
-        this.editor = editor;
+        var _this = _super.call(this) || this;
+        _this.editor = editor;
+        _this.renderDisposeables = _this._register(new DisposableStore());
+        _this.visible = false;
+        _this.announcedLabel = null;
         // Editor.IContentWidget.allowEditorOverflow
-        this.allowEditorOverflow = true;
-        this.markdownRenderer = new MarkdownRenderer(editor, modeService, openerService);
-        this.model = new ParameterHintsModel(editor);
-        this.keyVisible = Context.Visible.bindTo(contextKeyService);
-        this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
-        this.visible = false;
-        this.disposables = [];
-        this.disposables.push(this.model.onHint(function (e) {
-            _this.show();
-            _this.hints = e.hints;
-            _this.currentSignature = e.hints.activeSignature;
-            _this.render();
+        _this.allowEditorOverflow = true;
+        _this.markdownRenderer = _this._register(new MarkdownRenderer(editor, modeService, openerService));
+        _this.model = _this._register(new ParameterHintsModel(editor));
+        _this.keyVisible = Context.Visible.bindTo(contextKeyService);
+        _this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
+        _this._register(_this.model.onChangedHints(function (newParameterHints) {
+            if (newParameterHints) {
+                _this.show();
+                _this.render(newParameterHints);
+            }
+            else {
+                _this.hide();
+            }
         }));
-        this.disposables.push(this.model.onCancel(function () {
-            _this.hide();
-        }));
+        return _this;
     }
     ParameterHintsWidget.prototype.createParamaterHintDOMNodes = function () {
         var _this = this;
-        this.element = $('.editor-widget.parameter-hints-widget');
-        var wrapper = dom.append(this.element, $('.wrapper'));
-        var buttons = dom.append(wrapper, $('.buttons'));
-        var previous = dom.append(buttons, $('.button.previous'));
-        var next = dom.append(buttons, $('.button.next'));
+        var element = $('.editor-widget.parameter-hints-widget');
+        var wrapper = dom.append(element, $('.wrapper'));
+        wrapper.tabIndex = -1;
+        var controls = dom.append(wrapper, $('.controls'));
+        var previous = dom.append(controls, $('.button.codicon.codicon-chevron-up'));
+        var overloads = dom.append(controls, $('.overloads'));
+        var next = dom.append(controls, $('.button.codicon.codicon-chevron-down'));
         var onPreviousClick = stop(domEvent(previous, 'click'));
-        onPreviousClick(this.previous, this, this.disposables);
+        this._register(onPreviousClick(this.previous, this));
         var onNextClick = stop(domEvent(next, 'click'));
-        onNextClick(this.next, this, this.disposables);
-        this.overloads = dom.append(wrapper, $('.overloads'));
+        this._register(onNextClick(this.next, this));
         var body = $('.body');
-        this.scrollbar = new DomScrollableElement(body, {});
-        this.disposables.push(this.scrollbar);
-        wrapper.appendChild(this.scrollbar.getDomNode());
-        this.signature = dom.append(body, $('.signature'));
-        this.docs = dom.append(body, $('.docs'));
-        this.currentSignature = 0;
+        var scrollbar = new DomScrollableElement(body, {});
+        this._register(scrollbar);
+        wrapper.appendChild(scrollbar.getDomNode());
+        var signature = dom.append(body, $('.signature'));
+        var docs = dom.append(body, $('.docs'));
+        element.style.userSelect = 'text';
+        this.domNodes = {
+            element: element,
+            signature: signature,
+            overloads: overloads,
+            docs: docs,
+            scrollbar: scrollbar,
+        };
         this.editor.addContentWidget(this);
         this.hide();
-        this.element.style.userSelect = 'text';
-        this.disposables.push(this.editor.onDidChangeCursorSelection(function (e) {
+        this._register(this.editor.onDidChangeCursorSelection(function (e) {
             if (_this.visible) {
                 _this.editor.layoutContentWidget(_this);
             }
         }));
         var updateFont = function () {
-            var fontInfo = _this.editor.getConfiguration().fontInfo;
-            _this.element.style.fontSize = fontInfo.fontSize + "px";
+            if (!_this.domNodes) {
+                return;
+            }
+            var fontInfo = _this.editor.getOption(34 /* fontInfo */);
+            _this.domNodes.element.style.fontSize = fontInfo.fontSize + "px";
         };
         updateFont();
-        chain(this.editor.onDidChangeConfiguration.bind(this.editor))
-            .filter(function (e) { return e.fontInfo; })
-            .on(updateFont, null, this.disposables);
-        this.disposables.push(this.editor.onDidLayoutChange(function (e) { return _this.updateMaxHeight(); }));
+        this._register(Event.chain(this.editor.onDidChangeConfiguration.bind(this.editor))
+            .filter(function (e) { return e.hasChanged(34 /* fontInfo */); })
+            .on(updateFont, null));
+        this._register(this.editor.onDidLayoutChange(function (e) { return _this.updateMaxHeight(); }));
         this.updateMaxHeight();
     };
     ParameterHintsWidget.prototype.show = function () {
         var _this = this;
-        if (!this.model || this.visible) {
+        if (this.visible) {
             return;
         }
-        if (!this.element) {
+        if (!this.domNodes) {
             this.createParamaterHintDOMNodes();
         }
         this.keyVisible.set(true);
         this.visible = true;
-        setTimeout(function () { return dom.addClass(_this.element, 'visible'); }, 100);
+        setTimeout(function () {
+            if (_this.domNodes) {
+                dom.addClass(_this.domNodes.element, 'visible');
+            }
+        }, 100);
         this.editor.layoutContentWidget(this);
     };
     ParameterHintsWidget.prototype.hide = function () {
-        if (!this.model || !this.visible) {
+        if (!this.visible) {
             return;
-        }
-        if (!this.element) {
-            this.createParamaterHintDOMNodes();
         }
         this.keyVisible.reset();
         this.visible = false;
-        this.hints = null;
         this.announcedLabel = null;
-        dom.removeClass(this.element, 'visible');
+        if (this.domNodes) {
+            dom.removeClass(this.domNodes.element, 'visible');
+        }
         this.editor.layoutContentWidget(this);
     };
     ParameterHintsWidget.prototype.getPosition = function () {
@@ -297,19 +153,22 @@ var ParameterHintsWidget = /** @class */ (function () {
         }
         return null;
     };
-    ParameterHintsWidget.prototype.render = function () {
-        var multiple = this.hints.signatures.length > 1;
-        dom.toggleClass(this.element, 'multiple', multiple);
+    ParameterHintsWidget.prototype.render = function (hints) {
+        if (!this.domNodes) {
+            return;
+        }
+        var multiple = hints.signatures.length > 1;
+        dom.toggleClass(this.domNodes.element, 'multiple', multiple);
         this.keyMultipleSignatures.set(multiple);
-        this.signature.innerHTML = '';
-        this.docs.innerHTML = '';
-        var signature = this.hints.signatures[this.currentSignature];
+        this.domNodes.signature.innerHTML = '';
+        this.domNodes.docs.innerHTML = '';
+        var signature = hints.signatures[hints.activeSignature];
         if (!signature) {
             return;
         }
-        var code = dom.append(this.signature, $('.code'));
+        var code = dom.append(this.domNodes.signature, $('.code'));
         var hasParameters = signature.parameters.length > 0;
-        var fontInfo = this.editor.getConfiguration().fontInfo;
+        var fontInfo = this.editor.getOption(34 /* fontInfo */);
         code.style.fontSize = fontInfo.fontSize + "px";
         code.style.fontFamily = fontInfo.fontFamily;
         if (!hasParameters) {
@@ -317,11 +176,10 @@ var ParameterHintsWidget = /** @class */ (function () {
             label.textContent = signature.label;
         }
         else {
-            this.renderParameters(code, signature, this.hints.activeParameter);
+            this.renderParameters(code, signature, hints.activeParameter);
         }
-        dispose(this.renderDisposeables);
-        this.renderDisposeables = [];
-        var activeParameter = signature.parameters[this.hints.activeParameter];
+        this.renderDisposeables.clear();
+        var activeParameter = signature.parameters[hints.activeParameter];
         if (activeParameter && activeParameter.documentation) {
             var documentation = $('span.documentation');
             if (typeof activeParameter.documentation === 'string') {
@@ -330,28 +188,28 @@ var ParameterHintsWidget = /** @class */ (function () {
             else {
                 var renderedContents = this.markdownRenderer.render(activeParameter.documentation);
                 dom.addClass(renderedContents.element, 'markdown-docs');
-                this.renderDisposeables.push(renderedContents);
+                this.renderDisposeables.add(renderedContents);
                 documentation.appendChild(renderedContents.element);
             }
-            dom.append(this.docs, $('p', null, documentation));
+            dom.append(this.domNodes.docs, $('p', {}, documentation));
         }
-        dom.toggleClass(this.signature, 'has-docs', !!signature.documentation);
-        if (typeof signature.documentation === 'string') {
-            dom.append(this.docs, $('p', null, signature.documentation));
+        if (signature.documentation === undefined) { /** no op */ }
+        else if (typeof signature.documentation === 'string') {
+            dom.append(this.domNodes.docs, $('p', {}, signature.documentation));
         }
         else {
             var renderedContents = this.markdownRenderer.render(signature.documentation);
             dom.addClass(renderedContents.element, 'markdown-docs');
-            this.renderDisposeables.push(renderedContents);
-            dom.append(this.docs, renderedContents.element);
+            this.renderDisposeables.add(renderedContents);
+            dom.append(this.domNodes.docs, renderedContents.element);
         }
-        var currentOverload = String(this.currentSignature + 1);
-        if (this.hints.signatures.length < 10) {
-            currentOverload += "/" + this.hints.signatures.length;
-        }
-        this.overloads.textContent = currentOverload;
+        var hasDocs = this.hasDocs(signature, activeParameter);
+        dom.toggleClass(this.domNodes.signature, 'has-docs', hasDocs);
+        dom.toggleClass(this.domNodes.docs, 'empty', !hasDocs);
+        this.domNodes.overloads.textContent =
+            pad(hints.activeSignature + 1, hints.signatures.length.toString().length) + '/' + hints.signatures.length;
         if (activeParameter) {
-            var labelToAnnounce = this.getParameterLabel(signature, this.hints.activeParameter);
+            var labelToAnnounce = this.getParameterLabel(signature, hints.activeParameter);
             // Select method gets called on every user type while parameter hints are visible.
             // We do not want to spam the user with same announcements, so we only announce if the current parameter changed.
             if (this.announcedLabel !== labelToAnnounce) {
@@ -360,7 +218,22 @@ var ParameterHintsWidget = /** @class */ (function () {
             }
         }
         this.editor.layoutContentWidget(this);
-        this.scrollbar.scanDomNode();
+        this.domNodes.scrollbar.scanDomNode();
+    };
+    ParameterHintsWidget.prototype.hasDocs = function (signature, activeParameter) {
+        if (activeParameter && typeof (activeParameter.documentation) === 'string' && activeParameter.documentation.length > 0) {
+            return true;
+        }
+        if (activeParameter && typeof (activeParameter.documentation) === 'object' && activeParameter.documentation.value.length > 0) {
+            return true;
+        }
+        if (typeof (signature.documentation) === 'string' && signature.documentation.length > 0) {
+            return true;
+        }
+        if (typeof (signature.documentation) === 'object' && signature.documentation.value.length > 0) {
+            return true;
+        }
+        return false;
     };
     ParameterHintsWidget.prototype.renderParameters = function (parent, signature, currentParameter) {
         var _a = this.getParameterLabelOffsets(signature, currentParameter), start = _a[0], end = _a[1];
@@ -397,70 +270,22 @@ var ParameterHintsWidget = /** @class */ (function () {
                 : [0, 0];
         }
     };
-    // private select(position: number): void {
-    // 	const signature = this.signatureViews[position];
-    // 	if (!signature) {
-    // 		return;
-    // 	}
-    // 	this.signatures.style.height = `${ signature.height }px`;
-    // 	this.signatures.scrollTop = signature.top;
-    // 	let overloads = '' + (position + 1);
-    // 	if (this.signatureViews.length < 10) {
-    // 		overloads += '/' + this.signatureViews.length;
-    // 	}
-    // 	this.overloads.textContent = overloads;
-    // 	if (this.hints && this.hints.signatures[position].parameters[this.hints.activeParameter]) {
-    // 		const labelToAnnounce = this.hints.signatures[position].parameters[this.hints.activeParameter].label;
-    // 		// Select method gets called on every user type while parameter hints are visible.
-    // 		// We do not want to spam the user with same announcements, so we only announce if the current parameter changed.
-    // 		if (this.announcedLabel !== labelToAnnounce) {
-    // 			aria.alert(nls.localize('hint', "{0}, hint", labelToAnnounce));
-    // 			this.announcedLabel = labelToAnnounce;
-    // 		}
-    // 	}
-    // 	this.editor.layoutContentWidget(this);
-    // }
     ParameterHintsWidget.prototype.next = function () {
-        var length = this.hints.signatures.length;
-        var last = (this.currentSignature % length) === (length - 1);
-        var cycle = this.editor.getConfiguration().contribInfo.parameterHints.cycle;
-        // If there is only one signature, or we're on last signature of list
-        if ((length < 2 || last) && !cycle) {
-            this.cancel();
-            return false;
-        }
-        if (last && cycle) {
-            this.currentSignature = 0;
-        }
-        else {
-            this.currentSignature++;
-        }
-        this.render();
-        return true;
+        this.editor.focus();
+        this.model.next();
     };
     ParameterHintsWidget.prototype.previous = function () {
-        var length = this.hints.signatures.length;
-        var first = this.currentSignature === 0;
-        var cycle = this.editor.getConfiguration().contribInfo.parameterHints.cycle;
-        // If there is only one signature, or we're on first signature of list
-        if ((length < 2 || first) && !cycle) {
-            this.cancel();
-            return false;
-        }
-        if (first && cycle) {
-            this.currentSignature = length - 1;
-        }
-        else {
-            this.currentSignature--;
-        }
-        this.render();
-        return true;
+        this.editor.focus();
+        this.model.previous();
     };
     ParameterHintsWidget.prototype.cancel = function () {
         this.model.cancel();
     };
     ParameterHintsWidget.prototype.getDomNode = function () {
-        return this.element;
+        if (!this.domNodes) {
+            this.createParamaterHintDOMNodes();
+        }
+        return this.domNodes.element;
     };
     ParameterHintsWidget.prototype.getId = function () {
         return ParameterHintsWidget.ID;
@@ -469,15 +294,15 @@ var ParameterHintsWidget = /** @class */ (function () {
         this.model.trigger(context, 0);
     };
     ParameterHintsWidget.prototype.updateMaxHeight = function () {
+        if (!this.domNodes) {
+            return;
+        }
         var height = Math.max(this.editor.getLayoutInfo().height / 4, 250);
-        this.element.style.maxHeight = height + "px";
-    };
-    ParameterHintsWidget.prototype.dispose = function () {
-        this.disposables = dispose(this.disposables);
-        this.renderDisposeables = dispose(this.renderDisposeables);
-        if (this.model) {
-            this.model.dispose();
-            this.model = null;
+        var maxHeight = height + "px";
+        this.domNodes.element.style.maxHeight = maxHeight;
+        var wrapper = this.domNodes.element.getElementsByClassName('wrapper');
+        if (wrapper.length) {
+            wrapper[0].style.maxHeight = maxHeight;
         }
     };
     ParameterHintsWidget.ID = 'editor.widget.parameterHintsWidget';
@@ -487,7 +312,7 @@ var ParameterHintsWidget = /** @class */ (function () {
         __param(3, IModeService)
     ], ParameterHintsWidget);
     return ParameterHintsWidget;
-}());
+}(Disposable));
 export { ParameterHintsWidget };
 registerThemingParticipant(function (theme, collector) {
     var border = theme.getColor(editorHoverBorder);
@@ -504,6 +329,10 @@ registerThemingParticipant(function (theme, collector) {
     var link = theme.getColor(textLinkForeground);
     if (link) {
         collector.addRule(".monaco-editor .parameter-hints-widget a { color: " + link + "; }");
+    }
+    var foreground = theme.getColor(editorHoverForeground);
+    if (foreground) {
+        collector.addRule(".monaco-editor .parameter-hints-widget { color: " + foreground + "; }");
     }
     var codeBackground = theme.getColor(textCodeBlockBackground);
     if (codeBackground) {

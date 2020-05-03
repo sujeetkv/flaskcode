@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { isObject } from './types.js';
+import { isObject, isUndefinedOrNull, isArray } from './types.js';
 export function deepClone(obj) {
     if (!obj || typeof obj !== 'object') {
         return obj;
@@ -42,6 +42,41 @@ export function deepFreeze(obj) {
     return obj;
 }
 var _hasOwnProperty = Object.prototype.hasOwnProperty;
+export function cloneAndChange(obj, changer) {
+    return _cloneAndChange(obj, changer, new Set());
+}
+function _cloneAndChange(obj, changer, seen) {
+    if (isUndefinedOrNull(obj)) {
+        return obj;
+    }
+    var changed = changer(obj);
+    if (typeof changed !== 'undefined') {
+        return changed;
+    }
+    if (isArray(obj)) {
+        var r1 = [];
+        for (var _i = 0, obj_2 = obj; _i < obj_2.length; _i++) {
+            var e = obj_2[_i];
+            r1.push(_cloneAndChange(e, changer, seen));
+        }
+        return r1;
+    }
+    if (isObject(obj)) {
+        if (seen.has(obj)) {
+            throw new Error('Cannot clone recursive data-structure');
+        }
+        seen.add(obj);
+        var r2 = {};
+        for (var i2 in obj) {
+            if (_hasOwnProperty.call(obj, i2)) {
+                r2[i2] = _cloneAndChange(obj[i2], changer, seen);
+            }
+        }
+        seen.delete(obj);
+        return r2;
+    }
+    return obj;
+}
 /**
  * Copies all properties of source into destination. The optional parameter "overwrite" allows to control
  * if existing properties on the destination should be overwritten or not. Defaults to true (overwrite).
@@ -128,36 +163,7 @@ export function equals(one, other) {
     }
     return true;
 }
-export function arrayToHash(array) {
-    var result = {};
-    for (var i = 0; i < array.length; ++i) {
-        result[array[i]] = true;
-    }
-    return result;
-}
-/**
- * Given an array of strings, returns a function which, given a string
- * returns true or false whether the string is in that array.
- */
-export function createKeywordMatcher(arr, caseInsensitive) {
-    if (caseInsensitive === void 0) { caseInsensitive = false; }
-    if (caseInsensitive) {
-        arr = arr.map(function (x) { return x.toLowerCase(); });
-    }
-    var hash = arrayToHash(arr);
-    if (caseInsensitive) {
-        return function (word) {
-            return hash[word.toLowerCase()] !== undefined && hash.hasOwnProperty(word.toLowerCase());
-        };
-    }
-    else {
-        return function (word) {
-            return hash[word] !== undefined && hash.hasOwnProperty(word);
-        };
-    }
-}
 export function getOrDefault(obj, fn, defaultValue) {
-    if (defaultValue === void 0) { defaultValue = null; }
     var result = fn(obj);
     return typeof result === 'undefined' ? defaultValue : result;
 }

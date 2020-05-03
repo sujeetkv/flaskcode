@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import * as nodes from '../parser/cssNodes.js';
-import { Range, DiagnosticSeverity } from './../../vscode-languageserver-types/main.js';
-import { LintConfigurationSettings } from './lintRules.js';
+import { LintConfigurationSettings, Rules } from './lintRules.js';
 import { LintVisitor } from './lint.js';
+import { Range, DiagnosticSeverity } from '../cssLanguageTypes.js';
 var CSSValidation = /** @class */ (function () {
     function CSSValidation() {
     }
@@ -21,11 +21,16 @@ var CSSValidation = /** @class */ (function () {
         var entries = [];
         entries.push.apply(entries, nodes.ParseErrorCollector.entries(stylesheet));
         entries.push.apply(entries, LintVisitor.entries(stylesheet, document, new LintConfigurationSettings(settings && settings.lint)));
+        var ruleIds = [];
+        for (var r in Rules) {
+            ruleIds.push(Rules[r].id);
+        }
         function toDiagnostic(marker) {
             var range = Range.create(document.positionAt(marker.getOffset()), document.positionAt(marker.getOffset() + marker.getLength()));
+            var source = document.languageId;
             return {
                 code: marker.getRule().id,
-                source: document.languageId,
+                source: source,
                 message: marker.getMessage(),
                 severity: marker.getLevel() === nodes.Level.Warning ? DiagnosticSeverity.Warning : DiagnosticSeverity.Error,
                 range: range
@@ -36,4 +41,3 @@ var CSSValidation = /** @class */ (function () {
     return CSSValidation;
 }());
 export { CSSValidation };
-//# sourceMappingURL=cssValidation.js.map

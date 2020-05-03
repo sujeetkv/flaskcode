@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { buildReplaceStringWithCasePreserved } from '../../../base/common/search.js';
 /**
  * Assigned when the replace pattern is entirely static.
  */
@@ -44,9 +45,14 @@ var ReplacePattern = /** @class */ (function () {
         enumerable: true,
         configurable: true
     });
-    ReplacePattern.prototype.buildReplaceString = function (matches) {
+    ReplacePattern.prototype.buildReplaceString = function (matches, preserveCase) {
         if (this._state.kind === 0 /* StaticValue */) {
-            return this._state.staticValue;
+            if (preserveCase) {
+                return buildReplaceStringWithCasePreserved(matches, this._state.staticValue);
+            }
+            else {
+                return this._state.staticValue;
+            }
         }
         var result = '';
         for (var i = 0, len = this._state.pieces.length; i < len; i++) {

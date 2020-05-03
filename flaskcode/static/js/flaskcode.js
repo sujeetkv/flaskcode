@@ -1,6 +1,151 @@
 /* flaskcode scripts */
 'use strict';
 
+$(function () {
+    flaskcode.$pagePreloader = $('div#page-preloader');
+    flaskcode.$editorContainer = $('div#editor-container');
+    flaskcode.$editorBody = flaskcode.$editorContainer.find('.editor-body');
+    flaskcode.$editorLoader = flaskcode.$editorContainer.find('.editor-preloader');
+    flaskcode.editorElement = flaskcode.$editorBody.get(0);
+
+    $('ul#dir-tree').treed();
+    flaskcode.setEditorState(flaskcode.editorStates.INIT);
+
+    require(['vs/editor/editor.main'], function() {
+        flaskcode.languages = monaco.languages.getLanguages();
+        flaskcode.allowedLangIds = flaskcode.languages.map(function (lang) { return lang.id; });
+        flaskcode.defaultLang = flaskcode.getLanguageByExtension(flaskcode.defaultExt);
+        flaskcode.fallbackLang = flaskcode.getLanguageById(flaskcode.defaultLangId);
+
+        $('ul#dir-tree').on('click', '.file-item', function () {
+            return flaskcode.openResource($(this));
+        });
+
+        $('.header-actions').on('click', function () {
+            if (flaskcode.editorWidget.editor) {
+                flaskcode.editorWidget.editor.trigger('mouse', $(this).data('actionId'));
+            }
+        });
+
+        $('#toggle-minimap').on('click', function () {
+            flaskcode.minimapEnabled(!flaskcode.minimapEnabled());
+        });
+
+        $.contextMenu({
+            selector: 'ul#dir-tree .resource-items',
+            autoHide: false,
+            build: function ($trigger, e) {
+                var items = {
+                    'title': {name: $trigger.data('pathName'), icon: 'fa-tag', disabled: true},
+                    'sep': '---------'
+                };
+                if ($trigger.hasClass('dir-item')) {
+                    items['title']['icon'] = 'fa-folder';
+                    if ($trigger.hasClass('expanded')) {
+                        items['toggle_collapse'] = {name: 'Collapse', icon: 'fa-compress'};
+                    } else {
+                        items['toggle_collapse'] = {name: 'Expand', icon: 'fa-expand'};
+                    }
+                    items['create_new_file'] = {name: 'Create New File', icon: 'fa-file-code-o'};
+                } else {
+                    items['title']['icon'] = 'fa-file';
+                    items['open'] = {name: 'Open', icon: 'fa-external-link', disabled: $trigger.hasClass('selected')};
+                }
+                return {
+                    items: items,
+                    callback: function (key, options) {
+                        switch (key) {
+                            case 'toggle_collapse':
+                                options.$trigger.click();
+                                break;
+    
+                            case 'open':
+                                flaskcode.openResource(options.$trigger);
+                                break;
+    
+                            case 'create_new_file':
+                                flaskcode.openNewFileModal(options.$trigger);
+                                break;
+                        }
+                    },
+                };
+            },
+            events: {
+                show: function (options) {},
+                hide: function (options) {},
+            },
+        });
+    
+        $('#fileNameModal').on('shown.bs.modal', function () {
+            $(this).find('#new_filename').focus();
+        });
+
+        $('form#fileNameForm').on('submit', function (evt) {
+            evt.preventDefault();
+            var $form = $(this);
+            var $button = $form.find('[type="submit"]');
+            var base_url = $form.find('#base_url').val();
+            var base_path_name = $form.find('#base_path_name').val();
+            var new_filename = $form.find('#new_filename').val();
+            if (!(new_filename && flaskcode.validResource(new_filename))) {
+                $form.find('.form-msg').empty().append($('<span class="text-danger">Please enter valid file name.</span>').autoremove(10));
+            } else {
+                var resource_url = base_url + '/' + new_filename + '.txt';
+                $.ajax({
+                    type: 'HEAD',
+                    url: resource_url,
+                    dataType: 'text',
+                    cache: false,
+                    beforeSend: function (xhr, settings) {
+                        $button.button('loading');
+                    },
+                    complete: function (xhr, status) {
+                        $button.button('reset');
+                    },
+                }).done(function (data, status, xhr) {
+                    $form.find('.form-msg').empty().append($('<span class="text-danger">This file already exists.</span>').autoremove(10));
+                }).fail(function (xhr, status, err) {
+                    if (xhr.status == 404) {
+                        flaskcode.loadEditor({url: resource_url, filePath: base_path_name + '/' + new_filename}, false, true);
+                        $('#fileNameModal').modal('hide');
+                    } else {
+                        $form.find('.form-msg').empty().append($('<span class="text-danger">Internal Error: '+err+'</span>').autoremove(10));
+                    }
+                });
+            }
+            return false;
+        });
+
+        $('#editor-header #resource-close').on('click', function () {
+            if (flaskcode.editorWidget.editorState == flaskcode.editorStates.MODIFIED && !confirm('Close without saving?')) {
+                return false;
+            }
+            flaskcode.saveResourceState();
+            flaskcode.clearEditor();
+            flaskcode.resetSelectedResource();
+            $('#editor-header #resource-mod').hide();
+            $('#editor-header #resource-name').text('').attr('title', '');
+            $(this).hide();
+        });
+
+        $(window).on('resize', function () {
+            if (flaskcode.editorWidget.editor) {
+                flaskcode.editorWidget.editor.layout();
+            }
+        });
+
+        $(window).on('beforeunload', function (evt) {
+            if (flaskcode.APP_BUSY || flaskcode.editorWidget.editorState == flaskcode.editorStates.BUSY) {
+                evt.preventDefault();
+                evt.returnValue = 'App is working...';
+                return evt.returnValue;
+            }
+        });
+
+        flaskcode.$pagePreloader.fadeOut();
+    });
+});
+
 var flaskcode = window.flaskcode || {};
 
 require.config({
@@ -435,148 +580,3 @@ flaskcode.openNewFileModal = function ($resourceElement) {
     $modal.find('#new_filename').val('');
     $modal.modal({show: true, backdrop: 'static'});
 };
-
-$(function () {
-    flaskcode.$pagePreloader = $('div#page-preloader');
-    flaskcode.$editorContainer = $('div#editor-container');
-    flaskcode.$editorBody = flaskcode.$editorContainer.find('.editor-body');
-    flaskcode.$editorLoader = flaskcode.$editorContainer.find('.editor-preloader');
-    flaskcode.editorElement = flaskcode.$editorBody.get(0);
-
-    $('ul#dir-tree').treed();
-    flaskcode.setEditorState(flaskcode.editorStates.INIT);
-
-    require(['vs/editor/editor.main'], function() {
-        flaskcode.languages = monaco.languages.getLanguages();
-        flaskcode.allowedLangIds = flaskcode.languages.map(function (lang) { return lang.id; });
-        flaskcode.defaultLang = flaskcode.getLanguageByExtension(flaskcode.defaultExt);
-        flaskcode.fallbackLang = flaskcode.getLanguageById(flaskcode.defaultLangId);
-
-        $('ul#dir-tree').on('click', '.file-item', function () {
-            return flaskcode.openResource($(this));
-        });
-
-        $('.header-actions').on('click', function () {
-            if (flaskcode.editorWidget.editor) {
-                flaskcode.editorWidget.editor.trigger('mouse', $(this).data('actionId'));
-            }
-        });
-
-        $('#toggle-minimap').on('click', function () {
-            flaskcode.minimapEnabled(!flaskcode.minimapEnabled());
-        });
-
-        $.contextMenu({
-            selector: 'ul#dir-tree .resource-items',
-            autoHide: false,
-            build: function ($trigger, e) {
-                var items = {
-                    'title': {name: $trigger.data('pathName'), icon: 'fa-tag', disabled: true},
-                    'sep': '---------'
-                };
-                if ($trigger.hasClass('dir-item')) {
-                    items['title']['icon'] = 'fa-folder';
-                    if ($trigger.hasClass('expanded')) {
-                        items['toggle_collapse'] = {name: 'Collapse', icon: 'fa-compress'};
-                    } else {
-                        items['toggle_collapse'] = {name: 'Expand', icon: 'fa-expand'};
-                    }
-                    items['create_new_file'] = {name: 'Create New File', icon: 'fa-file-code-o'};
-                } else {
-                    items['title']['icon'] = 'fa-file';
-                    items['open'] = {name: 'Open', icon: 'fa-external-link', disabled: $trigger.hasClass('selected')};
-                }
-                return {
-                    items: items,
-                    callback: function (key, options) {
-                        switch (key) {
-                            case 'toggle_collapse':
-                                options.$trigger.click();
-                                break;
-    
-                            case 'open':
-                                flaskcode.openResource(options.$trigger);
-                                break;
-    
-                            case 'create_new_file':
-                                flaskcode.openNewFileModal(options.$trigger);
-                                break;
-                        }
-                    },
-                };
-            },
-            events: {
-                show: function (options) {},
-                hide: function (options) {},
-            },
-        });
-    
-        $('#fileNameModal').on('shown.bs.modal', function () {
-            $(this).find('#new_filename').focus();
-        });
-
-        $('form#fileNameForm').on('submit', function (evt) {
-            evt.preventDefault();
-            var $form = $(this);
-            var $button = $form.find('[type="submit"]');
-            var base_url = $form.find('#base_url').val();
-            var base_path_name = $form.find('#base_path_name').val();
-            var new_filename = $form.find('#new_filename').val();
-            if (!(new_filename && flaskcode.validResource(new_filename))) {
-                $form.find('.form-msg').empty().append($('<span class="text-danger">Please enter valid file name.</span>').autoremove(10));
-            } else {
-                var resource_url = base_url + '/' + new_filename + '.txt';
-                $.ajax({
-                    type: 'HEAD',
-                    url: resource_url,
-                    dataType: 'text',
-                    cache: false,
-                    beforeSend: function (xhr, settings) {
-                        $button.button('loading');
-                    },
-                    complete: function (xhr, status) {
-                        $button.button('reset');
-                    },
-                }).done(function (data, status, xhr) {
-                    $form.find('.form-msg').empty().append($('<span class="text-danger">This file already exists.</span>').autoremove(10));
-                }).fail(function (xhr, status, err) {
-                    if (xhr.status == 404) {
-                        flaskcode.loadEditor({url: resource_url, filePath: base_path_name + '/' + new_filename}, false, true);
-                        $('#fileNameModal').modal('hide');
-                    } else {
-                        $form.find('.form-msg').empty().append($('<span class="text-danger">Internal Error: '+err+'</span>').autoremove(10));
-                    }
-                });
-            }
-            return false;
-        });
-
-        $('#editor-header #resource-close').on('click', function () {
-            if (flaskcode.editorWidget.editorState == flaskcode.editorStates.MODIFIED && !confirm('Close without saving?')) {
-                return false;
-            }
-            flaskcode.saveResourceState();
-            flaskcode.clearEditor();
-            flaskcode.resetSelectedResource();
-            $('#editor-header #resource-mod').hide();
-            $('#editor-header #resource-name').text('').attr('title', '');
-            $(this).hide();
-        });
-
-        $(window).on('resize', function () {
-            if (flaskcode.editorWidget.editor) {
-                flaskcode.editorWidget.editor.layout();
-            }
-        });
-
-        $(window).on('beforeunload', function (evt) {
-            if (flaskcode.APP_BUSY || flaskcode.editorWidget.editorState == flaskcode.editorStates.BUSY) {
-                evt.preventDefault();
-                evt.returnValue = 'App is working...';
-                return evt.returnValue;
-            }
-        });
-
-        flaskcode.$pagePreloader.fadeOut();
-    });
-});

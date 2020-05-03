@@ -5,15 +5,7 @@
 var ResolvedKeybindingItem = /** @class */ (function () {
     function ResolvedKeybindingItem(resolvedKeybinding, command, commandArgs, when, isDefault) {
         this.resolvedKeybinding = resolvedKeybinding;
-        if (resolvedKeybinding) {
-            var _a = resolvedKeybinding.getDispatchParts(), keypressFirstPart = _a[0], keypressChordPart = _a[1];
-            this.keypressFirstPart = keypressFirstPart;
-            this.keypressChordPart = keypressChordPart;
-        }
-        else {
-            this.keypressFirstPart = null;
-            this.keypressChordPart = null;
-        }
+        this.keypressParts = resolvedKeybinding ? removeElementsAfterNulls(resolvedKeybinding.getDispatchParts()) : [];
         this.bubble = (command ? command.charCodeAt(0) === 94 /* Caret */ : false);
         this.command = this.bubble ? command.substr(1) : command;
         this.commandArgs = commandArgs;
@@ -23,3 +15,15 @@ var ResolvedKeybindingItem = /** @class */ (function () {
     return ResolvedKeybindingItem;
 }());
 export { ResolvedKeybindingItem };
+export function removeElementsAfterNulls(arr) {
+    var result = [];
+    for (var i = 0, len = arr.length; i < len; i++) {
+        var element = arr[i];
+        if (!element) {
+            // stop processing at first encountered null
+            return result;
+        }
+        result.push(element);
+    }
+    return result;
+}

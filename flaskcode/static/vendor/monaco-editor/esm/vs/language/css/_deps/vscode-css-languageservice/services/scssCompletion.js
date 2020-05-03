@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 var __extends = (this && this.__extends) || (function () {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+    var extendStatics = function (d, b) {
+        extendStatics = Object.setPrototypeOf ||
+            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        return extendStatics(d, b);
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -15,17 +18,33 @@ var __extends = (this && this.__extends) || (function () {
 })();
 import { CSSCompletion } from './cssCompletion.js';
 import * as nodes from '../parser/cssNodes.js';
-import { CompletionItemKind, TextEdit, InsertTextFormat } from './../../vscode-languageserver-types/main.js';
+import { CompletionItemKind, TextEdit, InsertTextFormat } from '../cssLanguageTypes.js';
 import * as nls from './../../../fillers/vscode-nls.js';
 var localize = nls.loadMessageBundle();
 var SCSSCompletion = /** @class */ (function (_super) {
     __extends(SCSSCompletion, _super);
-    function SCSSCompletion() {
-        return _super.call(this, '$') || this;
+    function SCSSCompletion(clientCapabilities) {
+        var _this = _super.call(this, '$', clientCapabilities) || this;
+        addReferencesToDocumentation(SCSSCompletion.scssModuleLoaders);
+        addReferencesToDocumentation(SCSSCompletion.scssModuleBuiltIns);
+        return _this;
     }
+    SCSSCompletion.prototype.isImportPathParent = function (type) {
+        return type === nodes.NodeType.Forward
+            || type === nodes.NodeType.Use
+            || _super.prototype.isImportPathParent.call(this, type);
+    };
+    SCSSCompletion.prototype.getCompletionForImportPath = function (importPathNode, result) {
+        var _a;
+        var parentType = importPathNode.getParent().type;
+        if (parentType === nodes.NodeType.Forward || parentType === nodes.NodeType.Use) {
+            (_a = result.items).push.apply(_a, SCSSCompletion.scssModuleBuiltIns);
+        }
+        return _super.prototype.getCompletionForImportPath.call(this, importPathNode, result);
+    };
     SCSSCompletion.prototype.createReplaceFunction = function () {
         var tabStopCounter = 1;
-        return function (match, p1) {
+        return function (_match, p1) {
             return '\\' + p1 + ': ${' + tabStopCounter++ + ':' + (SCSSCompletion.variableDefaults[p1] || '') + '}';
         };
     };
@@ -50,13 +69,13 @@ var SCSSCompletion = /** @class */ (function (_super) {
         return result;
     };
     SCSSCompletion.prototype.getCompletionsForSelector = function (ruleSet, isNested, result) {
-        this.createFunctionProposals(SCSSCompletion.selectorFuncs, void 0, true, result);
+        this.createFunctionProposals(SCSSCompletion.selectorFuncs, null, true, result);
         return _super.prototype.getCompletionsForSelector.call(this, ruleSet, isNested, result);
     };
     SCSSCompletion.prototype.getTermProposals = function (entry, existingNode, result) {
         var functions = SCSSCompletion.builtInFuncs;
         if (entry) {
-            functions = functions.filter(function (f) { return !f.type || entry.restrictions.indexOf(f.type) !== -1; });
+            functions = functions.filter(function (f) { return !f.type || !entry.restrictions || entry.restrictions.indexOf(f.type) !== -1; });
         }
         this.createFunctionProposals(functions, existingNode, true, result);
         return _super.prototype.getTermProposals.call(this, entry, existingNode, result);
@@ -70,7 +89,7 @@ var SCSSCompletion = /** @class */ (function (_super) {
         this.getCompletionsForSelector(null, true, result);
         return _super.prototype.getCompletionsForDeclarationProperty.call(this, declaration, result);
     };
-    SCSSCompletion.prototype.getCompletionsForExtendsReference = function (extendsRef, existingNode, result) {
+    SCSSCompletion.prototype.getCompletionsForExtendsReference = function (_extendsRef, existingNode, result) {
         var symbols = this.getSymbolContext().findSymbolsAtOffset(this.offset, nodes.ReferenceType.Rule);
         for (var _i = 0, symbols_1 = symbols; _i < symbols_1.length; _i++) {
             var symbol = symbols_1[_i];
@@ -90,7 +109,13 @@ var SCSSCompletion = /** @class */ (function (_super) {
     };
     SCSSCompletion.prototype.getCompletionForTopLevel = function (result) {
         this.getCompletionForAtDirectives(result);
+        this.getCompletionForModuleLoaders(result);
         _super.prototype.getCompletionForTopLevel.call(this, result);
+        return result;
+    };
+    SCSSCompletion.prototype.getCompletionForModuleLoaders = function (result) {
+        var _a;
+        (_a = result.items).push.apply(_a, SCSSCompletion.scssModuleLoaders);
         return result;
     };
     SCSSCompletion.variableDefaults = {
@@ -258,8 +283,93 @@ var SCSSCompletion = /** @class */ (function (_super) {
             documentation: localize("scss.builtin.@include", "Includes the styles defined by another mixin into the current rule."),
             kind: CompletionItemKind.Keyword
         },
+        {
+            label: "@function",
+            documentation: localize("scss.builtin.@function", "Defines complex operations that can be re-used throughout stylesheets."),
+            kind: CompletionItemKind.Keyword
+        }
+    ];
+    SCSSCompletion.scssModuleLoaders = [
+        {
+            label: "@use",
+            documentation: localize("scss.builtin.@use", "Loads mixins, functions, and variables from other Sass stylesheets as 'modules', and combines CSS from multiple stylesheets together."),
+            references: [{ name: 'Sass documentation', url: 'https://sass-lang.com/documentation/at-rules/use' }],
+            insertText: "@use '$0';",
+            insertTextFormat: InsertTextFormat.Snippet,
+            kind: CompletionItemKind.Keyword
+        },
+        {
+            label: "@forward",
+            documentation: localize("scss.builtin.@forward", "Loads a Sass stylesheet and makes its mixins, functions, and variables available when this stylesheet is loaded with the @use rule."),
+            references: [{ name: 'Sass documentation', url: 'https://sass-lang.com/documentation/at-rules/forward' }],
+            insertText: "@forward '$0';",
+            insertTextFormat: InsertTextFormat.Snippet,
+            kind: CompletionItemKind.Keyword
+        },
+    ];
+    SCSSCompletion.scssModuleBuiltIns = [
+        {
+            label: 'sass:math',
+            documentation: localize('scss.builtin.sass:math', 'Provides functions that operate on numbers.'),
+            references: [{ name: 'Sass documentation', url: 'https://sass-lang.com/documentation/modules/math' }],
+            kind: CompletionItemKind.Module,
+        },
+        {
+            label: 'sass:string',
+            documentation: localize('scss.builtin.sass:string', 'Makes it easy to combine, search, or split apart strings.'),
+            references: [{ name: 'Sass documentation', url: 'https://sass-lang.com/documentation/modules/string' }],
+            kind: CompletionItemKind.Module,
+        },
+        {
+            label: 'sass:color',
+            documentation: localize('scss.builtin.sass:color', 'Generates new colors based on existing ones, making it easy to build color themes.'),
+            references: [{ name: 'Sass documentation', url: 'https://sass-lang.com/documentation/modules/color' }],
+            kind: CompletionItemKind.Module,
+        },
+        {
+            label: 'sass:list',
+            documentation: localize('scss.builtin.sass:list', 'Lets you access and modify values in lists.'),
+            references: [{ name: 'Sass documentation', url: 'https://sass-lang.com/documentation/modules/list' }],
+            kind: CompletionItemKind.Module,
+        },
+        {
+            label: 'sass:map',
+            documentation: localize('scss.builtin.sass:map', 'Makes it possible to look up the value associated with a key in a map, and much more.'),
+            references: [{ name: 'Sass documentation', url: 'https://sass-lang.com/documentation/modules/map' }],
+            kind: CompletionItemKind.Module,
+        },
+        {
+            label: 'sass:selector',
+            documentation: localize('scss.builtin.sass:selector', 'Provides access to Sass’s powerful selector engine.'),
+            references: [{ name: 'Sass documentation', url: 'https://sass-lang.com/documentation/modules/selector' }],
+            kind: CompletionItemKind.Module,
+        },
+        {
+            label: 'sass:meta',
+            documentation: localize('scss.builtin.sass:meta', 'Exposes the details of Sass’s inner workings.'),
+            references: [{ name: 'Sass documentation', url: 'https://sass-lang.com/documentation/modules/meta' }],
+            kind: CompletionItemKind.Module,
+        },
     ];
     return SCSSCompletion;
 }(CSSCompletion));
 export { SCSSCompletion };
-//# sourceMappingURL=scssCompletion.js.map
+/**
+ * Todo @Pine: Remove this and do it through custom data
+ */
+function addReferencesToDocumentation(items) {
+    items.forEach(function (i) {
+        if (i.documentation && i.references && i.references.length > 0) {
+            var markdownDoc = typeof i.documentation === 'string'
+                ? { kind: 'markdown', value: i.documentation }
+                : { kind: 'markdown', value: i.documentation.value };
+            markdownDoc.value += '\n\n';
+            markdownDoc.value += i.references
+                .map(function (r) {
+                return "[" + r.name + "](" + r.url + ")";
+            })
+                .join(' | ');
+            i.documentation = markdownDoc;
+        }
+    });
+}

@@ -29,20 +29,14 @@ define(["require", "exports"], function (require, exports) {
     exports.language = {
         defaultToken: '',
         tokenPostfix: '.dockerfile',
-        instructions: /FROM|MAINTAINER|RUN|EXPOSE|ENV|ADD|ARG|VOLUME|LABEL|USER|WORKDIR|COPY|CMD|STOPSIGNAL|SHELL|HEALTHCHECK|ENTRYPOINT/,
-        instructionAfter: /ONBUILD/,
-        variableAfter: /ENV/,
         variable: /\${?[\w]+}?/,
         tokenizer: {
             root: [
                 { include: '@whitespace' },
                 { include: '@comment' },
-                [/(@instructionAfter)(\s+)/, ['keyword', { token: '', next: '@instructions' }]],
-                ['', 'keyword', '@instructions']
-            ],
-            instructions: [
-                [/(@variableAfter)(\s+)([\w]+)/, ['keyword', '', { token: 'variable', next: '@arguments' }]],
-                [/(@instructions)/, 'keyword', '@arguments']
+                [/(ONBUILD)(\s+)/, ['keyword', '']],
+                [/(ENV)(\s+)([\w]+)/, ['keyword', '', { token: 'variable', next: '@arguments' }]],
+                [/(FROM|MAINTAINER|RUN|EXPOSE|ENV|ADD|ARG|VOLUME|LABEL|USER|WORKDIR|COPY|CMD|STOPSIGNAL|SHELL|HEALTHCHECK|ENTRYPOINT)/, { token: 'keyword', next: '@arguments' }]
             ],
             arguments: [
                 { include: '@whitespace' },

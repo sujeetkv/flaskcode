@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 import { Schemas } from '../../../base/common/network.js';
 import { DataUri, basenameOrAuthority } from '../../../base/common/resources.js';
 import { PLAINTEXT_MODE_ID } from '../modes/modesRegistry.js';
@@ -13,15 +12,12 @@ export function getIconClasses(modelService, modeService, resource, fileKind) {
     if (resource) {
         // Get the path and name of the resource. For data-URIs, we need to parse specially
         var name_1;
-        var path = void 0;
         if (resource.scheme === Schemas.data) {
             var metadata = DataUri.parseMetaData(resource);
             name_1 = metadata.get(DataUri.META_DATA_LABEL);
-            path = name_1;
         }
         else {
             name_1 = cssEscape(basenameOrAuthority(resource).toLowerCase());
-            path = resource.path.toLowerCase();
         }
         // Folders
         if (fileKind === FileKind.FOLDER) {
@@ -38,28 +34,41 @@ export function getIconClasses(modelService, modeService, resource, fileKind) {
                 }
                 classes.push("ext-file-icon"); // extra segment to increase file-ext score
             }
-            // Configured Language
-            var configuredLangId = getConfiguredLangId(modelService, resource);
-            configuredLangId = configuredLangId || modeService.getModeIdByFilepathOrFirstLine(path);
-            if (configuredLangId) {
-                classes.push(cssEscape(configuredLangId) + "-lang-file-icon");
+            // Detected Mode
+            var detectedModeId = detectModeId(modelService, modeService, resource);
+            if (detectedModeId) {
+                classes.push(cssEscape(detectedModeId) + "-lang-file-icon");
             }
         }
     }
     return classes;
 }
-export function getConfiguredLangId(modelService, resource) {
-    var configuredLangId = null;
-    if (resource) {
-        var model = modelService.getModel(resource);
-        if (model) {
-            var modeId = model.getLanguageIdentifier().language;
-            if (modeId && modeId !== PLAINTEXT_MODE_ID) {
-                configuredLangId = modeId; // only take if the mode is specific (aka no just plain text)
-            }
+export function detectModeId(modelService, modeService, resource) {
+    if (!resource) {
+        return null; // we need a resource at least
+    }
+    var modeId = null;
+    // Data URI: check for encoded metadata
+    if (resource.scheme === Schemas.data) {
+        var metadata = DataUri.parseMetaData(resource);
+        var mime = metadata.get(DataUri.META_DATA_MIME);
+        if (mime) {
+            modeId = modeService.getModeId(mime);
         }
     }
-    return configuredLangId;
+    // Any other URI: check for model if existing
+    else {
+        var model = modelService.getModel(resource);
+        if (model) {
+            modeId = model.getModeId();
+        }
+    }
+    // only take if the mode is specific (aka no just plain text)
+    if (modeId && modeId !== PLAINTEXT_MODE_ID) {
+        return modeId;
+    }
+    // otherwise fallback to path based detection
+    return modeService.getModeIdByFilepathOrFirstLine(resource);
 }
 export function cssEscape(val) {
     return val.replace(/\s/g, '\\$&'); // make sure to not introduce CSS classes from files that contain whitespace

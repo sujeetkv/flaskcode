@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import { registerLanguage } from '../_.contribution.js';
-// Allow for running under nodejs/requirejs in tests
-var _monaco = (typeof monaco === 'undefined' ? self.monaco : monaco);
 registerLanguage({
     id: 'markdown',
     extensions: ['.md', '.markdown', '.mdown', '.mkdn', '.mkd', '.mdwn', '.mdtxt', '.mdtext'],
     aliases: ['Markdown', 'markdown'],
-    loader: function () { return _monaco.Promise.wrap(import('./markdown.js')); }
+    loader: function () { return import('./markdown.js'); }
 });

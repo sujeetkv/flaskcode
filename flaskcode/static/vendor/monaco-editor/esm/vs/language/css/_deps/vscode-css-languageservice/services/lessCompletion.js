@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 var __extends = (this && this.__extends) || (function () {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+    var extendStatics = function (d, b) {
+        extendStatics = Object.setPrototypeOf ||
+            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        return extendStatics(d, b);
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -14,13 +17,13 @@ var __extends = (this && this.__extends) || (function () {
     };
 })();
 import { CSSCompletion } from './cssCompletion.js';
-import { CompletionItemKind, InsertTextFormat, TextEdit } from './../../vscode-languageserver-types/main.js';
+import { CompletionItemKind, InsertTextFormat, TextEdit } from '../cssLanguageTypes.js';
 import * as nls from './../../../fillers/vscode-nls.js';
 var localize = nls.loadMessageBundle();
 var LESSCompletion = /** @class */ (function (_super) {
     __extends(LESSCompletion, _super);
-    function LESSCompletion() {
-        return _super.call(this, '@') || this;
+    function LESSCompletion(clientCapabilities) {
+        return _super.call(this, '@', clientCapabilities) || this;
     }
     LESSCompletion.prototype.createFunctionProposals = function (proposals, existingNode, sortToEnd, result) {
         for (var _i = 0, proposals_1 = proposals; _i < proposals_1.length; _i++) {
@@ -43,7 +46,7 @@ var LESSCompletion = /** @class */ (function (_super) {
     LESSCompletion.prototype.getTermProposals = function (entry, existingNode, result) {
         var functions = LESSCompletion.builtInProposals;
         if (entry) {
-            functions = functions.filter(function (f) { return !f.type || entry.restrictions.indexOf(f.type) !== -1; });
+            functions = functions.filter(function (f) { return !f.type || !entry.restrictions || entry.restrictions.indexOf(f.type) !== -1; });
         }
         this.createFunctionProposals(functions, existingNode, true, result);
         return _super.prototype.getTermProposals.call(this, entry, existingNode, result);
@@ -57,6 +60,39 @@ var LESSCompletion = /** @class */ (function (_super) {
         return _super.prototype.getCompletionsForDeclarationProperty.call(this, declaration, result);
     };
     LESSCompletion.builtInProposals = [
+        // Boolean functions
+        {
+            'name': 'if',
+            'example': 'if(condition, trueValue [, falseValue]);',
+            'description': localize('less.builtin.if', 'returns one of two values depending on a condition.')
+        },
+        {
+            'name': 'boolean',
+            'example': 'boolean(condition);',
+            'description': localize('less.builtin.boolean', '"store" a boolean test for later evaluation in a guard or if().')
+        },
+        // List functions
+        {
+            'name': 'length',
+            'example': 'length(@list);',
+            'description': localize('less.builtin.length', 'returns the number of elements in a value list')
+        },
+        {
+            'name': 'extract',
+            'example': 'extract(@list, index);',
+            'description': localize('less.builtin.extract', 'returns a value at the specified position in the list')
+        },
+        {
+            'name': 'range',
+            'example': 'range([start, ] end [, step]);',
+            'description': localize('less.builtin.range', 'generate a list spanning a range of values')
+        },
+        {
+            'name': 'each',
+            'example': 'each(@list, ruleset);',
+            'description': localize('less.builtin.each', 'bind the evaluation of a ruleset to each member of a list.')
+        },
+        // Other built-ins
         {
             'name': 'escape',
             'example': 'escape(@string);',
@@ -93,16 +129,6 @@ var LESSCompletion = /** @class */ (function (_super) {
             'example': 'data-uri([mimetype,] url);',
             'description': localize('less.builtin.data-uri', 'inlines a resource and falls back to `url()`'),
             'type': 'url'
-        },
-        {
-            'name': 'length',
-            'example': 'length(@list);',
-            'description': localize('less.builtin.length', 'returns the number of elements in a value list')
-        },
-        {
-            'name': 'extract',
-            'example': 'extract(@list, index);',
-            'description': localize('less.builtin.extract', 'returns a value at the specified position in the list')
         },
         {
             'name': 'abs',
@@ -367,4 +393,3 @@ var LESSCompletion = /** @class */ (function (_super) {
     return LESSCompletion;
 }(CSSCompletion));
 export { LESSCompletion };
-//# sourceMappingURL=lessCompletion.js.map

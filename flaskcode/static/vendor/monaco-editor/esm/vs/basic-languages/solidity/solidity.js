@@ -35,6 +35,7 @@ export var language = {
         'struct',
         'function',
         'modifier',
+        'constructor',
         //Built-in types
         'address',
         'string',

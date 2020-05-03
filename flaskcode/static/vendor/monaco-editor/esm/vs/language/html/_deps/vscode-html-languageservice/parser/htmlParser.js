@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 import { createScanner } from './htmlScanner.js';
 import { findFirst } from '../utils/arrays.js';
-import { isEmptyElement } from './htmlTags.js';
 import { TokenType } from '../htmlLanguageTypes.js';
+import { isVoidElement } from '../languageFacts/fact.js';
 var Node = /** @class */ (function () {
     function Node(start, end, children, parent) {
         this.start = start;
@@ -68,6 +67,7 @@ export function parse(text) {
     var htmlDocument = new Node(0, text.length, [], void 0);
     var curr = htmlDocument;
     var endTagStart = -1;
+    var endTagName = null;
     var pendingAttribute = null;
     var token = scanner.scan();
     while (token !== TokenType.EOS) {
@@ -82,41 +82,49 @@ export function parse(text) {
                 break;
             case TokenType.StartTagClose:
                 curr.end = scanner.getTokenEnd(); // might be later set to end tag position
-                if (curr.tag && isEmptyElement(curr.tag) && curr.parent) {
+                curr.startTagEnd = scanner.getTokenEnd();
+                if (curr.tag && isVoidElement(curr.tag) && curr.parent) {
                     curr.closed = true;
                     curr = curr.parent;
-                }
-                break;
-            case TokenType.EndTagOpen:
-                endTagStart = scanner.getTokenOffset();
-                break;
-            case TokenType.EndTag:
-                var closeTag = scanner.getTokenText().toLowerCase();
-                while (!curr.isSameTag(closeTag) && curr.parent) {
-                    curr.end = endTagStart;
-                    curr.closed = false;
-                    curr = curr.parent;
-                }
-                if (curr !== htmlDocument) {
-                    curr.closed = true;
-                    curr.endTagStart = endTagStart;
                 }
                 break;
             case TokenType.StartTagSelfClose:
                 if (curr.parent) {
                     curr.closed = true;
                     curr.end = scanner.getTokenEnd();
+                    curr.startTagEnd = scanner.getTokenEnd();
                     curr = curr.parent;
                 }
                 break;
+            case TokenType.EndTagOpen:
+                endTagStart = scanner.getTokenOffset();
+                endTagName = null;
+                break;
+            case TokenType.EndTag:
+                endTagName = scanner.getTokenText().toLowerCase();
+                break;
             case TokenType.EndTagClose:
-                if (curr.parent) {
-                    curr.end = scanner.getTokenEnd();
-                    curr = curr.parent;
+                if (endTagName) {
+                    var node = curr;
+                    // see if we can find a matching tag
+                    while (!node.isSameTag(endTagName) && node.parent) {
+                        node = node.parent;
+                    }
+                    if (node.parent) {
+                        while (curr !== node) {
+                            curr.end = endTagStart;
+                            curr.closed = false;
+                            curr = curr.parent;
+                        }
+                        curr.closed = true;
+                        curr.endTagStart = endTagStart;
+                        curr.end = scanner.getTokenEnd();
+                        curr = curr.parent;
+                    }
                 }
                 break;
             case TokenType.AttributeName: {
-                var attributeName = pendingAttribute = scanner.getTokenText();
+                pendingAttribute = scanner.getTokenText();
                 var attributes = curr.attributes;
                 if (!attributes) {
                     curr.attributes = attributes = {};
@@ -147,4 +155,3 @@ export function parse(text) {
         findNodeAt: htmlDocument.findNodeAt.bind(htmlDocument)
     };
 }
-//# sourceMappingURL=htmlParser.js.map

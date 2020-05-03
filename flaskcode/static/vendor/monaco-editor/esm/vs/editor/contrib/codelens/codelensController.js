@@ -11,58 +11,89 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { RunOnceScheduler, createCancelablePromise } from '../../../base/common/async.js';
-import { onUnexpectedError } from '../../../base/common/errors.js';
-import { dispose, toDisposable } from '../../../base/common/lifecycle.js';
+var __spreadArrays = (this && this.__spreadArrays) || function () {
+    for (var s = 0, i = 0, il = arguments.length; i < il; i++) s += arguments[i].length;
+    for (var r = Array(s), k = 0, i = 0; i < il; i++)
+        for (var a = arguments[i], j = 0, jl = a.length; j < jl; j++, k++)
+            r[k] = a[j];
+    return r;
+};
+import { RunOnceScheduler, createCancelablePromise, disposableTimeout } from '../../../base/common/async.js';
+import { onUnexpectedError, onUnexpectedExternalError } from '../../../base/common/errors.js';
+import { toDisposable, DisposableStore, dispose } from '../../../base/common/lifecycle.js';
 import { StableEditorScrollState } from '../../browser/core/editorState.js';
 import { registerEditorContribution } from '../../browser/editorExtensions.js';
 import { CodeLensProviderRegistry } from '../../common/modes.js';
 import { getCodeLensData } from './codelens.js';
-import { CodeLens, CodeLensHelper } from './codelensWidget.js';
+import { CodeLensWidget, CodeLensHelper } from './codelensWidget.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { ICodeLensCache } from './codeLensCache.js';
+import * as dom from '../../../base/browser/dom.js';
+import { hash } from '../../../base/common/hash.js';
 var CodeLensContribution = /** @class */ (function () {
-    function CodeLensContribution(_editor, _commandService, _notificationService) {
+    function CodeLensContribution(_editor, _commandService, _notificationService, _codeLensCache) {
         var _this = this;
         this._editor = _editor;
         this._commandService = _commandService;
         this._notificationService = _notificationService;
-        this._isEnabled = this._editor.getConfiguration().contribInfo.codeLens;
-        this._globalToDispose = [];
-        this._localToDispose = [];
+        this._codeLensCache = _codeLensCache;
+        this._globalToDispose = new DisposableStore();
+        this._localToDispose = new DisposableStore();
         this._lenses = [];
-        this._currentFindCodeLensSymbolsPromise = null;
+        this._oldCodeLensModels = new DisposableStore();
         this._modelChangeCounter = 0;
-        this._globalToDispose.push(this._editor.onDidChangeModel(function () { return _this._onModelChange(); }));
-        this._globalToDispose.push(this._editor.onDidChangeModelLanguage(function () { return _this._onModelChange(); }));
-        this._globalToDispose.push(this._editor.onDidChangeConfiguration(function (e) {
+        this._isEnabled = this._editor.getOption(11 /* codeLens */);
+        this._globalToDispose.add(this._editor.onDidChangeModel(function () { return _this._onModelChange(); }));
+        this._globalToDispose.add(this._editor.onDidChangeModelLanguage(function () { return _this._onModelChange(); }));
+        this._globalToDispose.add(this._editor.onDidChangeConfiguration(function () {
             var prevIsEnabled = _this._isEnabled;
-            _this._isEnabled = _this._editor.getConfiguration().contribInfo.codeLens;
+            _this._isEnabled = _this._editor.getOption(11 /* codeLens */);
             if (prevIsEnabled !== _this._isEnabled) {
                 _this._onModelChange();
             }
         }));
-        this._globalToDispose.push(CodeLensProviderRegistry.onDidChange(this._onModelChange, this));
+        this._globalToDispose.add(CodeLensProviderRegistry.onDidChange(this._onModelChange, this));
+        this._globalToDispose.add(this._editor.onDidChangeConfiguration(function (e) {
+            if (e.hasChanged(34 /* fontInfo */)) {
+                _this._updateLensStyle();
+            }
+        }));
         this._onModelChange();
+        this._styleClassName = hash(this._editor.getId()).toString(16);
+        this._styleElement = dom.createStyleSheet(dom.isInShadowDOM(this._editor.getContainerDomNode())
+            ? this._editor.getContainerDomNode()
+            : undefined);
+        this._updateLensStyle();
     }
     CodeLensContribution.prototype.dispose = function () {
         this._localDispose();
-        this._globalToDispose = dispose(this._globalToDispose);
+        this._globalToDispose.dispose();
+        this._oldCodeLensModels.dispose();
+        dispose(this._currentCodeLensModel);
+    };
+    CodeLensContribution.prototype._updateLensStyle = function () {
+        var options = this._editor.getOptions();
+        var fontInfo = options.get(34 /* fontInfo */);
+        var lineHeight = options.get(49 /* lineHeight */);
+        var height = Math.round(lineHeight * 1.1);
+        var fontSize = Math.round(fontInfo.fontSize * 0.9);
+        var newStyle = "\n\t\t.monaco-editor .codelens-decoration." + this._styleClassName + " { height: " + height + "px; line-height: " + lineHeight + "px; font-size: " + fontSize + "px; padding-right: " + Math.round(fontInfo.fontSize * 0.45) + "px;}\n\t\t.monaco-editor .codelens-decoration." + this._styleClassName + " > a > .codicon { line-height: " + lineHeight + "px; font-size: " + fontSize + "px; }\n\t\t";
+        this._styleElement.innerHTML = newStyle;
     };
     CodeLensContribution.prototype._localDispose = function () {
         if (this._currentFindCodeLensSymbolsPromise) {
             this._currentFindCodeLensSymbolsPromise.cancel();
-            this._currentFindCodeLensSymbolsPromise = null;
+            this._currentFindCodeLensSymbolsPromise = undefined;
             this._modelChangeCounter++;
         }
         if (this._currentResolveCodeLensSymbolsPromise) {
             this._currentResolveCodeLensSymbolsPromise.cancel();
-            this._currentResolveCodeLensSymbolsPromise = null;
+            this._currentResolveCodeLensSymbolsPromise = undefined;
         }
-        this._localToDispose = dispose(this._localToDispose);
-    };
-    CodeLensContribution.prototype.getId = function () {
-        return CodeLensContribution.ID;
+        this._localToDispose.clear();
+        this._oldCodeLensModels.clear();
+        dispose(this._currentCodeLensModel);
     };
     CodeLensContribution.prototype._onModelChange = function () {
         var _this = this;
@@ -74,19 +105,32 @@ var CodeLensContribution = /** @class */ (function () {
         if (!this._isEnabled) {
             return;
         }
+        var cachedLenses = this._codeLensCache.get(model);
+        if (cachedLenses) {
+            this._renderCodeLensSymbols(cachedLenses);
+        }
         if (!CodeLensProviderRegistry.has(model)) {
+            // no provider -> return but check with
+            // cached lenses. they expire after 30 seconds
+            if (cachedLenses) {
+                this._localToDispose.add(disposableTimeout(function () {
+                    var cachedLensesNow = _this._codeLensCache.get(model);
+                    if (cachedLenses === cachedLensesNow) {
+                        _this._codeLensCache.delete(model);
+                        _this._onModelChange();
+                    }
+                }, 30 * 1000));
+            }
             return;
         }
         for (var _i = 0, _a = CodeLensProviderRegistry.all(model); _i < _a.length; _i++) {
             var provider = _a[_i];
             if (typeof provider.onDidChange === 'function') {
                 var registration = provider.onDidChange(function () { return scheduler.schedule(); });
-                this._localToDispose.push(registration);
+                this._localToDispose.add(registration);
             }
         }
-        this._detectVisibleLenses = new RunOnceScheduler(function () {
-            _this._onViewportChanged();
-        }, 500);
+        var detectVisibleLenses = this._detectVisibleLenses = new RunOnceScheduler(function () { return _this._onViewportChanged(); }, 250);
         var scheduler = new RunOnceScheduler(function () {
             var counterValue = ++_this._modelChangeCounter;
             if (_this._currentFindCodeLensSymbolsPromise) {
@@ -95,16 +139,23 @@ var CodeLensContribution = /** @class */ (function () {
             _this._currentFindCodeLensSymbolsPromise = createCancelablePromise(function (token) { return getCodeLensData(model, token); });
             _this._currentFindCodeLensSymbolsPromise.then(function (result) {
                 if (counterValue === _this._modelChangeCounter) { // only the last one wins
+                    if (_this._currentCodeLensModel) {
+                        _this._oldCodeLensModels.add(_this._currentCodeLensModel);
+                    }
+                    _this._currentCodeLensModel = result;
+                    // cache model to reduce flicker
+                    _this._codeLensCache.put(model, result);
+                    // render lenses
                     _this._renderCodeLensSymbols(result);
-                    _this._detectVisibleLenses.schedule();
+                    detectVisibleLenses.schedule();
                 }
             }, onUnexpectedError);
         }, 250);
-        this._localToDispose.push(scheduler);
-        this._localToDispose.push(this._detectVisibleLenses);
-        this._localToDispose.push(this._editor.onDidChangeModelContent(function (e) {
-            _this._editor.changeDecorations(function (changeAccessor) {
-                _this._editor.changeViewZones(function (viewAccessor) {
+        this._localToDispose.add(scheduler);
+        this._localToDispose.add(detectVisibleLenses);
+        this._localToDispose.add(this._editor.onDidChangeModelContent(function () {
+            _this._editor.changeDecorations(function (decorationsAccessor) {
+                _this._editor.changeViewZones(function (viewZonesAccessor) {
                     var toDispose = [];
                     var lastLensLineNumber = -1;
                     _this._lenses.forEach(function (lens) {
@@ -114,51 +165,74 @@ var CodeLensContribution = /** @class */ (function () {
                             toDispose.push(lens);
                         }
                         else {
-                            lens.update(viewAccessor);
+                            lens.update(viewZonesAccessor);
                             lastLensLineNumber = lens.getLineNumber();
                         }
                     });
                     var helper = new CodeLensHelper();
                     toDispose.forEach(function (l) {
-                        l.dispose(helper, viewAccessor);
+                        l.dispose(helper, viewZonesAccessor);
                         _this._lenses.splice(_this._lenses.indexOf(l), 1);
                     });
-                    helper.commit(changeAccessor);
+                    helper.commit(decorationsAccessor);
                 });
             });
             // Compute new `visible` code lenses
-            _this._detectVisibleLenses.schedule();
+            detectVisibleLenses.schedule();
             // Ask for all references again
             scheduler.schedule();
         }));
-        this._localToDispose.push(this._editor.onDidScrollChange(function (e) {
+        this._localToDispose.add(this._editor.onDidScrollChange(function (e) {
             if (e.scrollTopChanged && _this._lenses.length > 0) {
-                _this._detectVisibleLenses.schedule();
+                detectVisibleLenses.schedule();
             }
         }));
-        this._localToDispose.push(this._editor.onDidLayoutChange(function (e) {
-            _this._detectVisibleLenses.schedule();
+        this._localToDispose.add(this._editor.onDidLayoutChange(function () {
+            detectVisibleLenses.schedule();
         }));
-        this._localToDispose.push(toDisposable(function () {
+        this._localToDispose.add(toDisposable(function () {
             if (_this._editor.getModel()) {
                 var scrollState = StableEditorScrollState.capture(_this._editor);
-                _this._editor.changeDecorations(function (changeAccessor) {
-                    _this._editor.changeViewZones(function (accessor) {
-                        _this._disposeAllLenses(changeAccessor, accessor);
+                _this._editor.changeDecorations(function (decorationsAccessor) {
+                    _this._editor.changeViewZones(function (viewZonesAccessor) {
+                        _this._disposeAllLenses(decorationsAccessor, viewZonesAccessor);
                     });
                 });
                 scrollState.restore(_this._editor);
             }
             else {
                 // No accessors available
-                _this._disposeAllLenses(null, null);
+                _this._disposeAllLenses(undefined, undefined);
+            }
+        }));
+        this._localToDispose.add(this._editor.onMouseUp(function (e) {
+            var _a;
+            if (e.target.type !== 9 /* CONTENT_WIDGET */) {
+                return;
+            }
+            var target = e.target.element;
+            if ((target === null || target === void 0 ? void 0 : target.tagName) === 'SPAN') {
+                target = target.parentElement;
+            }
+            if ((target === null || target === void 0 ? void 0 : target.tagName) === 'A') {
+                for (var _i = 0, _b = _this._lenses; _i < _b.length; _i++) {
+                    var lens = _b[_i];
+                    var command = lens.getCommand(target);
+                    if (command) {
+                        (_a = _this._commandService).executeCommand.apply(_a, __spreadArrays([command.id], (command.arguments || []))).catch(function (err) { return _this._notificationService.error(err); });
+                        break;
+                    }
+                }
             }
         }));
         scheduler.schedule();
     };
     CodeLensContribution.prototype._disposeAllLenses = function (decChangeAccessor, viewZoneChangeAccessor) {
         var helper = new CodeLensHelper();
-        this._lenses.forEach(function (lens) { return lens.dispose(helper, viewZoneChangeAccessor); });
+        for (var _i = 0, _a = this._lenses; _i < _a.length; _i++) {
+            var lens = _a[_i];
+            lens.dispose(helper, viewZoneChangeAccessor);
+        }
         if (decChangeAccessor) {
             helper.commit(decChangeAccessor);
         }
@@ -166,14 +240,14 @@ var CodeLensContribution = /** @class */ (function () {
     };
     CodeLensContribution.prototype._renderCodeLensSymbols = function (symbols) {
         var _this = this;
-        if (!this._editor.getModel()) {
+        if (!this._editor.hasModel()) {
             return;
         }
         var maxLineNumber = this._editor.getModel().getLineCount();
         var groups = [];
         var lastGroup;
-        for (var _i = 0, symbols_1 = symbols; _i < symbols_1.length; _i++) {
-            var symbol = symbols_1[_i];
+        for (var _i = 0, _a = symbols.lenses; _i < _a.length; _i++) {
+            var symbol = _a[_i];
             var line = symbol.symbol.range.startLineNumber;
             if (line < 1 || line > maxLineNumber) {
                 // invalid code lens
@@ -190,14 +264,16 @@ var CodeLensContribution = /** @class */ (function () {
             }
         }
         var scrollState = StableEditorScrollState.capture(this._editor);
-        this._editor.changeDecorations(function (changeAccessor) {
-            _this._editor.changeViewZones(function (accessor) {
-                var codeLensIndex = 0, groupsIndex = 0, helper = new CodeLensHelper();
+        this._editor.changeDecorations(function (decorationsAccessor) {
+            _this._editor.changeViewZones(function (viewZoneAccessor) {
+                var helper = new CodeLensHelper();
+                var codeLensIndex = 0;
+                var groupsIndex = 0;
                 while (groupsIndex < groups.length && codeLensIndex < _this._lenses.length) {
                     var symbolsLineNumber = groups[groupsIndex][0].symbol.range.startLineNumber;
                     var codeLensLineNumber = _this._lenses[codeLensIndex].getLineNumber();
                     if (codeLensLineNumber < symbolsLineNumber) {
-                        _this._lenses[codeLensIndex].dispose(helper, accessor);
+                        _this._lenses[codeLensIndex].dispose(helper, viewZoneAccessor);
                         _this._lenses.splice(codeLensIndex, 1);
                     }
                     else if (codeLensLineNumber === symbolsLineNumber) {
@@ -206,22 +282,22 @@ var CodeLensContribution = /** @class */ (function () {
                         codeLensIndex++;
                     }
                     else {
-                        _this._lenses.splice(codeLensIndex, 0, new CodeLens(groups[groupsIndex], _this._editor, helper, accessor, _this._commandService, _this._notificationService, function () { return _this._detectVisibleLenses.schedule(); }));
+                        _this._lenses.splice(codeLensIndex, 0, new CodeLensWidget(groups[groupsIndex], _this._editor, _this._styleClassName, helper, viewZoneAccessor, function () { return _this._detectVisibleLenses && _this._detectVisibleLenses.schedule(); }));
                         codeLensIndex++;
                         groupsIndex++;
                     }
                 }
                 // Delete extra code lenses
                 while (codeLensIndex < _this._lenses.length) {
-                    _this._lenses[codeLensIndex].dispose(helper, accessor);
+                    _this._lenses[codeLensIndex].dispose(helper, viewZoneAccessor);
                     _this._lenses.splice(codeLensIndex, 1);
                 }
                 // Create extra symbols
                 while (groupsIndex < groups.length) {
-                    _this._lenses.push(new CodeLens(groups[groupsIndex], _this._editor, helper, accessor, _this._commandService, _this._notificationService, function () { return _this._detectVisibleLenses.schedule(); }));
+                    _this._lenses.push(new CodeLensWidget(groups[groupsIndex], _this._editor, _this._styleClassName, helper, viewZoneAccessor, function () { return _this._detectVisibleLenses && _this._detectVisibleLenses.schedule(); }));
                     groupsIndex++;
                 }
-                helper.commit(changeAccessor);
+                helper.commit(decorationsAccessor);
             });
         });
         scrollState.restore(this._editor);
@@ -230,7 +306,7 @@ var CodeLensContribution = /** @class */ (function () {
         var _this = this;
         if (this._currentResolveCodeLensSymbolsPromise) {
             this._currentResolveCodeLensSymbolsPromise.cancel();
-            this._currentResolveCodeLensSymbolsPromise = null;
+            this._currentResolveCodeLensSymbolsPromise = undefined;
         }
         var model = this._editor.getModel();
         if (!model) {
@@ -248,37 +324,51 @@ var CodeLensContribution = /** @class */ (function () {
         if (toResolve.length === 0) {
             return;
         }
-        this._currentResolveCodeLensSymbolsPromise = createCancelablePromise(function (token) {
+        var resolvePromise = createCancelablePromise(function (token) {
             var promises = toResolve.map(function (request, i) {
                 var resolvedSymbols = new Array(request.length);
                 var promises = request.map(function (request, i) {
-                    if (typeof request.provider.resolveCodeLens === 'function') {
+                    if (!request.symbol.command && typeof request.provider.resolveCodeLens === 'function') {
                         return Promise.resolve(request.provider.resolveCodeLens(model, request.symbol, token)).then(function (symbol) {
                             resolvedSymbols[i] = symbol;
-                        });
+                        }, onUnexpectedExternalError);
                     }
-                    resolvedSymbols[i] = request.symbol;
-                    return Promise.resolve(void 0);
+                    else {
+                        resolvedSymbols[i] = request.symbol;
+                        return Promise.resolve(undefined);
+                    }
                 });
                 return Promise.all(promises).then(function () {
-                    lenses[i].updateCommands(resolvedSymbols);
+                    if (!token.isCancellationRequested && !lenses[i].isDisposed()) {
+                        lenses[i].updateCommands(resolvedSymbols);
+                    }
                 });
             });
             return Promise.all(promises);
         });
+        this._currentResolveCodeLensSymbolsPromise = resolvePromise;
         this._currentResolveCodeLensSymbolsPromise.then(function () {
-            _this._currentResolveCodeLensSymbolsPromise = null;
-        }).catch(function (err) {
-            _this._currentResolveCodeLensSymbolsPromise = null;
-            onUnexpectedError(err);
+            if (_this._currentCodeLensModel) { // update the cached state with new resolved items
+                _this._codeLensCache.put(model, _this._currentCodeLensModel);
+            }
+            _this._oldCodeLensModels.clear(); // dispose old models once we have updated the UI with the current model
+            if (resolvePromise === _this._currentResolveCodeLensSymbolsPromise) {
+                _this._currentResolveCodeLensSymbolsPromise = undefined;
+            }
+        }, function (err) {
+            onUnexpectedError(err); // can also be cancellation!
+            if (resolvePromise === _this._currentResolveCodeLensSymbolsPromise) {
+                _this._currentResolveCodeLensSymbolsPromise = undefined;
+            }
         });
     };
     CodeLensContribution.ID = 'css.editor.codeLens';
     CodeLensContribution = __decorate([
         __param(1, ICommandService),
-        __param(2, INotificationService)
+        __param(2, INotificationService),
+        __param(3, ICodeLensCache)
     ], CodeLensContribution);
     return CodeLensContribution;
 }());
 export { CodeLensContribution };
-registerEditorContribution(CodeLensContribution);
+registerEditorContribution(CodeLensContribution.ID, CodeLensContribution);

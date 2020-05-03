@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -19,7 +19,7 @@ import * as nls from '../../../nls.js';
 import { KeyChord } from '../../../base/common/keyCodes.js';
 import { CoreEditingCommands } from '../../browser/controller/coreCommands.js';
 import { EditorAction, registerEditorAction } from '../../browser/editorExtensions.js';
-import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from '../../common/commands/replaceCommand.js';
+import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandThatSelectsText } from '../../common/commands/replaceCommand.js';
 import { TrimTrailingWhitespaceCommand } from '../../common/commands/trimTrailingWhitespaceCommand.js';
 import { TypeOperations } from '../../common/controller/cursorTypeOperations.js';
 import { EditOperation } from '../../common/core/editOperation.js';
@@ -28,10 +28,8 @@ import { Range } from '../../common/core/range.js';
 import { Selection } from '../../common/core/selection.js';
 import { EditorContextKeys } from '../../common/editorContextKeys.js';
 import { CopyLinesCommand } from './copyLinesCommand.js';
-import { DeleteLinesCommand } from './deleteLinesCommand.js';
 import { MoveLinesCommand } from './moveLinesCommand.js';
 import { SortLinesCommand } from './sortLinesCommand.js';
-import { MenuId } from '../../../platform/actions/common/actions.js';
 // copy lines
 var AbstractCopyLinesAction = /** @class */ (function (_super) {
     __extends(AbstractCopyLinesAction, _super);
@@ -43,8 +41,9 @@ var AbstractCopyLinesAction = /** @class */ (function (_super) {
     AbstractCopyLinesAction.prototype.run = function (_accessor, editor) {
         var commands = [];
         var selections = editor.getSelections() || [];
-        for (var i = 0; i < selections.length; i++) {
-            commands.push(new CopyLinesCommand(selections[i], this.down));
+        for (var _i = 0, selections_1 = selections; _i < selections_1.length; _i++) {
+            var selection = selections_1[_i];
+            commands.push(new CopyLinesCommand(selection, this.down));
         }
         editor.pushUndoStop();
         editor.executeCommands(this.id, commands);
@@ -66,8 +65,8 @@ var CopyLinesUpAction = /** @class */ (function (_super) {
                 linux: { primary: 2048 /* CtrlCmd */ | 512 /* Alt */ | 1024 /* Shift */ | 16 /* UpArrow */ },
                 weight: 100 /* EditorContrib */
             },
-            menubarOpts: {
-                menuId: MenuId.MenubarSelectionMenu,
+            menuOpts: {
+                menuId: 25 /* MenubarSelectionMenu */,
                 group: '2_line',
                 title: nls.localize({ key: 'miCopyLinesUp', comment: ['&& denotes a mnemonic'] }, "&&Copy Line Up"),
                 order: 1
@@ -90,8 +89,8 @@ var CopyLinesDownAction = /** @class */ (function (_super) {
                 linux: { primary: 2048 /* CtrlCmd */ | 512 /* Alt */ | 1024 /* Shift */ | 18 /* DownArrow */ },
                 weight: 100 /* EditorContrib */
             },
-            menubarOpts: {
-                menuId: MenuId.MenubarSelectionMenu,
+            menuOpts: {
+                menuId: 25 /* MenubarSelectionMenu */,
                 group: '2_line',
                 title: nls.localize({ key: 'miCopyLinesDown', comment: ['&& denotes a mnemonic'] }, "Co&&py Line Down"),
                 order: 2
@@ -100,6 +99,46 @@ var CopyLinesDownAction = /** @class */ (function (_super) {
     }
     return CopyLinesDownAction;
 }(AbstractCopyLinesAction));
+var DuplicateSelectionAction = /** @class */ (function (_super) {
+    __extends(DuplicateSelectionAction, _super);
+    function DuplicateSelectionAction() {
+        return _super.call(this, {
+            id: 'editor.action.duplicateSelection',
+            label: nls.localize('duplicateSelection', "Duplicate Selection"),
+            alias: 'Duplicate Selection',
+            precondition: EditorContextKeys.writable,
+            menuOpts: {
+                menuId: 25 /* MenubarSelectionMenu */,
+                group: '2_line',
+                title: nls.localize({ key: 'miDuplicateSelection', comment: ['&& denotes a mnemonic'] }, "&&Duplicate Selection"),
+                order: 5
+            }
+        }) || this;
+    }
+    DuplicateSelectionAction.prototype.run = function (accessor, editor, args) {
+        if (!editor.hasModel()) {
+            return;
+        }
+        var commands = [];
+        var selections = editor.getSelections();
+        var model = editor.getModel();
+        for (var _i = 0, selections_2 = selections; _i < selections_2.length; _i++) {
+            var selection = selections_2[_i];
+            if (selection.isEmpty()) {
+                commands.push(new CopyLinesCommand(selection, true));
+            }
+            else {
+                var insertSelection = new Selection(selection.endLineNumber, selection.endColumn, selection.endLineNumber, selection.endColumn);
+                commands.push(new ReplaceCommandThatSelectsText(insertSelection, model.getValueInRange(selection)));
+            }
+        }
+        editor.pushUndoStop();
+        editor.executeCommands(this.id, commands);
+        editor.pushUndoStop();
+    };
+    return DuplicateSelectionAction;
+}(EditorAction));
+export { DuplicateSelectionAction };
 // move lines
 var AbstractMoveLinesAction = /** @class */ (function (_super) {
     __extends(AbstractMoveLinesAction, _super);
@@ -111,9 +150,10 @@ var AbstractMoveLinesAction = /** @class */ (function (_super) {
     AbstractMoveLinesAction.prototype.run = function (_accessor, editor) {
         var commands = [];
         var selections = editor.getSelections() || [];
-        var autoIndent = editor.getConfiguration().autoIndent;
-        for (var i = 0; i < selections.length; i++) {
-            commands.push(new MoveLinesCommand(selections[i], this.down, autoIndent));
+        var autoIndent = editor.getOption(8 /* autoIndent */);
+        for (var _i = 0, selections_3 = selections; _i < selections_3.length; _i++) {
+            var selection = selections_3[_i];
+            commands.push(new MoveLinesCommand(selection, this.down, autoIndent));
         }
         editor.pushUndoStop();
         editor.executeCommands(this.id, commands);
@@ -135,8 +175,8 @@ var MoveLinesUpAction = /** @class */ (function (_super) {
                 linux: { primary: 512 /* Alt */ | 16 /* UpArrow */ },
                 weight: 100 /* EditorContrib */
             },
-            menubarOpts: {
-                menuId: MenuId.MenubarSelectionMenu,
+            menuOpts: {
+                menuId: 25 /* MenubarSelectionMenu */,
                 group: '2_line',
                 title: nls.localize({ key: 'miMoveLinesUp', comment: ['&& denotes a mnemonic'] }, "Mo&&ve Line Up"),
                 order: 3
@@ -159,8 +199,8 @@ var MoveLinesDownAction = /** @class */ (function (_super) {
                 linux: { primary: 512 /* Alt */ | 18 /* DownArrow */ },
                 weight: 100 /* EditorContrib */
             },
-            menubarOpts: {
-                menuId: MenuId.MenubarSelectionMenu,
+            menuOpts: {
+                menuId: 25 /* MenubarSelectionMenu */,
                 group: '2_line',
                 title: nls.localize({ key: 'miMoveLinesDown', comment: ['&& denotes a mnemonic'] }, "Move &&Line Down"),
                 order: 4
@@ -178,8 +218,8 @@ var AbstractSortLinesAction = /** @class */ (function (_super) {
     }
     AbstractSortLinesAction.prototype.run = function (_accessor, editor) {
         var selections = editor.getSelections() || [];
-        for (var i = 0, len = selections.length; i < len; i++) {
-            var selection = selections[i];
+        for (var _i = 0, selections_4 = selections; _i < selections_4.length; _i++) {
+            var selection = selections_4[_i];
             if (!SortLinesCommand.canRun(editor.getModel(), selection, this.descending)) {
                 return;
             }
@@ -244,7 +284,11 @@ var TrimTrailingWhitespaceAction = /** @class */ (function (_super) {
             // So, if we get a reason:'auto-save' passed in, let's preserve cursor positions.
             cursors = (editor.getSelections() || []).map(function (s) { return new Position(s.positionLineNumber, s.positionColumn); });
         }
-        var command = new TrimTrailingWhitespaceCommand(editor.getSelection(), cursors);
+        var selection = editor.getSelection();
+        if (selection === null) {
+            return;
+        }
+        var command = new TrimTrailingWhitespaceCommand(selection, cursors);
         editor.pushUndoStop();
         editor.executeCommands(this.id, [command]);
         editor.pushUndoStop();
@@ -269,13 +313,38 @@ var DeleteLinesAction = /** @class */ (function (_super) {
         }) || this;
     }
     DeleteLinesAction.prototype.run = function (_accessor, editor) {
+        if (!editor.hasModel()) {
+            return;
+        }
         var ops = this._getLinesToRemove(editor);
-        // Finally, construct the delete lines commands
-        var commands = ops.map(function (op) {
-            return new DeleteLinesCommand(op.startLineNumber, op.endLineNumber, op.positionColumn);
-        });
+        var model = editor.getModel();
+        if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
+            // Model is empty
+            return;
+        }
+        var linesDeleted = 0;
+        var edits = [];
+        var cursorState = [];
+        for (var i = 0, len = ops.length; i < len; i++) {
+            var op = ops[i];
+            var startLineNumber = op.startLineNumber;
+            var endLineNumber = op.endLineNumber;
+            var startColumn = 1;
+            var endColumn = model.getLineMaxColumn(endLineNumber);
+            if (endLineNumber < model.getLineCount()) {
+                endLineNumber += 1;
+                endColumn = 1;
+            }
+            else if (startLineNumber > 1) {
+                startLineNumber -= 1;
+                startColumn = model.getLineMaxColumn(startLineNumber);
+            }
+            edits.push(EditOperation.replace(new Selection(startLineNumber, startColumn, endLineNumber, endColumn), ''));
+            cursorState.push(new Selection(startLineNumber - linesDeleted, op.positionColumn, startLineNumber - linesDeleted, op.positionColumn));
+            linesDeleted += (op.endLineNumber - op.startLineNumber + 1);
+        }
         editor.pushUndoStop();
-        editor.executeCommands(this.id, commands);
+        editor.executeEdits(this.id, edits, cursorState);
         editor.pushUndoStop();
     };
     DeleteLinesAction.prototype._getLinesToRemove = function (editor) {
@@ -287,19 +356,23 @@ var DeleteLinesAction = /** @class */ (function (_super) {
             }
             return {
                 startLineNumber: s.startLineNumber,
+                selectionStartColumn: s.selectionStartColumn,
                 endLineNumber: endLineNumber,
                 positionColumn: s.positionColumn
             };
         });
         // Sort delete operations
         operations.sort(function (a, b) {
+            if (a.startLineNumber === b.startLineNumber) {
+                return a.endLineNumber - b.endLineNumber;
+            }
             return a.startLineNumber - b.startLineNumber;
         });
-        // Merge delete operations on consecutive lines
+        // Merge delete operations which are adjacent or overlapping
         var mergedOperations = [];
         var previousOperation = operations[0];
         for (var i = 1; i < operations.length; i++) {
-            if (previousOperation.endLineNumber + 1 === operations[i].startLineNumber) {
+            if (previousOperation.endLineNumber + 1 >= operations[i].startLineNumber) {
                 // Merge current operations into the previous one
                 previousOperation.endLineNumber = operations[i].endLineNumber;
             }
@@ -315,6 +388,7 @@ var DeleteLinesAction = /** @class */ (function (_super) {
     };
     return DeleteLinesAction;
 }(EditorAction));
+export { DeleteLinesAction };
 var IndentLinesAction = /** @class */ (function (_super) {
     __extends(IndentLinesAction, _super);
     function IndentLinesAction() {
@@ -358,7 +432,7 @@ var OutdentLinesAction = /** @class */ (function (_super) {
         }) || this;
     }
     OutdentLinesAction.prototype.run = function (_accessor, editor) {
-        CoreEditingCommands.Outdent.runEditorCommand(null, editor, null);
+        CoreEditingCommands.Outdent.runEditorCommand(_accessor, editor, null);
     };
     return OutdentLinesAction;
 }(EditorAction));
@@ -420,6 +494,9 @@ var AbstractDeleteAllToBoundaryAction = /** @class */ (function (_super) {
         return _super !== null && _super.apply(this, arguments) || this;
     }
     AbstractDeleteAllToBoundaryAction.prototype.run = function (_accessor, editor) {
+        if (!editor.hasModel()) {
+            return;
+        }
         var primaryCursor = editor.getSelection();
         var rangesToDelete = this._getRangesToDelete(editor);
         // merge overlapping selections
@@ -463,7 +540,7 @@ var DeleteAllLeftAction = /** @class */ (function (_super) {
         }) || this;
     }
     DeleteAllLeftAction.prototype._getEndCursorState = function (primaryCursor, rangesToDelete) {
-        var endPrimaryCursor;
+        var endPrimaryCursor = null;
         var endCursorState = [];
         var deletedLines = 0;
         rangesToDelete.forEach(function (range) {
@@ -489,8 +566,15 @@ var DeleteAllLeftAction = /** @class */ (function (_super) {
         return endCursorState;
     };
     DeleteAllLeftAction.prototype._getRangesToDelete = function (editor) {
-        var rangesToDelete = editor.getSelections();
+        var selections = editor.getSelections();
+        if (selections === null) {
+            return [];
+        }
+        var rangesToDelete = selections;
         var model = editor.getModel();
+        if (model === null) {
+            return [];
+        }
         rangesToDelete.sort(Range.compareRangesUsingStarts);
         rangesToDelete = rangesToDelete.map(function (selection) {
             if (selection.isEmpty()) {
@@ -504,7 +588,7 @@ var DeleteAllLeftAction = /** @class */ (function (_super) {
                 }
             }
             else {
-                return selection;
+                return new Range(selection.startLineNumber, 1, selection.endLineNumber, selection.endColumn);
             }
         });
         return rangesToDelete;
@@ -529,7 +613,7 @@ var DeleteAllRightAction = /** @class */ (function (_super) {
         }) || this;
     }
     DeleteAllRightAction.prototype._getEndCursorState = function (primaryCursor, rangesToDelete) {
-        var endPrimaryCursor;
+        var endPrimaryCursor = null;
         var endCursorState = [];
         for (var i = 0, len = rangesToDelete.length, offset = 0; i < len; i++) {
             var range = rangesToDelete[i];
@@ -548,7 +632,14 @@ var DeleteAllRightAction = /** @class */ (function (_super) {
     };
     DeleteAllRightAction.prototype._getRangesToDelete = function (editor) {
         var model = editor.getModel();
-        var rangesToDelete = editor.getSelections().map(function (sel) {
+        if (model === null) {
+            return [];
+        }
+        var selections = editor.getSelections();
+        if (selections === null) {
+            return [];
+        }
+        var rangesToDelete = selections.map(function (sel) {
             if (sel.isEmpty()) {
                 var maxColumn = model.getLineMaxColumn(sel.startLineNumber);
                 if (sel.startColumn === maxColumn) {
@@ -584,7 +675,13 @@ var JoinLinesAction = /** @class */ (function (_super) {
     }
     JoinLinesAction.prototype.run = function (_accessor, editor) {
         var selections = editor.getSelections();
+        if (selections === null) {
+            return;
+        }
         var primaryCursor = editor.getSelection();
+        if (primaryCursor === null) {
+            return;
+        }
         selections.sort(Range.compareRangesUsingStarts);
         var reducedSelections = [];
         var lastSelection = selections.reduce(function (previousValue, currentValue) {
@@ -615,6 +712,9 @@ var JoinLinesAction = /** @class */ (function (_super) {
         });
         reducedSelections.push(lastSelection);
         var model = editor.getModel();
+        if (model === null) {
+            return;
+        }
         var edits = [];
         var endCursorState = [];
         var endPrimaryCursor = primaryCursor;
@@ -714,7 +814,13 @@ var TransposeAction = /** @class */ (function (_super) {
     }
     TransposeAction.prototype.run = function (_accessor, editor) {
         var selections = editor.getSelections();
+        if (selections === null) {
+            return;
+        }
         var model = editor.getModel();
+        if (model === null) {
+            return;
+        }
         var commands = [];
         for (var i = 0, len = selections.length; i < len; i++) {
             var selection = selections[i];
@@ -753,7 +859,14 @@ var AbstractCaseAction = /** @class */ (function (_super) {
     }
     AbstractCaseAction.prototype.run = function (_accessor, editor) {
         var selections = editor.getSelections();
+        if (selections === null) {
+            return;
+        }
         var model = editor.getModel();
+        if (model === null) {
+            return;
+        }
+        var wordSeparators = editor.getOption(96 /* wordSeparators */);
         var commands = [];
         for (var i = 0, len = selections.length; i < len; i++) {
             var selection = selections[i];
@@ -765,11 +878,11 @@ var AbstractCaseAction = /** @class */ (function (_super) {
                 }
                 var wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
                 var text = model.getValueInRange(wordRange);
-                commands.push(new ReplaceCommandThatPreservesSelection(wordRange, this._modifyText(text), new Selection(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column)));
+                commands.push(new ReplaceCommandThatPreservesSelection(wordRange, this._modifyText(text, wordSeparators), new Selection(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column)));
             }
             else {
                 var text = model.getValueInRange(selection);
-                commands.push(new ReplaceCommandThatPreservesSelection(selection, this._modifyText(text), selection));
+                commands.push(new ReplaceCommandThatPreservesSelection(selection, this._modifyText(text, wordSeparators), selection));
             }
         }
         editor.pushUndoStop();
@@ -789,7 +902,7 @@ var UpperCaseAction = /** @class */ (function (_super) {
             precondition: EditorContextKeys.writable
         }) || this;
     }
-    UpperCaseAction.prototype._modifyText = function (text) {
+    UpperCaseAction.prototype._modifyText = function (text, wordSeparators) {
         return text.toLocaleUpperCase();
     };
     return UpperCaseAction;
@@ -805,14 +918,49 @@ var LowerCaseAction = /** @class */ (function (_super) {
             precondition: EditorContextKeys.writable
         }) || this;
     }
-    LowerCaseAction.prototype._modifyText = function (text) {
+    LowerCaseAction.prototype._modifyText = function (text, wordSeparators) {
         return text.toLocaleLowerCase();
     };
     return LowerCaseAction;
 }(AbstractCaseAction));
 export { LowerCaseAction };
+var TitleCaseAction = /** @class */ (function (_super) {
+    __extends(TitleCaseAction, _super);
+    function TitleCaseAction() {
+        return _super.call(this, {
+            id: 'editor.action.transformToTitlecase',
+            label: nls.localize('editor.transformToTitlecase', "Transform to Title Case"),
+            alias: 'Transform to Title Case',
+            precondition: EditorContextKeys.writable
+        }) || this;
+    }
+    TitleCaseAction.prototype._modifyText = function (text, wordSeparators) {
+        var separators = '\r\n\t ' + wordSeparators;
+        var excludedChars = separators.split('');
+        var title = '';
+        var startUpperCase = true;
+        for (var i = 0; i < text.length; i++) {
+            var currentChar = text[i];
+            if (excludedChars.indexOf(currentChar) >= 0) {
+                startUpperCase = true;
+                title += currentChar;
+            }
+            else if (startUpperCase) {
+                startUpperCase = false;
+                title += currentChar.toLocaleUpperCase();
+            }
+            else {
+                title += currentChar.toLocaleLowerCase();
+            }
+        }
+        return title;
+    };
+    return TitleCaseAction;
+}(AbstractCaseAction));
+export { TitleCaseAction };
 registerEditorAction(CopyLinesUpAction);
 registerEditorAction(CopyLinesDownAction);
+registerEditorAction(DuplicateSelectionAction);
 registerEditorAction(MoveLinesUpAction);
 registerEditorAction(MoveLinesDownAction);
 registerEditorAction(SortLinesAscendingAction);
@@ -829,3 +977,4 @@ registerEditorAction(JoinLinesAction);
 registerEditorAction(TransposeAction);
 registerEditorAction(UpperCaseAction);
 registerEditorAction(LowerCaseAction);
+registerEditorAction(TitleCaseAction);

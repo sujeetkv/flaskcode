@@ -143,7 +143,7 @@ var EditStack = /** @class */ (function () {
         return null;
     };
     EditStack.prototype.canUndo = function () {
-        return (this.past.length > 0);
+        return (this.past.length > 0) || this.currentOpenStackElement !== null;
     };
     EditStack.prototype.redo = function () {
         if (this.future.length > 0) {

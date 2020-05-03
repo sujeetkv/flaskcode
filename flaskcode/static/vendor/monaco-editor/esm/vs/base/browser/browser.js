@@ -10,10 +10,6 @@ var WindowManager = /** @class */ (function () {
         this._lastZoomLevelChangeTime = 0;
         this._onDidChangeZoomLevel = new Emitter();
         this.onDidChangeZoomLevel = this._onDidChangeZoomLevel.event;
-        // --- Accessibility
-        this._accessibilitySupport = 0 /* Unknown */;
-        this._onDidChangeAccessibilitySupport = new Emitter();
-        this.onDidChangeAccessibilitySupport = this._onDidChangeAccessibilitySupport.event;
     }
     WindowManager.prototype.getZoomLevel = function () {
         return this._zoomLevel;
@@ -32,9 +28,6 @@ var WindowManager = /** @class */ (function () {
             ctx.backingStorePixelRatio || 1;
         return dpr / bsr;
     };
-    WindowManager.prototype.getAccessibilitySupport = function () {
-        return this._accessibilitySupport;
-    };
     WindowManager.INSTANCE = new WindowManager();
     return WindowManager;
 }());
@@ -51,12 +44,6 @@ export function onDidChangeZoomLevel(callback) {
 export function getPixelRatio() {
     return WindowManager.INSTANCE.getPixelRatio();
 }
-export function getAccessibilitySupport() {
-    return WindowManager.INSTANCE.getAccessibilitySupport();
-}
-export function onDidChangeAccessibilitySupport(callback) {
-    return WindowManager.INSTANCE.onDidChangeAccessibilitySupport(callback);
-}
 var userAgent = navigator.userAgent;
 export var isIE = (userAgent.indexOf('Trident') >= 0);
 export var isEdge = (userAgent.indexOf('Edge/') >= 0);
@@ -64,19 +51,8 @@ export var isEdgeOrIE = isIE || isEdge;
 export var isFirefox = (userAgent.indexOf('Firefox') >= 0);
 export var isWebKit = (userAgent.indexOf('AppleWebKit') >= 0);
 export var isChrome = (userAgent.indexOf('Chrome') >= 0);
-export var isSafari = (userAgent.indexOf('Chrome') === -1) && (userAgent.indexOf('Safari') >= 0);
-export var isIPad = (userAgent.indexOf('iPad') >= 0);
+export var isSafari = (!isChrome && (userAgent.indexOf('Safari') >= 0));
+export var isWebkitWebView = (!isChrome && !isSafari && isWebKit);
+export var isIPad = (userAgent.indexOf('iPad') >= 0 || (isSafari && navigator.maxTouchPoints > 0));
 export var isEdgeWebView = isEdge && (userAgent.indexOf('WebView/') >= 0);
-export function hasClipboardSupport() {
-    if (isIE) {
-        return false;
-    }
-    if (isEdge) {
-        var index = userAgent.indexOf('Edge/');
-        var version = parseInt(userAgent.substring(index + 5, userAgent.indexOf('.', index)), 10);
-        if (!version || (version >= 12 && version <= 16)) {
-            return false;
-        }
-    }
-    return true;
-}
+export var isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);

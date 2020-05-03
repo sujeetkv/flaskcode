@@ -2,45 +2,33 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    }
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 import * as dom from './dom.js';
+import * as platform from '../common/platform.js';
+import * as browser from './browser.js';
 import { IframeUtils } from './iframe.js';
 import { StandardMouseEvent } from './mouseEvent.js';
-import { Disposable, dispose } from '../common/lifecycle.js';
+import { DisposableStore } from '../common/lifecycle.js';
+import { BrowserFeatures } from './canIUse.js';
 export function standardMouseMoveMerger(lastEvent, currentEvent) {
     var ev = new StandardMouseEvent(currentEvent);
     ev.preventDefault();
     return {
         leftButton: ev.leftButton,
+        buttons: ev.buttons,
         posx: ev.posx,
         posy: ev.posy
     };
 }
-var GlobalMouseMoveMonitor = /** @class */ (function (_super) {
-    __extends(GlobalMouseMoveMonitor, _super);
+var GlobalMouseMoveMonitor = /** @class */ (function () {
     function GlobalMouseMoveMonitor() {
-        var _this = _super.call(this) || this;
-        _this.hooks = [];
-        _this.mouseMoveEventMerger = null;
-        _this.mouseMoveCallback = null;
-        _this.onStopCallback = null;
-        return _this;
+        this._hooks = new DisposableStore();
+        this._mouseMoveEventMerger = null;
+        this._mouseMoveCallback = null;
+        this._onStopCallback = null;
     }
     GlobalMouseMoveMonitor.prototype.dispose = function () {
         this.stopMonitoring(false);
-        _super.prototype.dispose.call(this);
+        this._hooks.dispose();
     };
     GlobalMouseMoveMonitor.prototype.stopMonitoring = function (invokeStopCallback) {
         if (!this.isMonitoring()) {
@@ -48,55 +36,70 @@ var GlobalMouseMoveMonitor = /** @class */ (function (_super) {
             return;
         }
         // Unhook
-        this.hooks = dispose(this.hooks);
-        this.mouseMoveEventMerger = null;
-        this.mouseMoveCallback = null;
-        var onStopCallback = this.onStopCallback;
-        this.onStopCallback = null;
+        this._hooks.clear();
+        this._mouseMoveEventMerger = null;
+        this._mouseMoveCallback = null;
+        var onStopCallback = this._onStopCallback;
+        this._onStopCallback = null;
         if (invokeStopCallback && onStopCallback) {
             onStopCallback();
         }
     };
     GlobalMouseMoveMonitor.prototype.isMonitoring = function () {
-        return this.hooks.length > 0;
+        return !!this._mouseMoveEventMerger;
     };
-    GlobalMouseMoveMonitor.prototype.startMonitoring = function (mouseMoveEventMerger, mouseMoveCallback, onStopCallback) {
+    GlobalMouseMoveMonitor.prototype.startMonitoring = function (initialElement, initialButtons, mouseMoveEventMerger, mouseMoveCallback, onStopCallback) {
         var _this = this;
         if (this.isMonitoring()) {
             // I am already hooked
             return;
         }
-        this.mouseMoveEventMerger = mouseMoveEventMerger;
-        this.mouseMoveCallback = mouseMoveCallback;
-        this.onStopCallback = onStopCallback;
+        this._mouseMoveEventMerger = mouseMoveEventMerger;
+        this._mouseMoveCallback = mouseMoveCallback;
+        this._onStopCallback = onStopCallback;
         var windowChain = IframeUtils.getSameOriginWindowChain();
-        for (var i = 0; i < windowChain.length; i++) {
-            this.hooks.push(dom.addDisposableThrottledListener(windowChain[i].window.document, 'mousemove', function (data) { return _this.mouseMoveCallback(data); }, function (lastEvent, currentEvent) { return _this.mouseMoveEventMerger(lastEvent, currentEvent); }));
-            this.hooks.push(dom.addDisposableListener(windowChain[i].window.document, 'mouseup', function (e) { return _this.stopMonitoring(true); }));
+        var mouseMove = platform.isIOS && BrowserFeatures.pointerEvents ? 'pointermove' : 'mousemove';
+        var mouseUp = platform.isIOS && BrowserFeatures.pointerEvents ? 'pointerup' : 'mouseup';
+        var listenTo = windowChain.map(function (element) { return element.window.document; });
+        var shadowRoot = dom.getShadowRoot(initialElement);
+        if (shadowRoot) {
+            listenTo.unshift(shadowRoot);
+        }
+        for (var _i = 0, listenTo_1 = listenTo; _i < listenTo_1.length; _i++) {
+            var element = listenTo_1[_i];
+            this._hooks.add(dom.addDisposableThrottledListener(element, mouseMove, function (data) {
+                if (!browser.isIE && data.buttons !== initialButtons) {
+                    // Buttons state has changed in the meantime
+                    _this.stopMonitoring(true);
+                    return;
+                }
+                _this._mouseMoveCallback(data);
+            }, function (lastEvent, currentEvent) { return _this._mouseMoveEventMerger(lastEvent, currentEvent); }));
+            this._hooks.add(dom.addDisposableListener(element, mouseUp, function (e) { return _this.stopMonitoring(true); }));
         }
         if (IframeUtils.hasDifferentOriginAncestor()) {
             var lastSameOriginAncestor = windowChain[windowChain.length - 1];
             // We might miss a mouse up if it happens outside the iframe
             // This one is for Chrome
-            this.hooks.push(dom.addDisposableListener(lastSameOriginAncestor.window.document, 'mouseout', function (browserEvent) {
+            this._hooks.add(dom.addDisposableListener(lastSameOriginAncestor.window.document, 'mouseout', function (browserEvent) {
                 var e = new StandardMouseEvent(browserEvent);
                 if (e.target.tagName.toLowerCase() === 'html') {
                     _this.stopMonitoring(true);
                 }
             }));
             // This one is for FF
-            this.hooks.push(dom.addDisposableListener(lastSameOriginAncestor.window.document, 'mouseover', function (browserEvent) {
+            this._hooks.add(dom.addDisposableListener(lastSameOriginAncestor.window.document, 'mouseover', function (browserEvent) {
                 var e = new StandardMouseEvent(browserEvent);
                 if (e.target.tagName.toLowerCase() === 'html') {
                     _this.stopMonitoring(true);
                 }
             }));
             // This one is for IE
-            this.hooks.push(dom.addDisposableListener(lastSameOriginAncestor.window.document.body, 'mouseleave', function (browserEvent) {
+            this._hooks.add(dom.addDisposableListener(lastSameOriginAncestor.window.document.body, 'mouseleave', function (browserEvent) {
                 _this.stopMonitoring(true);
             }));
         }
     };
     return GlobalMouseMoveMonitor;
-}(Disposable));
+}());
 export { GlobalMouseMoveMonitor };

@@ -97,8 +97,8 @@ var LanguageFeatureRegistry = /** @class */ (function () {
             return;
         }
         this._updateScores(model);
-        for (var from = 0; from < this._entries.length; from++) {
-            var entry = this._entries[from];
+        for (var _i = 0, _a = this._entries; _i < _a.length; _i++) {
+            var entry = _a[_i];
             if (entry._score > 0) {
                 callback(entry);
             }

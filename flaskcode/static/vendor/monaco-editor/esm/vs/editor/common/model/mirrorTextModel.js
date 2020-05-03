@@ -25,8 +25,8 @@ var MirrorTextModel = /** @class */ (function () {
         }
         // Update my lines
         var changes = e.changes;
-        for (var i = 0, len = changes.length; i < len; i++) {
-            var change = changes[i];
+        for (var _i = 0, changes_1 = changes; _i < changes_1.length; _i++) {
+            var change = changes_1[_i];
             this._acceptDeleteRange(change.range);
             this._acceptInsertText(new Position(change.range.startLineNumber, change.range.startColumn), change.text);
         }

@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -32,8 +32,9 @@ var MoveCaretAction = /** @class */ (function (_super) {
         }
         var commands = [];
         var selections = editor.getSelections();
-        for (var i = 0; i < selections.length; i++) {
-            commands.push(new MoveCaretCommand(selections[i], this.left));
+        for (var _i = 0, selections_1 = selections; _i < selections_1.length; _i++) {
+            var selection = selections_1[_i];
+            commands.push(new MoveCaretCommand(selection, this.left));
         }
         editor.pushUndoStop();
         editor.executeCommands(this.id, commands);

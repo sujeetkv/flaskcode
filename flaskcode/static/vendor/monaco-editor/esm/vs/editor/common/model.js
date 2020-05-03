@@ -12,12 +12,21 @@ export var OverviewRulerLane;
     OverviewRulerLane[OverviewRulerLane["Right"] = 4] = "Right";
     OverviewRulerLane[OverviewRulerLane["Full"] = 7] = "Full";
 })(OverviewRulerLane || (OverviewRulerLane = {}));
+/**
+ * Position in the minimap to render the decoration.
+ */
+export var MinimapPosition;
+(function (MinimapPosition) {
+    MinimapPosition[MinimapPosition["Inline"] = 1] = "Inline";
+    MinimapPosition[MinimapPosition["Gutter"] = 2] = "Gutter";
+})(MinimapPosition || (MinimapPosition = {}));
 var TextModelResolvedOptions = /** @class */ (function () {
     /**
      * @internal
      */
     function TextModelResolvedOptions(src) {
-        this.tabSize = src.tabSize | 0;
+        this.tabSize = Math.max(1, src.tabSize | 0);
+        this.indentSize = src.tabSize | 0;
         this.insertSpaces = Boolean(src.insertSpaces);
         this.defaultEOL = src.defaultEOL | 0;
         this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);
@@ -27,6 +36,7 @@ var TextModelResolvedOptions = /** @class */ (function () {
      */
     TextModelResolvedOptions.prototype.equals = function (other) {
         return (this.tabSize === other.tabSize
+            && this.indentSize === other.indentSize
             && this.insertSpaces === other.insertSpaces
             && this.defaultEOL === other.defaultEOL
             && this.trimAutoWhitespace === other.trimAutoWhitespace);
@@ -37,6 +47,7 @@ var TextModelResolvedOptions = /** @class */ (function () {
     TextModelResolvedOptions.prototype.createChangeEvent = function (newOpts) {
         return {
             tabSize: this.tabSize !== newOpts.tabSize,
+            indentSize: this.indentSize !== newOpts.indentSize,
             insertSpaces: this.insertSpaces !== newOpts.insertSpaces,
             trimAutoWhitespace: this.trimAutoWhitespace !== newOpts.trimAutoWhitespace,
         };

@@ -8,7 +8,7 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
@@ -31,12 +31,6 @@ var Selection = /** @class */ (function (_super) {
         _this.positionColumn = positionColumn;
         return _this;
     }
-    /**
-     * Clone this selection.
-     */
-    Selection.prototype.clone = function () {
-        return new Selection(this.selectionStartLineNumber, this.selectionStartColumn, this.positionLineNumber, this.positionColumn);
-    };
     /**
      * Transform to a human-readable representation.
      */

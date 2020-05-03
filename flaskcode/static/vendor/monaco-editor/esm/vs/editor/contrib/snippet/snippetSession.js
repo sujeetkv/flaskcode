@@ -11,11 +11,13 @@ import { Range } from '../../common/core/range.js';
 import { Selection } from '../../common/core/selection.js';
 import { ModelDecorationOptions } from '../../common/model/textModel.js';
 import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
+import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
 import { optional } from '../../../platform/instantiation/common/instantiation.js';
 import { Choice, Placeholder, SnippetParser, Text } from './snippetParser.js';
-import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver } from './snippetVariables.js';
+import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, CommentBasedVariableResolver, WorkspaceBasedVariableResolver, RandomBasedVariableResolver } from './snippetVariables.js';
 import { registerThemingParticipant } from '../../../platform/theme/common/themeService.js';
 import * as colors from '../../../platform/theme/common/colorRegistry.js';
+import { ILabelService } from '../../../platform/label/common/label.js';
 registerThemingParticipant(function (theme, collector) {
     function getColorGraceful(name) {
         var color = theme.getColor(name);
@@ -64,6 +66,9 @@ var OneSnippet = /** @class */ (function () {
     };
     OneSnippet.prototype.move = function (fwd) {
         var _this = this;
+        if (!this._editor.hasModel()) {
+            return [];
+        }
         this._initDecorations();
         // Transform placeholder text if necessary
         if (this._placeholderGroupsIdx >= 0) {
@@ -82,14 +87,14 @@ var OneSnippet = /** @class */ (function () {
                 this._editor.executeEdits('snippet.placeholderTransform', operations);
             }
         }
-        var skipThisPlaceholder = false;
+        var couldSkipThisPlaceholder = false;
         if (fwd === true && this._placeholderGroupsIdx < this._placeholderGroups.length - 1) {
             this._placeholderGroupsIdx += 1;
-            skipThisPlaceholder = true;
+            couldSkipThisPlaceholder = true;
         }
         else if (fwd === false && this._placeholderGroupsIdx > 0) {
             this._placeholderGroupsIdx -= 1;
-            skipThisPlaceholder = true;
+            couldSkipThisPlaceholder = true;
         }
         else {
             // the selection of the current placeholder might
@@ -111,7 +116,7 @@ var OneSnippet = /** @class */ (function () {
                 // consider to skip this placeholder index when the decoration
                 // range is empty but when the placeholder wasn't. that's a strong
                 // hint that the placeholder has been deleted. (all placeholder must match this)
-                skipThisPlaceholder = skipThisPlaceholder && (range.isEmpty() && placeholder.toString().length > 0);
+                couldSkipThisPlaceholder = couldSkipThisPlaceholder && _this._hasPlaceholderBeenCollapsed(placeholder);
                 accessor.changeDecorationOptions(id, placeholder.isFinalTabstop ? OneSnippet._decor.activeFinal : OneSnippet._decor.active);
                 activePlaceholders.add(placeholder);
                 for (var _b = 0, _c = _this._snippet.enclosingPlaceholders(placeholder); _b < _c.length; _b++) {
@@ -130,7 +135,24 @@ var OneSnippet = /** @class */ (function () {
             });
             return selections;
         });
-        return !skipThisPlaceholder ? newSelections : this.move(fwd);
+        return !couldSkipThisPlaceholder ? newSelections : this.move(fwd);
+    };
+    OneSnippet.prototype._hasPlaceholderBeenCollapsed = function (placeholder) {
+        // A placeholder is empty when it wasn't empty when authored but
+        // when its tracking decoration is empty. This also applies to all
+        // potential parent placeholders
+        var marker = placeholder;
+        while (marker) {
+            if (marker instanceof Placeholder) {
+                var id = this._placeholderDecorations.get(marker);
+                var range = this._editor.getModel().getDecorationRange(id);
+                if (range.isEmpty() && marker.toString().length > 0) {
+                    return true;
+                }
+            }
+            marker = marker.parent;
+        }
+        return false;
     };
     Object.defineProperty(OneSnippet.prototype, "isAtFirstPlaceholder", {
         get: function () {
@@ -245,20 +267,22 @@ var OneSnippet = /** @class */ (function () {
     return OneSnippet;
 }());
 export { OneSnippet };
+var _defaultOptions = {
+    overwriteBefore: 0,
+    overwriteAfter: 0,
+    adjustWhitespace: true,
+    clipboardText: undefined
+};
 var SnippetSession = /** @class */ (function () {
-    function SnippetSession(editor, template, overwriteBefore, overwriteAfter, adjustWhitespace) {
-        if (overwriteBefore === void 0) { overwriteBefore = 0; }
-        if (overwriteAfter === void 0) { overwriteAfter = 0; }
-        if (adjustWhitespace === void 0) { adjustWhitespace = true; }
+    function SnippetSession(editor, template, options) {
+        if (options === void 0) { options = _defaultOptions; }
         this._templateMerges = [];
         this._snippets = [];
         this._editor = editor;
         this._template = template;
-        this._overwriteBefore = overwriteBefore;
-        this._overwriteAfter = overwriteAfter;
-        this._adjustWhitespace = adjustWhitespace;
+        this._options = options;
     }
-    SnippetSession.adjustWhitespace = function (model, position, snippet) {
+    SnippetSession.adjustWhitespace = function (model, position, snippet, adjustIndentation, adjustNewlines) {
         var line = model.getLineContent(position.lineNumber);
         var lineLeadingWhitespace = getLeadingWhitespace(line, 0, position.column - 1);
         snippet.walk(function (marker) {
@@ -266,13 +290,17 @@ var SnippetSession = /** @class */ (function () {
                 // adjust indentation of text markers, except for choise elements
                 // which get adjusted when being selected
                 var lines = marker.value.split(/\r\n|\r|\n/);
-                for (var i = 1; i < lines.length; i++) {
-                    var templateLeadingWhitespace = getLeadingWhitespace(lines[i]);
-                    lines[i] = model.normalizeIndentation(lineLeadingWhitespace + templateLeadingWhitespace) + lines[i].substr(templateLeadingWhitespace.length);
+                if (adjustIndentation) {
+                    for (var i = 1; i < lines.length; i++) {
+                        var templateLeadingWhitespace = getLeadingWhitespace(lines[i]);
+                        lines[i] = model.normalizeIndentation(lineLeadingWhitespace + templateLeadingWhitespace) + lines[i].substr(templateLeadingWhitespace.length);
+                    }
                 }
-                var newValue = lines.join(model.getEOL());
-                if (newValue !== marker.value) {
-                    marker.parent.replace(marker, [new Text(newValue)]);
+                if (adjustNewlines) {
+                    var newValue = lines.join(model.getEOL());
+                    if (newValue !== marker.value) {
+                        marker.parent.replace(marker, [new Text(newValue)]);
+                    }
                 }
             }
             return true;
@@ -295,12 +323,17 @@ var SnippetSession = /** @class */ (function () {
         }
         return selection;
     };
-    SnippetSession.createEditsAndSnippets = function (editor, template, overwriteBefore, overwriteAfter, enforceFinalTabstop, adjustWhitespace) {
-        var model = editor.getModel();
+    SnippetSession.createEditsAndSnippets = function (editor, template, overwriteBefore, overwriteAfter, enforceFinalTabstop, adjustWhitespace, clipboardText) {
         var edits = [];
         var snippets = [];
-        var modelBasedVariableResolver = new ModelBasedVariableResolver(model);
+        if (!editor.hasModel()) {
+            return { edits: edits, snippets: snippets };
+        }
+        var model = editor.getModel();
+        var workspaceService = editor.invokeWithinContext(function (accessor) { return accessor.get(IWorkspaceContextService, optional); });
+        var modelBasedVariableResolver = editor.invokeWithinContext(function (accessor) { return new ModelBasedVariableResolver(accessor.get(ILabelService, optional), model); });
         var clipboardService = editor.invokeWithinContext(function (accessor) { return accessor.get(IClipboardService, optional); });
+        var readClipboardText = function () { return clipboardText || clipboardService && clipboardService.readTextSync(); };
         var delta = 0;
         // know what text the overwrite[Before|After] extensions
         // of the primary curser have selected because only when
@@ -339,14 +372,15 @@ var SnippetSession = /** @class */ (function () {
             // happens when being asked for (default) or when this is a secondary
             // cursor and the leading whitespace is different
             var start = snippetSelection.getStartPosition();
-            if (adjustWhitespace || (idx > 0 && firstLineFirstNonWhitespace !== model.getLineFirstNonWhitespaceColumn(selection.positionLineNumber))) {
-                SnippetSession.adjustWhitespace(model, start, snippet);
-            }
+            SnippetSession.adjustWhitespace(model, start, snippet, adjustWhitespace || (idx > 0 && firstLineFirstNonWhitespace !== model.getLineFirstNonWhitespaceColumn(selection.positionLineNumber)), true);
             snippet.resolveVariables(new CompositeSnippetVariableResolver([
                 modelBasedVariableResolver,
-                new ClipboardBasedVariableResolver(clipboardService, idx, indexedSelections.length),
+                new ClipboardBasedVariableResolver(readClipboardText, idx, indexedSelections.length, editor.getOption(60 /* multiCursorPaste */) === 'spread'),
                 new SelectionBasedVariableResolver(model, selection),
-                new TimeBasedVariableResolver
+                new CommentBasedVariableResolver(model),
+                new TimeBasedVariableResolver,
+                new WorkspaceBasedVariableResolver(workspaceService),
+                new RandomBasedVariableResolver,
             ]));
             var offset = model.getOffsetAt(start) + delta;
             delta += snippet.toString().length - model.getValueLengthInRange(snippetSelection);
@@ -366,11 +400,13 @@ var SnippetSession = /** @class */ (function () {
     };
     SnippetSession.prototype.insert = function () {
         var _this = this;
-        var model = this._editor.getModel();
+        if (!this._editor.hasModel()) {
+            return;
+        }
         // make insert edit and start with first selections
-        var _a = SnippetSession.createEditsAndSnippets(this._editor, this._template, this._overwriteBefore, this._overwriteAfter, false, this._adjustWhitespace), edits = _a.edits, snippets = _a.snippets;
+        var _a = SnippetSession.createEditsAndSnippets(this._editor, this._template, this._options.overwriteBefore, this._options.overwriteAfter, false, this._options.adjustWhitespace, this._options.clipboardText), edits = _a.edits, snippets = _a.snippets;
         this._snippets = snippets;
-        var selections = model.pushEditOperations(this._editor.getSelections(), edits, function (undoEdits) {
+        this._editor.executeEdits('snippet', edits, function (undoEdits) {
             if (_this._snippets[0].hasPlaceholder) {
                 return _this._move(true);
             }
@@ -378,17 +414,17 @@ var SnippetSession = /** @class */ (function () {
                 return undoEdits.map(function (edit) { return Selection.fromPositions(edit.range.getEndPosition()); });
             }
         });
-        this._editor.setSelections(selections);
-        this._editor.revealRange(selections[0]);
+        this._editor.revealRange(this._editor.getSelections()[0]);
     };
-    SnippetSession.prototype.merge = function (template, overwriteBefore, overwriteAfter, adjustWhitespace) {
+    SnippetSession.prototype.merge = function (template, options) {
         var _this = this;
-        if (overwriteBefore === void 0) { overwriteBefore = 0; }
-        if (overwriteAfter === void 0) { overwriteAfter = 0; }
-        if (adjustWhitespace === void 0) { adjustWhitespace = true; }
+        if (options === void 0) { options = _defaultOptions; }
+        if (!this._editor.hasModel()) {
+            return;
+        }
         this._templateMerges.push([this._snippets[0]._nestingLevel, this._snippets[0]._placeholderGroupsIdx, template]);
-        var _a = SnippetSession.createEditsAndSnippets(this._editor, template, overwriteBefore, overwriteAfter, true, adjustWhitespace), edits = _a.edits, snippets = _a.snippets;
-        this._editor.setSelections(this._editor.getModel().pushEditOperations(this._editor.getSelections(), edits, function (undoEdits) {
+        var _a = SnippetSession.createEditsAndSnippets(this._editor, template, options.overwriteBefore, options.overwriteAfter, true, options.adjustWhitespace, options.clipboardText), edits = _a.edits, snippets = _a.snippets;
+        this._editor.executeEdits('snippet', edits, function (undoEdits) {
             for (var _i = 0, _a = _this._snippets; _i < _a.length; _i++) {
                 var snippet = _a[_i];
                 snippet.merge(snippets);
@@ -400,7 +436,7 @@ var SnippetSession = /** @class */ (function () {
             else {
                 return undoEdits.map(function (edit) { return Selection.fromPositions(edit.range.getEndPosition()); });
             }
-        }));
+        });
     };
     SnippetSession.prototype.next = function () {
         var newSelections = this._move(true);
@@ -460,14 +496,13 @@ var SnippetSession = /** @class */ (function () {
             // So one snippet is without selection -> cancel
             return false;
         }
-        var allPossibleSelections;
+        var allPossibleSelections = new Map();
         var _loop_1 = function (snippet) {
             var possibleSelections = snippet.computePossibleSelections();
             // for the first snippet find the placeholder (and its ranges)
             // that contain at least one selection. for all remaining snippets
             // the same placeholder (and their ranges) must be used.
-            if (!allPossibleSelections) {
-                allPossibleSelections = new Map();
+            if (allPossibleSelections.size === 0) {
                 possibleSelections.forEach(function (ranges, index) {
                     ranges.sort(Range.compareRangesUsingStarts);
                     for (var _i = 0, selections_1 = selections; _i < selections_1.length; _i++) {

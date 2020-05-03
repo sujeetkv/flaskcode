@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Range } from '../../common/core/range.js';
-import { OverviewRulerLane } from '../../common/model.js';
+import { OverviewRulerLane, MinimapPosition } from '../../common/model.js';
 import { ModelDecorationOptions } from '../../common/model/textModel.js';
-import { overviewRulerFindMatchForeground } from '../../../platform/theme/common/colorRegistry.js';
+import { overviewRulerFindMatchForeground, minimapFindMatch } from '../../../platform/theme/common/colorRegistry.js';
 import { themeColorFromId } from '../../../platform/theme/common/themeService.js';
 var FindDecorations = /** @class */ (function () {
     function FindDecorations(editor) {
@@ -57,8 +57,8 @@ var FindDecorations = /** @class */ (function () {
     };
     FindDecorations.prototype.getCurrentMatchesPosition = function (desiredRange) {
         var candidates = this._editor.getModel().getDecorationsInRange(desiredRange);
-        for (var i = 0, len = candidates.length; i < len; i++) {
-            var candidate = candidates[i];
+        for (var _i = 0, candidates_1 = candidates; _i < candidates_1.length; _i++) {
+            var candidate = candidates_1[_i];
             var candidateOpts = candidate.options;
             if (candidateOpts === FindDecorations._FIND_MATCH_DECORATION || candidateOpts === FindDecorations._CURRENT_FIND_MATCH_DECORATION) {
                 return this._getDecorationIndex(candidate.id);
@@ -231,6 +231,10 @@ var FindDecorations = /** @class */ (function () {
         overviewRuler: {
             color: themeColorFromId(overviewRulerFindMatchForeground),
             position: OverviewRulerLane.Center
+        },
+        minimap: {
+            color: themeColorFromId(minimapFindMatch),
+            position: MinimapPosition.Inline
         }
     });
     FindDecorations._FIND_MATCH_DECORATION = ModelDecorationOptions.register({
@@ -240,6 +244,10 @@ var FindDecorations = /** @class */ (function () {
         overviewRuler: {
             color: themeColorFromId(overviewRulerFindMatchForeground),
             position: OverviewRulerLane.Center
+        },
+        minimap: {
+            color: themeColorFromId(minimapFindMatch),
+            position: MinimapPosition.Inline
         }
     });
     FindDecorations._FIND_MATCH_NO_OVERVIEW_DECORATION = ModelDecorationOptions.register({

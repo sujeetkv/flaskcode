@@ -9,4 +9,3 @@ export function js_beautify(js_source_text, options) {
     // no formatting
     return js_source_text;
 }
-//# sourceMappingURL=beautify.js.map

@@ -7,10 +7,11 @@ import '../../editor/editor.api.js';
 var Emitter = monaco.Emitter;
 // --- CSS configuration and defaults ---------
 var LanguageServiceDefaultsImpl = /** @class */ (function () {
-    function LanguageServiceDefaultsImpl(languageId, diagnosticsOptions) {
+    function LanguageServiceDefaultsImpl(languageId, diagnosticsOptions, modeConfiguration) {
         this._onDidChange = new Emitter();
         this._languageId = languageId;
         this.setDiagnosticsOptions(diagnosticsOptions);
+        this.setModeConfiguration(modeConfiguration);
     }
     Object.defineProperty(LanguageServiceDefaultsImpl.prototype, "onDidChange", {
         get: function () {
@@ -26,6 +27,13 @@ var LanguageServiceDefaultsImpl = /** @class */ (function () {
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(LanguageServiceDefaultsImpl.prototype, "modeConfiguration", {
+        get: function () {
+            return this._modeConfiguration;
+        },
+        enumerable: true,
+        configurable: true
+    });
     Object.defineProperty(LanguageServiceDefaultsImpl.prototype, "diagnosticsOptions", {
         get: function () {
             return this._diagnosticsOptions;
@@ -37,6 +45,11 @@ var LanguageServiceDefaultsImpl = /** @class */ (function () {
         this._diagnosticsOptions = options || Object.create(null);
         this._onDidChange.fire(this);
     };
+    LanguageServiceDefaultsImpl.prototype.setModeConfiguration = function (modeConfiguration) {
+        this._modeConfiguration = modeConfiguration || Object.create(null);
+        this._onDidChange.fire(this);
+    };
+    ;
     return LanguageServiceDefaultsImpl;
 }());
 export { LanguageServiceDefaultsImpl };
@@ -63,9 +76,22 @@ var diagnosticDefault = {
         idSelector: 'ignore'
     }
 };
-var cssDefaults = new LanguageServiceDefaultsImpl('css', diagnosticDefault);
-var scssDefaults = new LanguageServiceDefaultsImpl('scss', diagnosticDefault);
-var lessDefaults = new LanguageServiceDefaultsImpl('less', diagnosticDefault);
+var modeConfigurationDefault = {
+    completionItems: true,
+    hovers: true,
+    documentSymbols: true,
+    definitions: true,
+    references: true,
+    documentHighlights: true,
+    rename: true,
+    colors: true,
+    foldingRanges: true,
+    diagnostics: true,
+    selectionRanges: true
+};
+var cssDefaults = new LanguageServiceDefaultsImpl('css', diagnosticDefault, modeConfigurationDefault);
+var scssDefaults = new LanguageServiceDefaultsImpl('scss', diagnosticDefault, modeConfigurationDefault);
+var lessDefaults = new LanguageServiceDefaultsImpl('less', diagnosticDefault, modeConfigurationDefault);
 // Export API
 function createAPI() {
     return {
@@ -77,7 +103,7 @@ function createAPI() {
 monaco.languages.css = createAPI();
 // --- Registration to monaco editor ---
 function getMode() {
-    return monaco.Promise.wrap(import('./cssMode.js'));
+    return import('./cssMode.js');
 }
 monaco.languages.onLanguage('less', function () {
     getMode().then(function (mode) { return mode.setupMode(lessDefaults); });
