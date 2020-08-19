@@ -2,4 +2,3 @@ flask==1.0.2
 pytest
 twine
 pylint
-autopep8
