@@ -287,7 +287,7 @@ flaskcode.highlightSelectedResource = function (filePath, parentPath) {
             }
         }
     }
-    $('#editor-header #resource-name').text(flaskcode.strTruncateLeft(filePath)).attr('title', filePath);
+    $('#editor-header #resource-name').text(flaskcode.strTruncateLeft(filePath, 40)).attr('title', filePath);
 };
 
 flaskcode.notifyCursorPosition = function (position) {
