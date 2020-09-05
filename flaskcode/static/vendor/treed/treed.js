@@ -8,7 +8,7 @@
 
         return this.each(function () {
             var $tree = $(this);
-            $tree.addClass('tree');
+            $tree.addClass('treed');
             $tree.find('li').has('ul').each(function () {
                 var $branch = $(this); //li with children ul
                 $branch.prepend('<i class="indicator fa ' + settings.closedClass + '" aria-hidden="true"></i>');

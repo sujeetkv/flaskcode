@@ -1,17 +1,17 @@
 /* jquery treed plugin */
-.tree, .tree ul {
+.treed, .treed ul {
     margin:0;
     padding:0;
     list-style:none
 }
-.tree ul {
+.treed ul {
     margin-left:1em;
     position:relative
 }
-.tree ul ul {
+.treed ul ul {
     margin-left:.5em
 }
-.tree ul:before {
+.treed ul:before {
     content:"";
     display:block;
     width:0;
@@ -21,7 +21,7 @@
     left:0;
     border-left:1px solid
 }
-.tree li {
+.treed li {
     margin:0;
     padding:0 1em;
     line-height:2em;
@@ -30,16 +30,16 @@
     white-space:nowrap;
     position:relative
 }
-.tree li.selected {
+.treed li.selected {
     font-weight:700;
 }
-.tree li.disabled {
+.treed li.disabled {
     color: #B8B8B8;
 }
-.tree li:hover {
+.treed li:hover {
     cursor: pointer;
 }
-.tree ul li:before {
+.treed ul li:before {
     content:"";
     display:block;
     width:10px;
@@ -50,20 +50,20 @@
     top:1em;
     left:0
 }
-.tree ul li:last-child:before {
+.treed ul li:last-child:before {
     background:#fff;
     height:auto;
     top:1em;
     bottom:0
 }
-.tree .indicator {
+.treed .indicator {
     margin-right:5px;
 }
-.tree li a {
+.treed li a {
     text-decoration: none;
     color:#369;
 }
-.tree li button, .tree li button:active, .tree li button:focus {
+.treed li button, .treed li button:active, .treed li button:focus {
     text-decoration: none;
     color:#369;
     border:none;

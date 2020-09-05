@@ -8,7 +8,7 @@ Web based code editor on flask
 
 Code editor with python Flask framework backend.
 
-![screenshot](https://user-images.githubusercontent.com/17122995/58358018-c499fc00-7e9a-11e9-92d5-5cb9bcb3b7ad.png)
+![screenshot](https://user-images.githubusercontent.com/17122995/92307134-bc8f9e00-efb1-11ea-93c3-49aa6c52cca3.png)
 
 
 ## Installation
