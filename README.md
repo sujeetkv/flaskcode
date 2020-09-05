@@ -14,22 +14,25 @@ Code editor with python Flask framework backend.
 ## Installation
 
 ```bash
-$ pip install flaskcode
+pip install flaskcode
 ```
 
 
-## Running the application
+## Run application from CLI
 
 Run the application standalone, like this:
 
 ```bash
-$ flaskcode /path/to/resource/folder
-FlaskCode CLI: /path/to/resource/folder
-...
+flaskcode /path/to/resource/folder
 ```
 
+Get help for CLI command:
+
 ```bash
-$ flaskcode --help
+flaskcode --help
+```
+
+```
 Usage: flaskcode [OPTIONS] [RESOURCE_BASEPATH]
 
   Run FlaskCode with given RESOURCE_BASEPATH or current working directory.
@@ -53,7 +56,7 @@ Options:
 
 ## Integrating flaskcode in your Flask app
 
-The flaskcode can be integrated in to your own `Flask` app by accessing the blueprint directly in the normal way, e.g.:
+The flaskcode can be integrated in to your own `Flask` app by configuring and registering `flaskcode.blueprint` with your app:
 
 ```python
 from flask import Flask
@@ -83,7 +86,7 @@ Now if you run the Flask app on default port, you can access the flaskcode at ht
 
 ## Authors
 
-* **Sujeet Kumar** - [sujeetkv](https://github.com/sujeetkv)
+* [**Sujeet Kumar**](https://github.com/sujeetkv)
 
 
 ## License

@@ -28,7 +28,7 @@
                 $(this).closest('li').click();
             });
             //fire event to open branch if the li contains an anchor or button instead of text
-            $tree.on('click', '.branch > a, .branch > button', function() {
+            $tree.on('click', '.branch > a, .branch > button', function(e) {
                 e.preventDefault();
                 $(this).closest('li').click();
             });
