@@ -20,7 +20,7 @@ pip install flaskcode
 
 ## Run application from CLI
 
-Run the application standalone, like this:
+Run flaskcode standalone, like this:
 
 ```bash
 flaskcode /path/to/resource/folder
