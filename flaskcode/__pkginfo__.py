@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """package info"""
+
 title = 'flaskcode'
 
 version_info = (0, 0, 7)
@@ -12,6 +13,6 @@ author = 'Sujeet Kumar'
 email = 'sujeetkv90@gmail.com'
 uri = 'https://github.com/sujeetkv/flaskcode'
 
-description = 'Web based code editor on flask'
+description = 'Web based code editor on python flask framework'
 
 status = 'Development'
