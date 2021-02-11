@@ -219,20 +219,38 @@ div.editor-container.light-theme .editor-preloader .loading-center-absolute {
 .badge-default {
     background-color:#777;
 }
+.badge-default:hover {
+    background-color:rgb(88, 88, 88);
+}
 .badge-primary {
     background-color:#337ab7;
+}
+.badge-primary:hover {
+    background-color:#1c5a91;
 }
 .badge-success {
     background-color:#5cb85c;
 }
+.badge-success:hover {
+    background-color:#389738;
+}
 .badge-info {
     background-color:#5bc0de;
+}
+.badge-info:hover {
+    background-color:#2f9abb;
 }
 .badge-warning {
     background-color:#f0ad4e;
 }
+.badge-warning:hover {
+    background-color:#be8028;
+}
 .badge-danger {
     background-color:#d9534f;
+}
+.badge-danger:hover {
+    background-color:#b93531;
 }
 
 /* custom alerts */
