@@ -44,7 +44,7 @@ setup(
             'flaskcode = flaskcode.cli:main',
         ]
     },
-    python_requires='>=2.7',
+    python_requires='>=3.6',
     install_requires=[
         'flask',
     ],
@@ -65,8 +65,6 @@ setup(
         # 'Development Status :: 7 - Inactive',
         'Intended Audience :: Developers',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
