@@ -6,14 +6,14 @@ from .utils import write_file, dir_tree, get_file_extension
 from . import blueprint
 
 
-@blueprint.route('/')
+@blueprint.route('/', strict_slashes=False)
 def index():
     dirname = os.path.basename(g.flaskcode_resource_basepath)
     dtree = dir_tree(g.flaskcode_resource_basepath, g.flaskcode_resource_basepath + '/', allowed_extensions=g.flaskcode_allowed_extensions)
     return render_template('flaskcode/index.html', dirname=dirname, dtree=dtree)
 
 
-@blueprint.route('/resource-data/<path:file_path>.txt', methods=['GET', 'HEAD'])
+@blueprint.route('/resource-data/<path:file_path>.txt', methods=['GET', 'HEAD'], strict_slashes=False)
 def resource_data(file_path):
     file_path = os.path.join(g.flaskcode_resource_basepath, file_path)
     if not (os.path.exists(file_path) and os.path.isfile(file_path)):
@@ -30,7 +30,7 @@ def resource_data(file_path):
     return response
 
 
-@blueprint.route('/update-resource-data/<path:file_path>', methods=['POST'])
+@blueprint.route('/update-resource-data/<path:file_path>', methods=['POST'], strict_slashes=False)
 def update_resource_data(file_path):
     file_path = os.path.join(g.flaskcode_resource_basepath, file_path)
     is_new_resource = bool(int(request.form.get('is_new_resource', 0)))
