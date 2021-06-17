@@ -15,11 +15,11 @@ flaskcode.editorWidget = {
 };
 flaskcode.editorElement = null;
 
-flaskcode.languages = [];
-flaskcode.defaultExt = 'txt';
-flaskcode.defaultLangId = 'plaintext';
-flaskcode.defaultLang = null;
-flaskcode.fallbackLang = null;
+flaskcode.languages = flaskcode.languages || [];
+flaskcode.defaultExt = flaskcode.defaultExt || 'txt';
+flaskcode.defaultLangId = flaskcode.defaultLangId || 'plaintext';
+flaskcode.defaultLang = flaskcode.defaultLang || null;
+flaskcode.fallbackLang = flaskcode.fallbackLang || null;
 
 flaskcode.$editorContainer = null;
 flaskcode.$editorBody = null;
@@ -51,6 +51,12 @@ $(function () {
 
     $('ul#dir-tree').treed();
     flaskcode.setEditorState(flaskcode.editorStates.INIT);
+
+    require.config({
+      'vs/nls': {
+        'availableLanguages': flaskcode.availableLanguages
+      }
+    });
 
     require(['vs/editor/editor.main'], function() {
         flaskcode.languages = monaco.languages.getLanguages();
@@ -99,11 +105,11 @@ $(function () {
                             case 'toggle_collapse':
                                 options.$trigger.click();
                                 break;
-    
+
                             case 'open':
                                 flaskcode.openResource(options.$trigger);
                                 break;
-    
+
                             case 'create_new_file':
                                 flaskcode.openNewFileModal(options.$trigger);
                                 break;
@@ -116,7 +122,7 @@ $(function () {
                 hide: function (options) {},
             },
         });
-    
+
         $('#fileNameModal').on('shown.bs.modal', function () {
             $(this).find('#new_filename').focus();
         });
@@ -459,7 +465,7 @@ flaskcode.saveResourceState = function () {
 };
 
 flaskcode.restoreResourceState = function () {
-    if (flaskcode.editorWidget.editor && flaskcode.editorWidget.editor.getModel() 
+    if (flaskcode.editorWidget.editor && flaskcode.editorWidget.editor.getModel()
     && flaskcode.editorWidget.resourceName && flaskcode.storage.get(flaskcode.editorWidget.resourceName)) {
         flaskcode.editorWidget.editor.restoreViewState(JSON.parse(flaskcode.storage.get(flaskcode.editorWidget.resourceName)));
     }

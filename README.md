@@ -63,6 +63,7 @@ import flaskcode
 app = Flask(__name__)
 app.config.from_object(flaskcode.default_config)
 app.config['FLASKCODE_RESOURCE_BASEPATH'] = '/path/to/resource/folder'
+app.config['FLASKCODE_ALLOWED_EXTENSIONS'] = 'txt'
 app.register_blueprint(flaskcode.blueprint, url_prefix='/flaskcode')
 
 @app.route('/')

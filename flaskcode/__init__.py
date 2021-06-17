@@ -28,6 +28,7 @@ blueprint = Blueprint(
 def manipulate_url_values(endpoint, values):
     if endpoint != 'flaskcode.static':
         resource_basepath = current_app.config.get('FLASKCODE_RESOURCE_BASEPATH')
+        g.flaskcode_allowed_extensions = current_app.config.get('FLASKCODE_ALLOWED_EXTENSIONS')
         if not (resource_basepath and os.path.isdir(resource_basepath)):
             abort(500, '`FLASKCODE_RESOURCE_BASEPATH` is not a valid directory path')
         else:
@@ -40,6 +41,7 @@ def process_template_context():
         app_version=__version__,
         app_title=current_app.config.get('FLASKCODE_APP_TITLE', default_config.FLASKCODE_APP_TITLE),
         editor_theme=current_app.config.get('FLASKCODE_EDITOR_THEME', default_config.FLASKCODE_EDITOR_THEME),
+        flaskcode_js=current_app.config.get('FLASKCODE_JS', default_config.FLASKCODE_JS)
     )
 
 
