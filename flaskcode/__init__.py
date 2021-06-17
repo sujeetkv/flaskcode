@@ -41,6 +41,7 @@ def process_template_context():
         app_version=__version__,
         app_title=current_app.config.get('FLASKCODE_APP_TITLE', default_config.FLASKCODE_APP_TITLE),
         editor_theme=current_app.config.get('FLASKCODE_EDITOR_THEME', default_config.FLASKCODE_EDITOR_THEME),
+        flaskcode_js=current_app.config.get('FLASKCODE_JS', default_config.FLASKCODE_JS)
     )
 
 
