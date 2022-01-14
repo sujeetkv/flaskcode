@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-export var ITelemetryService = createDecorator('telemetryService');
+export const ITelemetryService = createDecorator('telemetryService');

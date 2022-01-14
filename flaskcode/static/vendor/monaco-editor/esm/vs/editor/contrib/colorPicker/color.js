@@ -5,67 +5,66 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { illegalArgument } from '../../../base/common/errors.js';
 import { URI } from '../../../base/common/uri.js';
-import { registerLanguageCommand } from '../../browser/editorExtensions.js';
 import { Range } from '../../common/core/range.js';
 import { ColorProviderRegistry } from '../../common/modes.js';
 import { IModelService } from '../../common/services/modelService.js';
+import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 export function getColors(model, token) {
-    var colors = [];
-    var providers = ColorProviderRegistry.ordered(model).reverse();
-    var promises = providers.map(function (provider) { return Promise.resolve(provider.provideDocumentColors(model, token)).then(function (result) {
+    const colors = [];
+    const providers = ColorProviderRegistry.ordered(model).reverse();
+    const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, token)).then(result => {
         if (Array.isArray(result)) {
-            for (var _i = 0, result_1 = result; _i < result_1.length; _i++) {
-                var colorInfo = result_1[_i];
-                colors.push({ colorInfo: colorInfo, provider: provider });
+            for (let colorInfo of result) {
+                colors.push({ colorInfo, provider });
             }
         }
-    }); });
-    return Promise.all(promises).then(function () { return colors; });
+    }));
+    return Promise.all(promises).then(() => colors);
 }
 export function getColorPresentations(model, colorInfo, provider, token) {
     return Promise.resolve(provider.provideColorPresentations(model, colorInfo, token));
 }
-registerLanguageCommand('_executeDocumentColorProvider', function (accessor, args) {
-    var resource = args.resource;
+CommandsRegistry.registerCommand('_executeDocumentColorProvider', function (accessor, ...args) {
+    const [resource] = args;
     if (!(resource instanceof URI)) {
         throw illegalArgument();
     }
-    var model = accessor.get(IModelService).getModel(resource);
+    const model = accessor.get(IModelService).getModel(resource);
     if (!model) {
         throw illegalArgument();
     }
-    var rawCIs = [];
-    var providers = ColorProviderRegistry.ordered(model).reverse();
-    var promises = providers.map(function (provider) { return Promise.resolve(provider.provideDocumentColors(model, CancellationToken.None)).then(function (result) {
+    const rawCIs = [];
+    const providers = ColorProviderRegistry.ordered(model).reverse();
+    const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, CancellationToken.None)).then(result => {
         if (Array.isArray(result)) {
-            for (var _i = 0, result_2 = result; _i < result_2.length; _i++) {
-                var ci = result_2[_i];
+            for (let ci of result) {
                 rawCIs.push({ range: ci.range, color: [ci.color.red, ci.color.green, ci.color.blue, ci.color.alpha] });
             }
         }
-    }); });
-    return Promise.all(promises).then(function () { return rawCIs; });
+    }));
+    return Promise.all(promises).then(() => rawCIs);
 });
-registerLanguageCommand('_executeColorPresentationProvider', function (accessor, args) {
-    var resource = args.resource, color = args.color, range = args.range;
-    if (!(resource instanceof URI) || !Array.isArray(color) || color.length !== 4 || !Range.isIRange(range)) {
+CommandsRegistry.registerCommand('_executeColorPresentationProvider', function (accessor, ...args) {
+    const [color, context] = args;
+    const { uri, range } = context;
+    if (!(uri instanceof URI) || !Array.isArray(color) || color.length !== 4 || !Range.isIRange(range)) {
         throw illegalArgument();
     }
-    var red = color[0], green = color[1], blue = color[2], alpha = color[3];
-    var model = accessor.get(IModelService).getModel(resource);
+    const [red, green, blue, alpha] = color;
+    const model = accessor.get(IModelService).getModel(uri);
     if (!model) {
         throw illegalArgument();
     }
-    var colorInfo = {
-        range: range,
-        color: { red: red, green: green, blue: blue, alpha: alpha }
+    const colorInfo = {
+        range,
+        color: { red, green, blue, alpha }
     };
-    var presentations = [];
-    var providers = ColorProviderRegistry.ordered(model).reverse();
-    var promises = providers.map(function (provider) { return Promise.resolve(provider.provideColorPresentations(model, colorInfo, CancellationToken.None)).then(function (result) {
+    const presentations = [];
+    const providers = ColorProviderRegistry.ordered(model).reverse();
+    const promises = providers.map(provider => Promise.resolve(provider.provideColorPresentations(model, colorInfo, CancellationToken.None)).then(result => {
         if (Array.isArray(result)) {
-            presentations.push.apply(presentations, result);
+            presentations.push(...result);
         }
-    }); });
-    return Promise.all(promises).then(function () { return presentations; });
+    }));
+    return Promise.all(promises).then(() => presentations);
 });

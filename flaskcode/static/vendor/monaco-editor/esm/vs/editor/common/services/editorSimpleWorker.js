@@ -2,19 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -24,36 +11,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __generator = (this && this.__generator) || function (thisArg, body) {
-    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
-    return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
-    function verb(n) { return function (v) { return step([n, v]); }; }
-    function step(op) {
-        if (f) throw new TypeError("Generator is already executing.");
-        while (_) try {
-            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-            if (y = 0, t) op = [op[0] & 2, t.value];
-            switch (op[0]) {
-                case 0: case 1: t = op; break;
-                case 4: _.label++; return { value: op[1], done: false };
-                case 5: _.label++; y = op[1]; op = [0]; continue;
-                case 7: op = _.ops.pop(); _.trys.pop(); continue;
-                default:
-                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
-                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
-                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
-                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
-                    if (t[2]) _.ops.pop();
-                    _.trys.pop(); continue;
-            }
-            op = body.call(thisArg, _);
-        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
-        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
-    }
-};
-import { mergeSort } from '../../../base/common/arrays.js';
 import { stringDiff } from '../../../base/common/diff/diff.js';
-import { FIN } from '../../../base/common/iterator.js';
 import { globals } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { Position } from '../core/position.js';
@@ -65,92 +23,72 @@ import { computeLinks } from '../modes/linkComputer.js';
 import { BasicInplaceReplace } from '../modes/supports/inplaceReplaceSupport.js';
 import { createMonacoBaseAPI } from '../standalone/standaloneBase.js';
 import * as types from '../../../base/common/types.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
+import { UnicodeTextModelHighlighter } from '../modes/unicodeTextModelHighlighter.js';
 /**
  * @internal
  */
-var MirrorModel = /** @class */ (function (_super) {
-    __extends(MirrorModel, _super);
-    function MirrorModel() {
-        return _super !== null && _super.apply(this, arguments) || this;
+export class MirrorModel extends BaseMirrorModel {
+    get uri() {
+        return this._uri;
     }
-    Object.defineProperty(MirrorModel.prototype, "uri", {
-        get: function () {
-            return this._uri;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(MirrorModel.prototype, "version", {
-        get: function () {
-            return this._versionId;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(MirrorModel.prototype, "eol", {
-        get: function () {
-            return this._eol;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    MirrorModel.prototype.getValue = function () {
+    get eol() {
+        return this._eol;
+    }
+    getValue() {
         return this.getText();
-    };
-    MirrorModel.prototype.getLinesContent = function () {
+    }
+    getLinesContent() {
         return this._lines.slice(0);
-    };
-    MirrorModel.prototype.getLineCount = function () {
+    }
+    getLineCount() {
         return this._lines.length;
-    };
-    MirrorModel.prototype.getLineContent = function (lineNumber) {
+    }
+    getLineContent(lineNumber) {
         return this._lines[lineNumber - 1];
-    };
-    MirrorModel.prototype.getWordAtPosition = function (position, wordDefinition) {
-        var wordAtText = getWordAtText(position.column, ensureValidWordDefinition(wordDefinition), this._lines[position.lineNumber - 1], 0);
+    }
+    getWordAtPosition(position, wordDefinition) {
+        let wordAtText = getWordAtText(position.column, ensureValidWordDefinition(wordDefinition), this._lines[position.lineNumber - 1], 0);
         if (wordAtText) {
             return new Range(position.lineNumber, wordAtText.startColumn, position.lineNumber, wordAtText.endColumn);
         }
         return null;
-    };
-    MirrorModel.prototype.createWordIterator = function (wordDefinition) {
-        var _this = this;
-        var obj;
-        var lineNumber = 0;
-        var lineText;
-        var wordRangesIdx = 0;
-        var wordRanges = [];
-        var next = function () {
-            if (wordRangesIdx < wordRanges.length) {
-                var value = lineText.substring(wordRanges[wordRangesIdx].start, wordRanges[wordRangesIdx].end);
-                wordRangesIdx += 1;
-                if (!obj) {
-                    obj = { done: false, value: value };
+    }
+    words(wordDefinition) {
+        const lines = this._lines;
+        const wordenize = this._wordenize.bind(this);
+        let lineNumber = 0;
+        let lineText = '';
+        let wordRangesIdx = 0;
+        let wordRanges = [];
+        return {
+            *[Symbol.iterator]() {
+                while (true) {
+                    if (wordRangesIdx < wordRanges.length) {
+                        const value = lineText.substring(wordRanges[wordRangesIdx].start, wordRanges[wordRangesIdx].end);
+                        wordRangesIdx += 1;
+                        yield value;
+                    }
+                    else {
+                        if (lineNumber < lines.length) {
+                            lineText = lines[lineNumber];
+                            wordRanges = wordenize(lineText, wordDefinition);
+                            wordRangesIdx = 0;
+                            lineNumber += 1;
+                        }
+                        else {
+                            break;
+                        }
+                    }
                 }
-                else {
-                    obj.value = value;
-                }
-                return obj;
-            }
-            else if (lineNumber >= _this._lines.length) {
-                return FIN;
-            }
-            else {
-                lineText = _this._lines[lineNumber];
-                wordRanges = _this._wordenize(lineText, wordDefinition);
-                wordRangesIdx = 0;
-                lineNumber += 1;
-                return next();
             }
         };
-        return { next: next };
-    };
-    MirrorModel.prototype.getLineWords = function (lineNumber, wordDefinition) {
-        var content = this._lines[lineNumber - 1];
-        var ranges = this._wordenize(content, wordDefinition);
-        var words = [];
-        for (var _i = 0, ranges_1 = ranges; _i < ranges_1.length; _i++) {
-            var range = ranges_1[_i];
+    }
+    getLineWords(lineNumber, wordDefinition) {
+        let content = this._lines[lineNumber - 1];
+        let ranges = this._wordenize(content, wordDefinition);
+        let words = [];
+        for (const range of ranges) {
             words.push({
                 word: content.substring(range.start, range.end),
                 startColumn: range.start + 1,
@@ -158,10 +96,10 @@ var MirrorModel = /** @class */ (function (_super) {
             });
         }
         return words;
-    };
-    MirrorModel.prototype._wordenize = function (content, wordDefinition) {
-        var result = [];
-        var match;
+    }
+    _wordenize(content, wordDefinition) {
+        const result = [];
+        let match;
         wordDefinition.lastIndex = 0; // reset lastIndex just to be sure
         while (match = wordDefinition.exec(content)) {
             if (match[0].length === 0) {
@@ -171,43 +109,43 @@ var MirrorModel = /** @class */ (function (_super) {
             result.push({ start: match.index, end: match.index + match[0].length });
         }
         return result;
-    };
-    MirrorModel.prototype.getValueInRange = function (range) {
+    }
+    getValueInRange(range) {
         range = this._validateRange(range);
         if (range.startLineNumber === range.endLineNumber) {
             return this._lines[range.startLineNumber - 1].substring(range.startColumn - 1, range.endColumn - 1);
         }
-        var lineEnding = this._eol;
-        var startLineIndex = range.startLineNumber - 1;
-        var endLineIndex = range.endLineNumber - 1;
-        var resultLines = [];
+        let lineEnding = this._eol;
+        let startLineIndex = range.startLineNumber - 1;
+        let endLineIndex = range.endLineNumber - 1;
+        let resultLines = [];
         resultLines.push(this._lines[startLineIndex].substring(range.startColumn - 1));
-        for (var i = startLineIndex + 1; i < endLineIndex; i++) {
+        for (let i = startLineIndex + 1; i < endLineIndex; i++) {
             resultLines.push(this._lines[i]);
         }
         resultLines.push(this._lines[endLineIndex].substring(0, range.endColumn - 1));
         return resultLines.join(lineEnding);
-    };
-    MirrorModel.prototype.offsetAt = function (position) {
+    }
+    offsetAt(position) {
         position = this._validatePosition(position);
         this._ensureLineStarts();
-        return this._lineStarts.getAccumulatedValue(position.lineNumber - 2) + (position.column - 1);
-    };
-    MirrorModel.prototype.positionAt = function (offset) {
+        return this._lineStarts.getPrefixSum(position.lineNumber - 2) + (position.column - 1);
+    }
+    positionAt(offset) {
         offset = Math.floor(offset);
         offset = Math.max(0, offset);
         this._ensureLineStarts();
-        var out = this._lineStarts.getIndexOf(offset);
-        var lineLength = this._lines[out.index].length;
+        let out = this._lineStarts.getIndexOf(offset);
+        let lineLength = this._lines[out.index].length;
         // Ensure we return a valid position
         return {
             lineNumber: 1 + out.index,
             column: 1 + Math.min(out.remainder, lineLength)
         };
-    };
-    MirrorModel.prototype._validateRange = function (range) {
-        var start = this._validatePosition({ lineNumber: range.startLineNumber, column: range.startColumn });
-        var end = this._validatePosition({ lineNumber: range.endLineNumber, column: range.endColumn });
+    }
+    _validateRange(range) {
+        const start = this._validatePosition({ lineNumber: range.startLineNumber, column: range.startColumn });
+        const end = this._validatePosition({ lineNumber: range.endLineNumber, column: range.endColumn });
         if (start.lineNumber !== range.startLineNumber
             || start.column !== range.startColumn
             || end.lineNumber !== range.endLineNumber
@@ -220,13 +158,13 @@ var MirrorModel = /** @class */ (function (_super) {
             };
         }
         return range;
-    };
-    MirrorModel.prototype._validatePosition = function (position) {
+    }
+    _validatePosition(position) {
         if (!Position.isIPosition(position)) {
             throw new Error('bad position');
         }
-        var lineNumber = position.lineNumber, column = position.column;
-        var hasChanged = false;
+        let { lineNumber, column } = position;
+        let hasChanged = false;
         if (lineNumber < 1) {
             lineNumber = 1;
             column = 1;
@@ -238,7 +176,7 @@ var MirrorModel = /** @class */ (function (_super) {
             hasChanged = true;
         }
         else {
-            var maxCharacter = this._lines[lineNumber - 1].length + 1;
+            let maxCharacter = this._lines[lineNumber - 1].length + 1;
             if (column < 1) {
                 column = 1;
                 hasChanged = true;
@@ -252,273 +190,255 @@ var MirrorModel = /** @class */ (function (_super) {
             return position;
         }
         else {
-            return { lineNumber: lineNumber, column: column };
+            return { lineNumber, column };
         }
-    };
-    return MirrorModel;
-}(BaseMirrorModel));
+    }
+}
 /**
  * @internal
  */
-var EditorSimpleWorker = /** @class */ (function () {
-    function EditorSimpleWorker(host, foreignModuleFactory) {
+export class EditorSimpleWorker {
+    constructor(host, foreignModuleFactory) {
         this._host = host;
         this._models = Object.create(null);
         this._foreignModuleFactory = foreignModuleFactory;
         this._foreignModule = null;
     }
-    EditorSimpleWorker.prototype.dispose = function () {
+    dispose() {
         this._models = Object.create(null);
-    };
-    EditorSimpleWorker.prototype._getModel = function (uri) {
+    }
+    _getModel(uri) {
         return this._models[uri];
-    };
-    EditorSimpleWorker.prototype._getModels = function () {
-        var _this = this;
-        var all = [];
-        Object.keys(this._models).forEach(function (key) { return all.push(_this._models[key]); });
+    }
+    _getModels() {
+        let all = [];
+        Object.keys(this._models).forEach((key) => all.push(this._models[key]));
         return all;
-    };
-    EditorSimpleWorker.prototype.acceptNewModel = function (data) {
+    }
+    acceptNewModel(data) {
         this._models[data.url] = new MirrorModel(URI.parse(data.url), data.lines, data.EOL, data.versionId);
-    };
-    EditorSimpleWorker.prototype.acceptModelChanged = function (strURL, e) {
+    }
+    acceptModelChanged(strURL, e) {
         if (!this._models[strURL]) {
             return;
         }
-        var model = this._models[strURL];
+        let model = this._models[strURL];
         model.onEvents(e);
-    };
-    EditorSimpleWorker.prototype.acceptRemovedModel = function (strURL) {
+    }
+    acceptRemovedModel(strURL) {
         if (!this._models[strURL]) {
             return;
         }
         delete this._models[strURL];
-    };
-    // ---- BEGIN diff --------------------------------------------------------------------------
-    EditorSimpleWorker.prototype.computeDiff = function (originalUrl, modifiedUrl, ignoreTrimWhitespace, maxComputationTime) {
-        return __awaiter(this, void 0, void 0, function () {
-            var original, modified, originalLines, modifiedLines, diffComputer, diffResult, identical;
-            return __generator(this, function (_a) {
-                original = this._getModel(originalUrl);
-                modified = this._getModel(modifiedUrl);
-                if (!original || !modified) {
-                    return [2 /*return*/, null];
-                }
-                originalLines = original.getLinesContent();
-                modifiedLines = modified.getLinesContent();
-                diffComputer = new DiffComputer(originalLines, modifiedLines, {
-                    shouldComputeCharChanges: true,
-                    shouldPostProcessCharChanges: true,
-                    shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
-                    shouldMakePrettyDiff: true,
-                    maxComputationTime: maxComputationTime
-                });
-                diffResult = diffComputer.computeDiff();
-                identical = (diffResult.changes.length > 0 ? false : this._modelsAreIdentical(original, modified));
-                return [2 /*return*/, {
-                        quitEarly: diffResult.quitEarly,
-                        identical: identical,
-                        changes: diffResult.changes
-                    }];
-            });
+    }
+    computeUnicodeHighlights(url, options, range) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const model = this._getModel(url);
+            if (!model) {
+                return { ranges: [], hasMore: false, ambiguousCharacterCount: 0, invisibleCharacterCount: 0, nonBasicAsciiCharacterCount: 0 };
+            }
+            return UnicodeTextModelHighlighter.computeUnicodeHighlights(model, options, range);
         });
-    };
-    EditorSimpleWorker.prototype._modelsAreIdentical = function (original, modified) {
-        var originalLineCount = original.getLineCount();
-        var modifiedLineCount = modified.getLineCount();
+    }
+    // ---- BEGIN diff --------------------------------------------------------------------------
+    computeDiff(originalUrl, modifiedUrl, ignoreTrimWhitespace, maxComputationTime) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const original = this._getModel(originalUrl);
+            const modified = this._getModel(modifiedUrl);
+            if (!original || !modified) {
+                return null;
+            }
+            const originalLines = original.getLinesContent();
+            const modifiedLines = modified.getLinesContent();
+            const diffComputer = new DiffComputer(originalLines, modifiedLines, {
+                shouldComputeCharChanges: true,
+                shouldPostProcessCharChanges: true,
+                shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
+                shouldMakePrettyDiff: true,
+                maxComputationTime: maxComputationTime
+            });
+            const diffResult = diffComputer.computeDiff();
+            const identical = (diffResult.changes.length > 0 ? false : this._modelsAreIdentical(original, modified));
+            return {
+                quitEarly: diffResult.quitEarly,
+                identical: identical,
+                changes: diffResult.changes
+            };
+        });
+    }
+    _modelsAreIdentical(original, modified) {
+        const originalLineCount = original.getLineCount();
+        const modifiedLineCount = modified.getLineCount();
         if (originalLineCount !== modifiedLineCount) {
             return false;
         }
-        for (var line = 1; line <= originalLineCount; line++) {
-            var originalLine = original.getLineContent(line);
-            var modifiedLine = modified.getLineContent(line);
+        for (let line = 1; line <= originalLineCount; line++) {
+            const originalLine = original.getLineContent(line);
+            const modifiedLine = modified.getLineContent(line);
             if (originalLine !== modifiedLine) {
                 return false;
             }
         }
         return true;
-    };
-    EditorSimpleWorker.prototype.computeMoreMinimalEdits = function (modelUrl, edits) {
-        return __awaiter(this, void 0, void 0, function () {
-            var model, result, lastEol, _i, edits_1, _a, range, text, eol, original, changes, editOffset, _b, changes_1, change, start, end, newEdit;
-            return __generator(this, function (_c) {
-                model = this._getModel(modelUrl);
-                if (!model) {
-                    return [2 /*return*/, edits];
+    }
+    computeMoreMinimalEdits(modelUrl, edits) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const model = this._getModel(modelUrl);
+            if (!model) {
+                return edits;
+            }
+            const result = [];
+            let lastEol = undefined;
+            edits = edits.slice(0).sort((a, b) => {
+                if (a.range && b.range) {
+                    return Range.compareRangesUsingStarts(a.range, b.range);
                 }
-                result = [];
-                lastEol = undefined;
-                edits = mergeSort(edits, function (a, b) {
-                    if (a.range && b.range) {
-                        return Range.compareRangesUsingStarts(a.range, b.range);
-                    }
-                    // eol only changes should go to the end
-                    var aRng = a.range ? 0 : 1;
-                    var bRng = b.range ? 0 : 1;
-                    return aRng - bRng;
-                });
-                for (_i = 0, edits_1 = edits; _i < edits_1.length; _i++) {
-                    _a = edits_1[_i], range = _a.range, text = _a.text, eol = _a.eol;
-                    if (typeof eol === 'number') {
-                        lastEol = eol;
-                    }
-                    if (Range.isEmpty(range) && !text) {
-                        // empty change
-                        continue;
-                    }
-                    original = model.getValueInRange(range);
-                    text = text.replace(/\r\n|\n|\r/g, model.eol);
-                    if (original === text) {
-                        // noop
-                        continue;
-                    }
-                    // make sure diff won't take too long
-                    if (Math.max(text.length, original.length) > EditorSimpleWorker._diffLimit) {
-                        result.push({ range: range, text: text });
-                        continue;
-                    }
-                    changes = stringDiff(original, text, false);
-                    editOffset = model.offsetAt(Range.lift(range).getStartPosition());
-                    for (_b = 0, changes_1 = changes; _b < changes_1.length; _b++) {
-                        change = changes_1[_b];
-                        start = model.positionAt(editOffset + change.originalStart);
-                        end = model.positionAt(editOffset + change.originalStart + change.originalLength);
-                        newEdit = {
-                            text: text.substr(change.modifiedStart, change.modifiedLength),
-                            range: { startLineNumber: start.lineNumber, startColumn: start.column, endLineNumber: end.lineNumber, endColumn: end.column }
-                        };
-                        if (model.getValueInRange(newEdit.range) !== newEdit.text) {
-                            result.push(newEdit);
-                        }
-                    }
-                }
-                if (typeof lastEol === 'number') {
-                    result.push({ eol: lastEol, text: '', range: { startLineNumber: 0, startColumn: 0, endLineNumber: 0, endColumn: 0 } });
-                }
-                return [2 /*return*/, result];
+                // eol only changes should go to the end
+                let aRng = a.range ? 0 : 1;
+                let bRng = b.range ? 0 : 1;
+                return aRng - bRng;
             });
+            for (let { range, text, eol } of edits) {
+                if (typeof eol === 'number') {
+                    lastEol = eol;
+                }
+                if (Range.isEmpty(range) && !text) {
+                    // empty change
+                    continue;
+                }
+                const original = model.getValueInRange(range);
+                text = text.replace(/\r\n|\n|\r/g, model.eol);
+                if (original === text) {
+                    // noop
+                    continue;
+                }
+                // make sure diff won't take too long
+                if (Math.max(text.length, original.length) > EditorSimpleWorker._diffLimit) {
+                    result.push({ range, text });
+                    continue;
+                }
+                // compute diff between original and edit.text
+                const changes = stringDiff(original, text, false);
+                const editOffset = model.offsetAt(Range.lift(range).getStartPosition());
+                for (const change of changes) {
+                    const start = model.positionAt(editOffset + change.originalStart);
+                    const end = model.positionAt(editOffset + change.originalStart + change.originalLength);
+                    const newEdit = {
+                        text: text.substr(change.modifiedStart, change.modifiedLength),
+                        range: { startLineNumber: start.lineNumber, startColumn: start.column, endLineNumber: end.lineNumber, endColumn: end.column }
+                    };
+                    if (model.getValueInRange(newEdit.range) !== newEdit.text) {
+                        result.push(newEdit);
+                    }
+                }
+            }
+            if (typeof lastEol === 'number') {
+                result.push({ eol: lastEol, text: '', range: { startLineNumber: 0, startColumn: 0, endLineNumber: 0, endColumn: 0 } });
+            }
+            return result;
         });
-    };
+    }
     // ---- END minimal edits ---------------------------------------------------------------
-    EditorSimpleWorker.prototype.computeLinks = function (modelUrl) {
-        return __awaiter(this, void 0, void 0, function () {
-            var model;
-            return __generator(this, function (_a) {
-                model = this._getModel(modelUrl);
-                if (!model) {
-                    return [2 /*return*/, null];
-                }
-                return [2 /*return*/, computeLinks(model)];
-            });
+    computeLinks(modelUrl) {
+        return __awaiter(this, void 0, void 0, function* () {
+            let model = this._getModel(modelUrl);
+            if (!model) {
+                return null;
+            }
+            return computeLinks(model);
         });
-    };
-    EditorSimpleWorker.prototype.textualSuggest = function (modelUrl, position, wordDef, wordDefFlags) {
-        return __awaiter(this, void 0, void 0, function () {
-            var model, words, seen, wordDefRegExp, wordAt, iter, e, word;
-            return __generator(this, function (_a) {
-                model = this._getModel(modelUrl);
+    }
+    textualSuggest(modelUrls, leadingWord, wordDef, wordDefFlags) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const sw = new StopWatch(true);
+            const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
+            const seen = new Set();
+            outer: for (let url of modelUrls) {
+                const model = this._getModel(url);
                 if (!model) {
-                    return [2 /*return*/, null];
+                    continue;
                 }
-                words = [];
-                seen = new Set();
-                wordDefRegExp = new RegExp(wordDef, wordDefFlags);
-                wordAt = model.getWordAtPosition(position, wordDefRegExp);
-                if (wordAt) {
-                    seen.add(model.getValueInRange(wordAt));
-                }
-                for (iter = model.createWordIterator(wordDefRegExp), e = iter.next(); !e.done && seen.size <= EditorSimpleWorker._suggestionsLimit; e = iter.next()) {
-                    word = e.value;
-                    if (seen.has(word)) {
+                for (let word of model.words(wordDefRegExp)) {
+                    if (word === leadingWord || !isNaN(Number(word))) {
                         continue;
                     }
                     seen.add(word);
-                    if (!isNaN(Number(word))) {
-                        continue;
+                    if (seen.size > EditorSimpleWorker._suggestionsLimit) {
+                        break outer;
                     }
-                    words.push(word);
                 }
-                return [2 /*return*/, words];
-            });
+            }
+            return { words: Array.from(seen), duration: sw.elapsed() };
         });
-    };
+    }
     // ---- END suggest --------------------------------------------------------------------------
     //#region -- word ranges --
-    EditorSimpleWorker.prototype.computeWordRanges = function (modelUrl, range, wordDef, wordDefFlags) {
-        return __awaiter(this, void 0, void 0, function () {
-            var model, wordDefRegExp, result, line, words, _i, words_1, word, array;
-            return __generator(this, function (_a) {
-                model = this._getModel(modelUrl);
-                if (!model) {
-                    return [2 /*return*/, Object.create(null)];
-                }
-                wordDefRegExp = new RegExp(wordDef, wordDefFlags);
-                result = Object.create(null);
-                for (line = range.startLineNumber; line < range.endLineNumber; line++) {
-                    words = model.getLineWords(line, wordDefRegExp);
-                    for (_i = 0, words_1 = words; _i < words_1.length; _i++) {
-                        word = words_1[_i];
-                        if (!isNaN(Number(word.word))) {
-                            continue;
-                        }
-                        array = result[word.word];
-                        if (!array) {
-                            array = [];
-                            result[word.word] = array;
-                        }
-                        array.push({
-                            startLineNumber: line,
-                            startColumn: word.startColumn,
-                            endLineNumber: line,
-                            endColumn: word.endColumn
-                        });
+    computeWordRanges(modelUrl, range, wordDef, wordDefFlags) {
+        return __awaiter(this, void 0, void 0, function* () {
+            let model = this._getModel(modelUrl);
+            if (!model) {
+                return Object.create(null);
+            }
+            const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
+            const result = Object.create(null);
+            for (let line = range.startLineNumber; line < range.endLineNumber; line++) {
+                let words = model.getLineWords(line, wordDefRegExp);
+                for (const word of words) {
+                    if (!isNaN(Number(word.word))) {
+                        continue;
                     }
+                    let array = result[word.word];
+                    if (!array) {
+                        array = [];
+                        result[word.word] = array;
+                    }
+                    array.push({
+                        startLineNumber: line,
+                        startColumn: word.startColumn,
+                        endLineNumber: line,
+                        endColumn: word.endColumn
+                    });
                 }
-                return [2 /*return*/, result];
-            });
+            }
+            return result;
         });
-    };
+    }
     //#endregion
-    EditorSimpleWorker.prototype.navigateValueSet = function (modelUrl, range, up, wordDef, wordDefFlags) {
-        return __awaiter(this, void 0, void 0, function () {
-            var model, wordDefRegExp, selectionText, wordRange, word, result;
-            return __generator(this, function (_a) {
-                model = this._getModel(modelUrl);
-                if (!model) {
-                    return [2 /*return*/, null];
-                }
-                wordDefRegExp = new RegExp(wordDef, wordDefFlags);
-                if (range.startColumn === range.endColumn) {
-                    range = {
-                        startLineNumber: range.startLineNumber,
-                        startColumn: range.startColumn,
-                        endLineNumber: range.endLineNumber,
-                        endColumn: range.endColumn + 1
-                    };
-                }
-                selectionText = model.getValueInRange(range);
-                wordRange = model.getWordAtPosition({ lineNumber: range.startLineNumber, column: range.startColumn }, wordDefRegExp);
-                if (!wordRange) {
-                    return [2 /*return*/, null];
-                }
-                word = model.getValueInRange(wordRange);
-                result = BasicInplaceReplace.INSTANCE.navigateValueSet(range, selectionText, wordRange, word, up);
-                return [2 /*return*/, result];
-            });
+    navigateValueSet(modelUrl, range, up, wordDef, wordDefFlags) {
+        return __awaiter(this, void 0, void 0, function* () {
+            let model = this._getModel(modelUrl);
+            if (!model) {
+                return null;
+            }
+            let wordDefRegExp = new RegExp(wordDef, wordDefFlags);
+            if (range.startColumn === range.endColumn) {
+                range = {
+                    startLineNumber: range.startLineNumber,
+                    startColumn: range.startColumn,
+                    endLineNumber: range.endLineNumber,
+                    endColumn: range.endColumn + 1
+                };
+            }
+            let selectionText = model.getValueInRange(range);
+            let wordRange = model.getWordAtPosition({ lineNumber: range.startLineNumber, column: range.startColumn }, wordDefRegExp);
+            if (!wordRange) {
+                return null;
+            }
+            let word = model.getValueInRange(wordRange);
+            let result = BasicInplaceReplace.INSTANCE.navigateValueSet(range, selectionText, wordRange, word, up);
+            return result;
         });
-    };
+    }
     // ---- BEGIN foreign module support --------------------------------------------------------------------------
-    EditorSimpleWorker.prototype.loadForeignModule = function (moduleId, createData, foreignHostMethods) {
-        var _this = this;
-        var proxyMethodRequest = function (method, args) {
-            return _this._host.fhr(method, args);
+    loadForeignModule(moduleId, createData, foreignHostMethods) {
+        const proxyMethodRequest = (method, args) => {
+            return this._host.fhr(method, args);
         };
-        var foreignHost = types.createProxyObject(foreignHostMethods, proxyMethodRequest);
-        var ctx = {
+        const foreignHost = types.createProxyObject(foreignHostMethods, proxyMethodRequest);
+        let ctx = {
             host: foreignHost,
-            getMirrorModels: function () {
-                return _this._getModels();
+            getMirrorModels: () => {
+                return this._getModels();
             }
         };
         if (this._foreignModuleFactory) {
@@ -537,11 +457,11 @@ var EditorSimpleWorker = /** @class */ (function () {
         // 		});
         // ESM-comment-end
         // ESM-uncomment-begin
-        return Promise.reject(new Error("Unexpected usage"));
+        return Promise.reject(new Error(`Unexpected usage`));
         // ESM-uncomment-end
-    };
+    }
     // foreign method request
-    EditorSimpleWorker.prototype.fmr = function (method, args) {
+    fmr(method, args) {
         if (!this._foreignModule || typeof this._foreignModule[method] !== 'function') {
             return Promise.reject(new Error('Missing requestHandler or method: ' + method));
         }
@@ -551,15 +471,13 @@ var EditorSimpleWorker = /** @class */ (function () {
         catch (e) {
             return Promise.reject(e);
         }
-    };
-    // ---- END diff --------------------------------------------------------------------------
-    // ---- BEGIN minimal edits ---------------------------------------------------------------
-    EditorSimpleWorker._diffLimit = 100000;
-    // ---- BEGIN suggest --------------------------------------------------------------------------
-    EditorSimpleWorker._suggestionsLimit = 10000;
-    return EditorSimpleWorker;
-}());
-export { EditorSimpleWorker };
+    }
+}
+// ---- END diff --------------------------------------------------------------------------
+// ---- BEGIN minimal edits ---------------------------------------------------------------
+EditorSimpleWorker._diffLimit = 100000;
+// ---- BEGIN suggest --------------------------------------------------------------------------
+EditorSimpleWorker._suggestionsLimit = 10000;
 /**
  * Called on the worker side
  * @internal

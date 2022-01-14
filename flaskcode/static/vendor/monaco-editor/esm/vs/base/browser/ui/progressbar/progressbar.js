@@ -2,79 +2,63 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-import './progressbar.css';
-import { Disposable } from '../../../common/lifecycle.js';
-import { Color } from '../../../common/color.js';
-import { mixin } from '../../../common/objects.js';
-import { removeClasses, addClass, hasClass, hide, show } from '../../dom.js';
+import { show } from '../../dom.js';
 import { RunOnceScheduler } from '../../../common/async.js';
-var css_done = 'done';
-var css_active = 'active';
-var css_infinite = 'infinite';
-var css_discrete = 'discrete';
-var css_progress_container = 'monaco-progress-container';
-var css_progress_bit = 'progress-bit';
-var defaultOpts = {
+import { Color } from '../../../common/color.js';
+import { Disposable } from '../../../common/lifecycle.js';
+import { mixin } from '../../../common/objects.js';
+import './progressbar.css';
+const CSS_DONE = 'done';
+const CSS_ACTIVE = 'active';
+const CSS_INFINITE = 'infinite';
+const CSS_DISCRETE = 'discrete';
+const defaultOpts = {
     progressBarBackground: Color.fromHex('#0E70C0')
 };
 /**
  * A progress bar with support for infinite or discrete progress.
  */
-var ProgressBar = /** @class */ (function (_super) {
-    __extends(ProgressBar, _super);
-    function ProgressBar(container, options) {
-        var _this = _super.call(this) || this;
-        _this.options = options || Object.create(null);
-        mixin(_this.options, defaultOpts, false);
-        _this.workedVal = 0;
-        _this.progressBarBackground = _this.options.progressBarBackground;
-        _this._register(_this.showDelayedScheduler = new RunOnceScheduler(function () { return show(_this.element); }, 0));
-        _this.create(container);
-        return _this;
+export class ProgressBar extends Disposable {
+    constructor(container, options) {
+        super();
+        this.options = options || Object.create(null);
+        mixin(this.options, defaultOpts, false);
+        this.workedVal = 0;
+        this.progressBarBackground = this.options.progressBarBackground;
+        this._register(this.showDelayedScheduler = new RunOnceScheduler(() => show(this.element), 0));
+        this.create(container);
     }
-    ProgressBar.prototype.create = function (container) {
+    create(container) {
         this.element = document.createElement('div');
-        addClass(this.element, css_progress_container);
+        this.element.classList.add('monaco-progress-container');
+        this.element.setAttribute('role', 'progressbar');
+        this.element.setAttribute('aria-valuemin', '0');
         container.appendChild(this.element);
         this.bit = document.createElement('div');
-        addClass(this.bit, css_progress_bit);
+        this.bit.classList.add('progress-bit');
         this.element.appendChild(this.bit);
         this.applyStyles();
-    };
-    ProgressBar.prototype.off = function () {
+    }
+    off() {
         this.bit.style.width = 'inherit';
         this.bit.style.opacity = '1';
-        removeClasses(this.element, css_active, css_infinite, css_discrete);
+        this.element.classList.remove(CSS_ACTIVE, CSS_INFINITE, CSS_DISCRETE);
         this.workedVal = 0;
         this.totalWork = undefined;
-    };
+    }
     /**
      * Stops the progressbar from showing any progress instantly without fading out.
      */
-    ProgressBar.prototype.stop = function () {
+    stop() {
         return this.doDone(false);
-    };
-    ProgressBar.prototype.doDone = function (delayed) {
-        var _this = this;
-        addClass(this.element, css_done);
+    }
+    doDone(delayed) {
+        this.element.classList.add(CSS_DONE);
         // let it grow to 100% width and hide afterwards
-        if (!hasClass(this.element, css_infinite)) {
+        if (!this.element.classList.contains(CSS_INFINITE)) {
             this.bit.style.width = 'inherit';
             if (delayed) {
-                setTimeout(function () { return _this.off(); }, 200);
+                setTimeout(() => this.off(), 200);
             }
             else {
                 this.off();
@@ -84,28 +68,35 @@ var ProgressBar = /** @class */ (function (_super) {
         else {
             this.bit.style.opacity = '0';
             if (delayed) {
-                setTimeout(function () { return _this.off(); }, 200);
+                setTimeout(() => this.off(), 200);
             }
             else {
                 this.off();
             }
         }
         return this;
-    };
-    ProgressBar.prototype.hide = function () {
-        hide(this.element);
-        this.showDelayedScheduler.cancel();
-    };
-    ProgressBar.prototype.style = function (styles) {
+    }
+    /**
+     * Use this mode to indicate progress that has no total number of work units.
+     */
+    infinite() {
+        this.bit.style.width = '2%';
+        this.bit.style.opacity = '1';
+        this.element.classList.remove(CSS_DISCRETE, CSS_DONE);
+        this.element.classList.add(CSS_ACTIVE, CSS_INFINITE);
+        return this;
+    }
+    getContainer() {
+        return this.element;
+    }
+    style(styles) {
         this.progressBarBackground = styles.progressBarBackground;
         this.applyStyles();
-    };
-    ProgressBar.prototype.applyStyles = function () {
+    }
+    applyStyles() {
         if (this.bit) {
-            var background = this.progressBarBackground ? this.progressBarBackground.toString() : '';
+            const background = this.progressBarBackground ? this.progressBarBackground.toString() : '';
             this.bit.style.backgroundColor = background;
         }
-    };
-    return ProgressBar;
-}(Disposable));
-export { ProgressBar };
+    }
+}

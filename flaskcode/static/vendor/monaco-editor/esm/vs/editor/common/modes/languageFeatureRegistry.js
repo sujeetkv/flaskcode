@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Emitter } from '../../../base/common/event.js';
+import { doHash } from '../../../base/common/hash.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
+import { LRUCache } from '../../../base/common/map.js';
+import { MovingAverage } from '../../../base/common/numbers.js';
 import { score } from './languageSelector.js';
 import { shouldSynchronizeModel } from '../services/modelService.js';
 function isExclusive(selector) {
@@ -14,73 +17,67 @@ function isExclusive(selector) {
         return selector.every(isExclusive);
     }
     else {
-        return !!selector.exclusive;
+        return !!selector.exclusive; // TODO: microsoft/TypeScript#42768
     }
 }
-var LanguageFeatureRegistry = /** @class */ (function () {
-    function LanguageFeatureRegistry() {
+export class LanguageFeatureRegistry {
+    constructor() {
         this._clock = 0;
         this._entries = [];
         this._onDidChange = new Emitter();
     }
-    Object.defineProperty(LanguageFeatureRegistry.prototype, "onDidChange", {
-        get: function () {
-            return this._onDidChange.event;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    LanguageFeatureRegistry.prototype.register = function (selector, provider) {
-        var _this = this;
-        var entry = {
-            selector: selector,
-            provider: provider,
+    get onDidChange() {
+        return this._onDidChange.event;
+    }
+    register(selector, provider) {
+        let entry = {
+            selector,
+            provider,
             _score: -1,
             _time: this._clock++
         };
         this._entries.push(entry);
         this._lastCandidate = undefined;
         this._onDidChange.fire(this._entries.length);
-        return toDisposable(function () {
+        return toDisposable(() => {
             if (entry) {
-                var idx = _this._entries.indexOf(entry);
+                let idx = this._entries.indexOf(entry);
                 if (idx >= 0) {
-                    _this._entries.splice(idx, 1);
-                    _this._lastCandidate = undefined;
-                    _this._onDidChange.fire(_this._entries.length);
+                    this._entries.splice(idx, 1);
+                    this._lastCandidate = undefined;
+                    this._onDidChange.fire(this._entries.length);
                     entry = undefined;
                 }
             }
         });
-    };
-    LanguageFeatureRegistry.prototype.has = function (model) {
+    }
+    has(model) {
         return this.all(model).length > 0;
-    };
-    LanguageFeatureRegistry.prototype.all = function (model) {
+    }
+    all(model) {
         if (!model) {
             return [];
         }
         this._updateScores(model);
-        var result = [];
+        const result = [];
         // from registry
-        for (var _i = 0, _a = this._entries; _i < _a.length; _i++) {
-            var entry = _a[_i];
+        for (let entry of this._entries) {
             if (entry._score > 0) {
                 result.push(entry.provider);
             }
         }
         return result;
-    };
-    LanguageFeatureRegistry.prototype.ordered = function (model) {
-        var result = [];
-        this._orderedForEach(model, function (entry) { return result.push(entry.provider); });
+    }
+    ordered(model) {
+        const result = [];
+        this._orderedForEach(model, entry => result.push(entry.provider));
         return result;
-    };
-    LanguageFeatureRegistry.prototype.orderedGroups = function (model) {
-        var result = [];
-        var lastBucket;
-        var lastBucketScore;
-        this._orderedForEach(model, function (entry) {
+    }
+    orderedGroups(model) {
+        const result = [];
+        let lastBucket;
+        let lastBucketScore;
+        this._orderedForEach(model, entry => {
             if (lastBucket && lastBucketScore === entry._score) {
                 lastBucket.push(entry.provider);
             }
@@ -91,23 +88,22 @@ var LanguageFeatureRegistry = /** @class */ (function () {
             }
         });
         return result;
-    };
-    LanguageFeatureRegistry.prototype._orderedForEach = function (model, callback) {
+    }
+    _orderedForEach(model, callback) {
         if (!model) {
             return;
         }
         this._updateScores(model);
-        for (var _i = 0, _a = this._entries; _i < _a.length; _i++) {
-            var entry = _a[_i];
+        for (const entry of this._entries) {
             if (entry._score > 0) {
                 callback(entry);
             }
         }
-    };
-    LanguageFeatureRegistry.prototype._updateScores = function (model) {
-        var candidate = {
+    }
+    _updateScores(model) {
+        let candidate = {
             uri: model.uri.toString(),
-            language: model.getLanguageIdentifier().language
+            language: model.getLanguageId()
         };
         if (this._lastCandidate
             && this._lastCandidate.language === candidate.language
@@ -116,15 +112,13 @@ var LanguageFeatureRegistry = /** @class */ (function () {
             return;
         }
         this._lastCandidate = candidate;
-        for (var _i = 0, _a = this._entries; _i < _a.length; _i++) {
-            var entry = _a[_i];
-            entry._score = score(entry.selector, model.uri, model.getLanguageIdentifier().language, shouldSynchronizeModel(model));
+        for (let entry of this._entries) {
+            entry._score = score(entry.selector, model.uri, model.getLanguageId(), shouldSynchronizeModel(model));
             if (isExclusive(entry.selector) && entry._score > 0) {
                 // support for one exclusive selector that overwrites
                 // any other selector
-                for (var _b = 0, _c = this._entries; _b < _c.length; _b++) {
-                    var entry_1 = _c[_b];
-                    entry_1._score = 0;
+                for (let entry of this._entries) {
+                    entry._score = 0;
                 }
                 entry._score = 1000;
                 break;
@@ -132,8 +126,8 @@ var LanguageFeatureRegistry = /** @class */ (function () {
         }
         // needs sorting
         this._entries.sort(LanguageFeatureRegistry._compareByScoreAndTime);
-    };
-    LanguageFeatureRegistry._compareByScoreAndTime = function (a, b) {
+    }
+    static _compareByScoreAndTime(a, b) {
         if (a._score < b._score) {
             return 1;
         }
@@ -149,7 +143,53 @@ var LanguageFeatureRegistry = /** @class */ (function () {
         else {
             return 0;
         }
-    };
-    return LanguageFeatureRegistry;
-}());
-export { LanguageFeatureRegistry };
+    }
+}
+const _hashes = new WeakMap();
+let pool = 0;
+function weakHash(obj) {
+    let value = _hashes.get(obj);
+    if (value === undefined) {
+        value = ++pool;
+        _hashes.set(obj, value);
+    }
+    return value;
+}
+/**
+ * Keeps moving average per model and set of providers so that requests
+ * can be debounce according to the provider performance
+ */
+export class LanguageFeatureRequestDelays {
+    constructor(_registry, min, max = Number.MAX_SAFE_INTEGER) {
+        this._registry = _registry;
+        this.min = min;
+        this.max = max;
+        this._cache = new LRUCache(50, 0.7);
+    }
+    _key(model) {
+        return model.id + this._registry.all(model).reduce((hashVal, obj) => doHash(weakHash(obj), hashVal), 0);
+    }
+    _clamp(value) {
+        if (value === undefined) {
+            return this.min;
+        }
+        else {
+            return Math.min(this.max, Math.max(this.min, Math.floor(value * 1.3)));
+        }
+    }
+    get(model) {
+        const key = this._key(model);
+        const avg = this._cache.get(key);
+        return this._clamp(avg === null || avg === void 0 ? void 0 : avg.value);
+    }
+    update(model, value) {
+        const key = this._key(model);
+        let avg = this._cache.get(key);
+        if (!avg) {
+            avg = new MovingAverage();
+            this._cache.set(key, avg);
+        }
+        avg.update(value);
+        return this.get(model);
+    }
+}

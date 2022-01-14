@@ -9,8 +9,8 @@ import { Range } from '../../common/core/range.js';
 import { Selection } from '../../common/core/selection.js';
 import { LanguageConfigurationRegistry } from '../../common/modes/languageConfigurationRegistry.js';
 import { BlockCommentCommand } from './blockCommentCommand.js';
-var LineCommentCommand = /** @class */ (function () {
-    function LineCommentCommand(selection, tabSize, type, insertSpace) {
+export class LineCommentCommand {
+    constructor(selection, tabSize, type, insertSpace, ignoreEmptyLines, ignoreFirstLine) {
         this._selection = selection;
         this._tabSize = tabSize;
         this._type = type;
@@ -18,22 +18,24 @@ var LineCommentCommand = /** @class */ (function () {
         this._selectionId = null;
         this._deltaColumn = 0;
         this._moveEndPositionDown = false;
+        this._ignoreEmptyLines = ignoreEmptyLines;
+        this._ignoreFirstLine = ignoreFirstLine || false;
     }
     /**
      * Do an initial pass over the lines and gather info about the line comment string.
      * Returns null if any of the lines doesn't support a line comment string.
      */
-    LineCommentCommand._gatherPreflightCommentStrings = function (model, startLineNumber, endLineNumber) {
+    static _gatherPreflightCommentStrings(model, startLineNumber, endLineNumber) {
         model.tokenizeIfCheap(startLineNumber);
-        var languageId = model.getLanguageIdAtPosition(startLineNumber, 1);
-        var config = LanguageConfigurationRegistry.getComments(languageId);
-        var commentStr = (config ? config.lineCommentToken : null);
+        const languageId = model.getLanguageIdAtPosition(startLineNumber, 1);
+        const config = LanguageConfigurationRegistry.getComments(languageId);
+        const commentStr = (config ? config.lineCommentToken : null);
         if (!commentStr) {
             // Mode does not support line comments
             return null;
         }
-        var lines = [];
-        for (var i = 0, lineCount = endLineNumber - startLineNumber + 1; i < lineCount; i++) {
+        let lines = [];
+        for (let i = 0, lineCount = endLineNumber - startLineNumber + 1; i < lineCount; i++) {
             lines[i] = {
                 ignore: false,
                 commentStr: commentStr,
@@ -42,14 +44,14 @@ var LineCommentCommand = /** @class */ (function () {
             };
         }
         return lines;
-    };
+    }
     /**
      * Analyze lines and decide which lines are relevant and what the toggle should do.
      * Also, build up several offsets and lengths useful in the generation of editor operations.
      */
-    LineCommentCommand._analyzeLines = function (type, insertSpace, model, lines, startLineNumber) {
-        var onlyWhitespaceLines = true;
-        var shouldRemoveComments;
+    static _analyzeLines(type, insertSpace, model, lines, startLineNumber, ignoreEmptyLines, ignoreFirstLine) {
+        let onlyWhitespaceLines = true;
+        let shouldRemoveComments;
         if (type === 0 /* Toggle */) {
             shouldRemoveComments = true;
         }
@@ -59,22 +61,19 @@ var LineCommentCommand = /** @class */ (function () {
         else {
             shouldRemoveComments = true;
         }
-        for (var i = 0, lineCount = lines.length; i < lineCount; i++) {
-            var lineData = lines[i];
-            var lineNumber = startLineNumber + i;
-            var lineContent = model.getLineContent(lineNumber);
-            var lineContentStartOffset = strings.firstNonWhitespaceIndex(lineContent);
+        for (let i = 0, lineCount = lines.length; i < lineCount; i++) {
+            const lineData = lines[i];
+            const lineNumber = startLineNumber + i;
+            if (lineNumber === startLineNumber && ignoreFirstLine) {
+                // first line ignored
+                lineData.ignore = true;
+                continue;
+            }
+            const lineContent = model.getLineContent(lineNumber);
+            const lineContentStartOffset = strings.firstNonWhitespaceIndex(lineContent);
             if (lineContentStartOffset === -1) {
                 // Empty or whitespace only line
-                if (type === 0 /* Toggle */) {
-                    lineData.ignore = true;
-                }
-                else if (type === 1 /* ForceAdd */) {
-                    lineData.ignore = true;
-                }
-                else {
-                    lineData.ignore = true;
-                }
+                lineData.ignore = ignoreEmptyLines;
                 lineData.commentStrOffset = lineContent.length;
                 continue;
             }
@@ -95,7 +94,7 @@ var LineCommentCommand = /** @class */ (function () {
             }
             if (shouldRemoveComments && insertSpace) {
                 // Remove a following space if present
-                var commentStrEndOffset = lineContentStartOffset + lineData.commentStrLength;
+                const commentStrEndOffset = lineContentStartOffset + lineData.commentStrLength;
                 if (commentStrEndOffset < lineContent.length && lineContent.charCodeAt(commentStrEndOffset) === 32 /* Space */) {
                     lineData.commentStrLength += 1;
                 }
@@ -105,7 +104,7 @@ var LineCommentCommand = /** @class */ (function () {
             // For only whitespace lines, we insert comments
             shouldRemoveComments = false;
             // Also, no longer ignore them
-            for (var i = 0, lineCount = lines.length; i < lineCount; i++) {
+            for (let i = 0, lineCount = lines.length; i < lineCount; i++) {
                 lines[i].ignore = false;
             }
         }
@@ -114,24 +113,24 @@ var LineCommentCommand = /** @class */ (function () {
             shouldRemoveComments: shouldRemoveComments,
             lines: lines
         };
-    };
+    }
     /**
      * Analyze all lines and decide exactly what to do => not supported | insert line comments | remove line comments
      */
-    LineCommentCommand._gatherPreflightData = function (type, insertSpace, model, startLineNumber, endLineNumber) {
-        var lines = LineCommentCommand._gatherPreflightCommentStrings(model, startLineNumber, endLineNumber);
+    static _gatherPreflightData(type, insertSpace, model, startLineNumber, endLineNumber, ignoreEmptyLines, ignoreFirstLine) {
+        const lines = LineCommentCommand._gatherPreflightCommentStrings(model, startLineNumber, endLineNumber);
         if (lines === null) {
             return {
                 supported: false
             };
         }
-        return LineCommentCommand._analyzeLines(type, insertSpace, model, lines, startLineNumber);
-    };
+        return LineCommentCommand._analyzeLines(type, insertSpace, model, lines, startLineNumber, ignoreEmptyLines, ignoreFirstLine);
+    }
     /**
      * Given a successful analysis, execute either insert line comments, either remove line comments
      */
-    LineCommentCommand.prototype._executeLineComments = function (model, builder, data, s) {
-        var ops;
+    _executeLineComments(model, builder, data, s) {
+        let ops;
         if (data.shouldRemoveComments) {
             ops = LineCommentCommand._createRemoveLineCommentsOperations(data.lines, s.startLineNumber);
         }
@@ -139,24 +138,24 @@ var LineCommentCommand = /** @class */ (function () {
             LineCommentCommand._normalizeInsertionPoint(model, data.lines, s.startLineNumber, this._tabSize);
             ops = this._createAddLineCommentsOperations(data.lines, s.startLineNumber);
         }
-        var cursorPosition = new Position(s.positionLineNumber, s.positionColumn);
-        for (var i = 0, len = ops.length; i < len; i++) {
+        const cursorPosition = new Position(s.positionLineNumber, s.positionColumn);
+        for (let i = 0, len = ops.length; i < len; i++) {
             builder.addEditOperation(ops[i].range, ops[i].text);
-            if (ops[i].range.isEmpty() && ops[i].range.getStartPosition().equals(cursorPosition)) {
-                var lineContent = model.getLineContent(cursorPosition.lineNumber);
+            if (Range.isEmpty(ops[i].range) && Range.getStartPosition(ops[i].range).equals(cursorPosition)) {
+                const lineContent = model.getLineContent(cursorPosition.lineNumber);
                 if (lineContent.length + 1 === cursorPosition.column) {
                     this._deltaColumn = (ops[i].text || '').length;
                 }
             }
         }
         this._selectionId = builder.trackSelection(s);
-    };
-    LineCommentCommand.prototype._attemptRemoveBlockComment = function (model, s, startToken, endToken) {
-        var startLineNumber = s.startLineNumber;
-        var endLineNumber = s.endLineNumber;
-        var startTokenAllowedBeforeColumn = endToken.length + Math.max(model.getLineFirstNonWhitespaceColumn(s.startLineNumber), s.startColumn);
-        var startTokenIndex = model.getLineContent(startLineNumber).lastIndexOf(startToken, startTokenAllowedBeforeColumn - 1);
-        var endTokenIndex = model.getLineContent(endLineNumber).indexOf(endToken, s.endColumn - 1 - startToken.length);
+    }
+    _attemptRemoveBlockComment(model, s, startToken, endToken) {
+        let startLineNumber = s.startLineNumber;
+        let endLineNumber = s.endLineNumber;
+        let startTokenAllowedBeforeColumn = endToken.length + Math.max(model.getLineFirstNonWhitespaceColumn(s.startLineNumber), s.startColumn);
+        let startTokenIndex = model.getLineContent(startLineNumber).lastIndexOf(startToken, startTokenAllowedBeforeColumn - 1);
+        let endTokenIndex = model.getLineContent(endLineNumber).indexOf(endToken, s.endColumn - 1 - startToken.length);
         if (startTokenIndex !== -1 && endTokenIndex === -1) {
             endTokenIndex = model.getLineContent(startLineNumber).indexOf(endToken, startTokenIndex + startToken.length);
             endLineNumber = startLineNumber;
@@ -185,25 +184,25 @@ var LineCommentCommand = /** @class */ (function () {
             return BlockCommentCommand._createRemoveBlockCommentOperations(new Range(startLineNumber, startTokenIndex + startToken.length + 1, endLineNumber, endTokenIndex + 1), startToken, endToken);
         }
         return null;
-    };
+    }
     /**
      * Given an unsuccessful analysis, delegate to the block comment command
      */
-    LineCommentCommand.prototype._executeBlockComment = function (model, builder, s) {
+    _executeBlockComment(model, builder, s) {
         model.tokenizeIfCheap(s.startLineNumber);
-        var languageId = model.getLanguageIdAtPosition(s.startLineNumber, 1);
-        var config = LanguageConfigurationRegistry.getComments(languageId);
+        let languageId = model.getLanguageIdAtPosition(s.startLineNumber, 1);
+        let config = LanguageConfigurationRegistry.getComments(languageId);
         if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
             // Mode does not support block comments
             return;
         }
-        var startToken = config.blockCommentStartToken;
-        var endToken = config.blockCommentEndToken;
-        var ops = this._attemptRemoveBlockComment(model, s, startToken, endToken);
+        const startToken = config.blockCommentStartToken;
+        const endToken = config.blockCommentEndToken;
+        let ops = this._attemptRemoveBlockComment(model, s, startToken, endToken);
         if (!ops) {
             if (s.isEmpty()) {
-                var lineContent = model.getLineContent(s.startLineNumber);
-                var firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
+                const lineContent = model.getLineContent(s.startLineNumber);
+                let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
                 if (firstNonWhitespaceIndex === -1) {
                     // Line is empty or contains only whitespace
                     firstNonWhitespaceIndex = lineContent.length;
@@ -219,93 +218,97 @@ var LineCommentCommand = /** @class */ (function () {
             }
         }
         this._selectionId = builder.trackSelection(s);
-        for (var _i = 0, ops_1 = ops; _i < ops_1.length; _i++) {
-            var op = ops_1[_i];
+        for (const op of ops) {
             builder.addEditOperation(op.range, op.text);
         }
-    };
-    LineCommentCommand.prototype.getEditOperations = function (model, builder) {
-        var s = this._selection;
+    }
+    getEditOperations(model, builder) {
+        let s = this._selection;
         this._moveEndPositionDown = false;
+        if (s.startLineNumber === s.endLineNumber && this._ignoreFirstLine) {
+            builder.addEditOperation(new Range(s.startLineNumber, model.getLineMaxColumn(s.startLineNumber), s.startLineNumber + 1, 1), s.startLineNumber === model.getLineCount() ? '' : '\n');
+            this._selectionId = builder.trackSelection(s);
+            return;
+        }
         if (s.startLineNumber < s.endLineNumber && s.endColumn === 1) {
             this._moveEndPositionDown = true;
             s = s.setEndPosition(s.endLineNumber - 1, model.getLineMaxColumn(s.endLineNumber - 1));
         }
-        var data = LineCommentCommand._gatherPreflightData(this._type, this._insertSpace, model, s.startLineNumber, s.endLineNumber);
+        const data = LineCommentCommand._gatherPreflightData(this._type, this._insertSpace, model, s.startLineNumber, s.endLineNumber, this._ignoreEmptyLines, this._ignoreFirstLine);
         if (data.supported) {
             return this._executeLineComments(model, builder, data, s);
         }
         return this._executeBlockComment(model, builder, s);
-    };
-    LineCommentCommand.prototype.computeCursorState = function (model, helper) {
-        var result = helper.getTrackedSelection(this._selectionId);
+    }
+    computeCursorState(model, helper) {
+        let result = helper.getTrackedSelection(this._selectionId);
         if (this._moveEndPositionDown) {
             result = result.setEndPosition(result.endLineNumber + 1, 1);
         }
         return new Selection(result.selectionStartLineNumber, result.selectionStartColumn + this._deltaColumn, result.positionLineNumber, result.positionColumn + this._deltaColumn);
-    };
+    }
     /**
      * Generate edit operations in the remove line comment case
      */
-    LineCommentCommand._createRemoveLineCommentsOperations = function (lines, startLineNumber) {
-        var res = [];
-        for (var i = 0, len = lines.length; i < len; i++) {
-            var lineData = lines[i];
+    static _createRemoveLineCommentsOperations(lines, startLineNumber) {
+        let res = [];
+        for (let i = 0, len = lines.length; i < len; i++) {
+            const lineData = lines[i];
             if (lineData.ignore) {
                 continue;
             }
             res.push(EditOperation.delete(new Range(startLineNumber + i, lineData.commentStrOffset + 1, startLineNumber + i, lineData.commentStrOffset + lineData.commentStrLength + 1)));
         }
         return res;
-    };
+    }
     /**
      * Generate edit operations in the add line comment case
      */
-    LineCommentCommand.prototype._createAddLineCommentsOperations = function (lines, startLineNumber) {
-        var res = [];
-        var afterCommentStr = this._insertSpace ? ' ' : '';
-        for (var i = 0, len = lines.length; i < len; i++) {
-            var lineData = lines[i];
+    _createAddLineCommentsOperations(lines, startLineNumber) {
+        let res = [];
+        const afterCommentStr = this._insertSpace ? ' ' : '';
+        for (let i = 0, len = lines.length; i < len; i++) {
+            const lineData = lines[i];
             if (lineData.ignore) {
                 continue;
             }
             res.push(EditOperation.insert(new Position(startLineNumber + i, lineData.commentStrOffset + 1), lineData.commentStr + afterCommentStr));
         }
         return res;
-    };
-    LineCommentCommand.nextVisibleColumn = function (currentVisibleColumn, tabSize, isTab, columnSize) {
+    }
+    static nextVisibleColumn(currentVisibleColumn, tabSize, isTab, columnSize) {
         if (isTab) {
             return currentVisibleColumn + (tabSize - (currentVisibleColumn % tabSize));
         }
         return currentVisibleColumn + columnSize;
-    };
+    }
     /**
      * Adjust insertion points to have them vertically aligned in the add line comment case
      */
-    LineCommentCommand._normalizeInsertionPoint = function (model, lines, startLineNumber, tabSize) {
-        var minVisibleColumn = 1073741824 /* MAX_SAFE_SMALL_INTEGER */;
-        var j;
-        var lenJ;
-        for (var i = 0, len = lines.length; i < len; i++) {
+    static _normalizeInsertionPoint(model, lines, startLineNumber, tabSize) {
+        let minVisibleColumn = 1073741824 /* MAX_SAFE_SMALL_INTEGER */;
+        let j;
+        let lenJ;
+        for (let i = 0, len = lines.length; i < len; i++) {
             if (lines[i].ignore) {
                 continue;
             }
-            var lineContent = model.getLineContent(startLineNumber + i);
-            var currentVisibleColumn = 0;
-            for (var j_1 = 0, lenJ_1 = lines[i].commentStrOffset; currentVisibleColumn < minVisibleColumn && j_1 < lenJ_1; j_1++) {
-                currentVisibleColumn = LineCommentCommand.nextVisibleColumn(currentVisibleColumn, tabSize, lineContent.charCodeAt(j_1) === 9 /* Tab */, 1);
+            const lineContent = model.getLineContent(startLineNumber + i);
+            let currentVisibleColumn = 0;
+            for (let j = 0, lenJ = lines[i].commentStrOffset; currentVisibleColumn < minVisibleColumn && j < lenJ; j++) {
+                currentVisibleColumn = LineCommentCommand.nextVisibleColumn(currentVisibleColumn, tabSize, lineContent.charCodeAt(j) === 9 /* Tab */, 1);
             }
             if (currentVisibleColumn < minVisibleColumn) {
                 minVisibleColumn = currentVisibleColumn;
             }
         }
         minVisibleColumn = Math.floor(minVisibleColumn / tabSize) * tabSize;
-        for (var i = 0, len = lines.length; i < len; i++) {
+        for (let i = 0, len = lines.length; i < len; i++) {
             if (lines[i].ignore) {
                 continue;
             }
-            var lineContent = model.getLineContent(startLineNumber + i);
-            var currentVisibleColumn = 0;
+            const lineContent = model.getLineContent(startLineNumber + i);
+            let currentVisibleColumn = 0;
             for (j = 0, lenJ = lines[i].commentStrOffset; currentVisibleColumn < minVisibleColumn && j < lenJ; j++) {
                 currentVisibleColumn = LineCommentCommand.nextVisibleColumn(currentVisibleColumn, tabSize, lineContent.charCodeAt(j) === 9 /* Tab */, 1);
             }
@@ -316,7 +319,5 @@ var LineCommentCommand = /** @class */ (function () {
                 lines[i].commentStrOffset = j;
             }
         }
-    };
-    return LineCommentCommand;
-}());
-export { LineCommentCommand };
+    }
+}

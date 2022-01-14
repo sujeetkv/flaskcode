@@ -7,18 +7,17 @@ import { ReplaceCommand } from '../commands/replaceCommand.js';
 import { CursorColumns, EditOperationResult, isQuote } from './cursorCommon.js';
 import { MoveOperations } from './cursorMoveOperations.js';
 import { Range } from '../core/range.js';
-var DeleteOperations = /** @class */ (function () {
-    function DeleteOperations() {
-    }
-    DeleteOperations.deleteRight = function (prevEditOperationType, config, model, selections) {
-        var commands = [];
-        var shouldPushStackElementBefore = (prevEditOperationType !== 3 /* DeletingRight */);
-        for (var i = 0, len = selections.length; i < len; i++) {
-            var selection = selections[i];
-            var deleteSelection = selection;
+import { Position } from '../core/position.js';
+export class DeleteOperations {
+    static deleteRight(prevEditOperationType, config, model, selections) {
+        let commands = [];
+        let shouldPushStackElementBefore = (prevEditOperationType !== 3 /* DeletingRight */);
+        for (let i = 0, len = selections.length; i < len; i++) {
+            const selection = selections[i];
+            let deleteSelection = selection;
             if (deleteSelection.isEmpty()) {
-                var position = selection.getPosition();
-                var rightOfPosition = MoveOperations.right(config, model, position.lineNumber, position.column);
+                let position = selection.getPosition();
+                let rightOfPosition = MoveOperations.right(config, model, position);
                 deleteSelection = new Range(rightOfPosition.lineNumber, rightOfPosition.column, position.lineNumber, position.column);
             }
             if (deleteSelection.isEmpty()) {
@@ -32,37 +31,42 @@ var DeleteOperations = /** @class */ (function () {
             commands[i] = new ReplaceCommand(deleteSelection, '');
         }
         return [shouldPushStackElementBefore, commands];
-    };
-    DeleteOperations._isAutoClosingPairDelete = function (config, model, selections) {
-        if (config.autoClosingBrackets === 'never' && config.autoClosingQuotes === 'never') {
+    }
+    static isAutoClosingPairDelete(autoClosingDelete, autoClosingBrackets, autoClosingQuotes, autoClosingPairsOpen, model, selections, autoClosedCharacters) {
+        if (autoClosingBrackets === 'never' && autoClosingQuotes === 'never') {
             return false;
         }
-        for (var i = 0, len = selections.length; i < len; i++) {
-            var selection = selections[i];
-            var position = selection.getPosition();
+        if (autoClosingDelete === 'never') {
+            return false;
+        }
+        for (let i = 0, len = selections.length; i < len; i++) {
+            const selection = selections[i];
+            const position = selection.getPosition();
             if (!selection.isEmpty()) {
                 return false;
             }
-            var lineText = model.getLineContent(position.lineNumber);
-            var character = lineText[position.column - 2];
-            var autoClosingPairCandidates = config.autoClosingPairsOpen2.get(character);
+            const lineText = model.getLineContent(position.lineNumber);
+            if (position.column < 2 || position.column >= lineText.length + 1) {
+                return false;
+            }
+            const character = lineText.charAt(position.column - 2);
+            const autoClosingPairCandidates = autoClosingPairsOpen.get(character);
             if (!autoClosingPairCandidates) {
                 return false;
             }
             if (isQuote(character)) {
-                if (config.autoClosingQuotes === 'never') {
+                if (autoClosingQuotes === 'never') {
                     return false;
                 }
             }
             else {
-                if (config.autoClosingBrackets === 'never') {
+                if (autoClosingBrackets === 'never') {
                     return false;
                 }
             }
-            var afterCharacter = lineText[position.column - 1];
-            var foundAutoClosingPair = false;
-            for (var _i = 0, autoClosingPairCandidates_1 = autoClosingPairCandidates; _i < autoClosingPairCandidates_1.length; _i++) {
-                var autoClosingPairCandidate = autoClosingPairCandidates_1[_i];
+            const afterCharacter = lineText.charAt(position.column - 1);
+            let foundAutoClosingPair = false;
+            for (const autoClosingPairCandidate of autoClosingPairCandidates) {
                 if (autoClosingPairCandidate.open === character && autoClosingPairCandidate.close === afterCharacter) {
                     foundAutoClosingPair = true;
                 }
@@ -70,71 +74,99 @@ var DeleteOperations = /** @class */ (function () {
             if (!foundAutoClosingPair) {
                 return false;
             }
+            // Must delete the pair only if it was automatically inserted by the editor
+            if (autoClosingDelete === 'auto') {
+                let found = false;
+                for (let j = 0, lenJ = autoClosedCharacters.length; j < lenJ; j++) {
+                    const autoClosedCharacter = autoClosedCharacters[j];
+                    if (position.lineNumber === autoClosedCharacter.startLineNumber && position.column === autoClosedCharacter.startColumn) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    return false;
+                }
+            }
         }
         return true;
-    };
-    DeleteOperations._runAutoClosingPairDelete = function (config, model, selections) {
-        var commands = [];
-        for (var i = 0, len = selections.length; i < len; i++) {
-            var position = selections[i].getPosition();
-            var deleteSelection = new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column + 1);
+    }
+    static _runAutoClosingPairDelete(config, model, selections) {
+        let commands = [];
+        for (let i = 0, len = selections.length; i < len; i++) {
+            const position = selections[i].getPosition();
+            const deleteSelection = new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column + 1);
             commands[i] = new ReplaceCommand(deleteSelection, '');
         }
         return [true, commands];
-    };
-    DeleteOperations.deleteLeft = function (prevEditOperationType, config, model, selections) {
-        if (this._isAutoClosingPairDelete(config, model, selections)) {
+    }
+    static deleteLeft(prevEditOperationType, config, model, selections, autoClosedCharacters) {
+        if (this.isAutoClosingPairDelete(config.autoClosingDelete, config.autoClosingBrackets, config.autoClosingQuotes, config.autoClosingPairs.autoClosingPairsOpenByEnd, model, selections, autoClosedCharacters)) {
             return this._runAutoClosingPairDelete(config, model, selections);
         }
-        var commands = [];
-        var shouldPushStackElementBefore = (prevEditOperationType !== 2 /* DeletingLeft */);
-        for (var i = 0, len = selections.length; i < len; i++) {
-            var selection = selections[i];
-            var deleteSelection = selection;
-            if (deleteSelection.isEmpty()) {
-                var position = selection.getPosition();
-                if (config.useTabStops && position.column > 1) {
-                    var lineContent = model.getLineContent(position.lineNumber);
-                    var firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
-                    var lastIndentationColumn = (firstNonWhitespaceIndex === -1
-                        ? /* entire string is whitespace */ lineContent.length + 1
-                        : firstNonWhitespaceIndex + 1);
-                    if (position.column <= lastIndentationColumn) {
-                        var fromVisibleColumn = CursorColumns.visibleColumnFromColumn2(config, model, position);
-                        var toVisibleColumn = CursorColumns.prevIndentTabStop(fromVisibleColumn, config.indentSize);
-                        var toColumn = CursorColumns.columnFromVisibleColumn2(config, model, position.lineNumber, toVisibleColumn);
-                        deleteSelection = new Range(position.lineNumber, toColumn, position.lineNumber, position.column);
-                    }
-                    else {
-                        deleteSelection = new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column);
-                    }
-                }
-                else {
-                    var leftOfPosition = MoveOperations.left(config, model, position.lineNumber, position.column);
-                    deleteSelection = new Range(leftOfPosition.lineNumber, leftOfPosition.column, position.lineNumber, position.column);
-                }
-            }
-            if (deleteSelection.isEmpty()) {
-                // Probably at beginning of file => ignore
+        const commands = [];
+        let shouldPushStackElementBefore = (prevEditOperationType !== 2 /* DeletingLeft */);
+        for (let i = 0, len = selections.length; i < len; i++) {
+            let deleteRange = DeleteOperations.getDeleteRange(selections[i], model, config);
+            // Ignore empty delete ranges, as they have no effect
+            // They happen if the cursor is at the beginning of the file.
+            if (deleteRange.isEmpty()) {
                 commands[i] = null;
                 continue;
             }
-            if (deleteSelection.startLineNumber !== deleteSelection.endLineNumber) {
+            if (deleteRange.startLineNumber !== deleteRange.endLineNumber) {
                 shouldPushStackElementBefore = true;
             }
-            commands[i] = new ReplaceCommand(deleteSelection, '');
+            commands[i] = new ReplaceCommand(deleteRange, '');
         }
         return [shouldPushStackElementBefore, commands];
-    };
-    DeleteOperations.cut = function (config, model, selections) {
-        var commands = [];
-        for (var i = 0, len = selections.length; i < len; i++) {
-            var selection = selections[i];
+    }
+    static getDeleteRange(selection, model, config) {
+        if (!selection.isEmpty()) {
+            return selection;
+        }
+        const position = selection.getPosition();
+        // Unintend when using tab stops and cursor is within indentation
+        if (config.useTabStops && position.column > 1) {
+            const lineContent = model.getLineContent(position.lineNumber);
+            const firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
+            const lastIndentationColumn = (firstNonWhitespaceIndex === -1
+                ? /* entire string is whitespace */ lineContent.length + 1
+                : firstNonWhitespaceIndex + 1);
+            if (position.column <= lastIndentationColumn) {
+                const fromVisibleColumn = CursorColumns.visibleColumnFromColumn2(config, model, position);
+                const toVisibleColumn = CursorColumns.prevIndentTabStop(fromVisibleColumn, config.indentSize);
+                const toColumn = CursorColumns.columnFromVisibleColumn2(config, model, position.lineNumber, toVisibleColumn);
+                return new Range(position.lineNumber, toColumn, position.lineNumber, position.column);
+            }
+        }
+        return Range.fromPositions(DeleteOperations.getPositionAfterDeleteLeft(position, model), position);
+    }
+    static getPositionAfterDeleteLeft(position, model) {
+        if (position.column > 1) {
+            // Convert 1-based columns to 0-based offsets and back.
+            const idx = strings.getLeftDeleteOffset(position.column - 1, model.getLineContent(position.lineNumber));
+            return position.with(undefined, idx + 1);
+        }
+        else if (position.lineNumber > 1) {
+            const newLine = position.lineNumber - 1;
+            return new Position(newLine, model.getLineMaxColumn(newLine));
+        }
+        else {
+            return position;
+        }
+    }
+    static cut(config, model, selections) {
+        let commands = [];
+        let lastCutRange = null;
+        selections.sort((a, b) => Position.compare(a.getStartPosition(), b.getEndPosition()));
+        for (let i = 0, len = selections.length; i < len; i++) {
+            const selection = selections[i];
             if (selection.isEmpty()) {
                 if (config.emptySelectionClipboard) {
                     // This is a full line cut
-                    var position = selection.getPosition();
-                    var startLineNumber = void 0, startColumn = void 0, endLineNumber = void 0, endColumn = void 0;
+                    let position = selection.getPosition();
+                    let startLineNumber, startColumn, endLineNumber, endColumn;
                     if (position.lineNumber < model.getLineCount()) {
                         // Cutting a line in the middle of the model
                         startLineNumber = position.lineNumber;
@@ -142,8 +174,8 @@ var DeleteOperations = /** @class */ (function () {
                         endLineNumber = position.lineNumber + 1;
                         endColumn = 1;
                     }
-                    else if (position.lineNumber > 1) {
-                        // Cutting the last line & there are more than 1 lines in the model
+                    else if (position.lineNumber > 1 && (lastCutRange === null || lastCutRange === void 0 ? void 0 : lastCutRange.endLineNumber) !== position.lineNumber) {
+                        // Cutting the last line & there are more than 1 lines in the model & a previous cut operation does not touch the current cut operation
                         startLineNumber = position.lineNumber - 1;
                         startColumn = model.getLineMaxColumn(position.lineNumber - 1);
                         endLineNumber = position.lineNumber;
@@ -156,7 +188,8 @@ var DeleteOperations = /** @class */ (function () {
                         endLineNumber = position.lineNumber;
                         endColumn = model.getLineMaxColumn(position.lineNumber);
                     }
-                    var deleteSelection = new Range(startLineNumber, startColumn, endLineNumber, endColumn);
+                    let deleteSelection = new Range(startLineNumber, startColumn, endLineNumber, endColumn);
+                    lastCutRange = deleteSelection;
                     if (!deleteSelection.isEmpty()) {
                         commands[i] = new ReplaceCommand(deleteSelection, '');
                     }
@@ -177,7 +210,5 @@ var DeleteOperations = /** @class */ (function () {
             shouldPushStackElementBefore: true,
             shouldPushStackElementAfter: true
         });
-    };
-    return DeleteOperations;
-}());
-export { DeleteOperations };
+    }
+}

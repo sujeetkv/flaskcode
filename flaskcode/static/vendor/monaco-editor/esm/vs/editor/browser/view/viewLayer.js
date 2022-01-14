@@ -2,61 +2,62 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var _a;
 import { createFastDomNode } from '../../../base/browser/fastDomNode.js';
 import { createStringBuilder } from '../../common/core/stringBuilder.js';
-var RenderedLinesCollection = /** @class */ (function () {
-    function RenderedLinesCollection(createLine) {
+export class RenderedLinesCollection {
+    constructor(createLine) {
         this._createLine = createLine;
         this._set(1, []);
     }
-    RenderedLinesCollection.prototype.flush = function () {
+    flush() {
         this._set(1, []);
-    };
-    RenderedLinesCollection.prototype._set = function (rendLineNumberStart, lines) {
+    }
+    _set(rendLineNumberStart, lines) {
         this._lines = lines;
         this._rendLineNumberStart = rendLineNumberStart;
-    };
-    RenderedLinesCollection.prototype._get = function () {
+    }
+    _get() {
         return {
             rendLineNumberStart: this._rendLineNumberStart,
             lines: this._lines
         };
-    };
+    }
     /**
      * @returns Inclusive line number that is inside this collection
      */
-    RenderedLinesCollection.prototype.getStartLineNumber = function () {
+    getStartLineNumber() {
         return this._rendLineNumberStart;
-    };
+    }
     /**
      * @returns Inclusive line number that is inside this collection
      */
-    RenderedLinesCollection.prototype.getEndLineNumber = function () {
+    getEndLineNumber() {
         return this._rendLineNumberStart + this._lines.length - 1;
-    };
-    RenderedLinesCollection.prototype.getCount = function () {
+    }
+    getCount() {
         return this._lines.length;
-    };
-    RenderedLinesCollection.prototype.getLine = function (lineNumber) {
-        var lineIndex = lineNumber - this._rendLineNumberStart;
+    }
+    getLine(lineNumber) {
+        const lineIndex = lineNumber - this._rendLineNumberStart;
         if (lineIndex < 0 || lineIndex >= this._lines.length) {
             throw new Error('Illegal value for lineNumber');
         }
         return this._lines[lineIndex];
-    };
+    }
     /**
      * @returns Lines that were removed from this collection
      */
-    RenderedLinesCollection.prototype.onLinesDeleted = function (deleteFromLineNumber, deleteToLineNumber) {
+    onLinesDeleted(deleteFromLineNumber, deleteToLineNumber) {
         if (this.getCount() === 0) {
             // no lines
             return null;
         }
-        var startLineNumber = this.getStartLineNumber();
-        var endLineNumber = this.getEndLineNumber();
+        const startLineNumber = this.getStartLineNumber();
+        const endLineNumber = this.getEndLineNumber();
         if (deleteToLineNumber < startLineNumber) {
             // deleting above the viewport
-            var deleteCnt = deleteToLineNumber - deleteFromLineNumber + 1;
+            const deleteCnt = deleteToLineNumber - deleteFromLineNumber + 1;
             this._rendLineNumberStart -= deleteCnt;
             return null;
         }
@@ -65,10 +66,10 @@ var RenderedLinesCollection = /** @class */ (function () {
             return null;
         }
         // Record what needs to be deleted
-        var deleteStartIndex = 0;
-        var deleteCount = 0;
-        for (var lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-            var lineIndex = lineNumber - this._rendLineNumberStart;
+        let deleteStartIndex = 0;
+        let deleteCount = 0;
+        for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+            const lineIndex = lineNumber - this._rendLineNumberStart;
             if (deleteFromLineNumber <= lineNumber && lineNumber <= deleteToLineNumber) {
                 // this is a line to be deleted
                 if (deleteCount === 0) {
@@ -84,7 +85,7 @@ var RenderedLinesCollection = /** @class */ (function () {
         // Adjust this._rendLineNumberStart for lines deleted above
         if (deleteFromLineNumber < startLineNumber) {
             // Something was deleted above
-            var deleteAboveCount = 0;
+            let deleteAboveCount = 0;
             if (deleteToLineNumber < startLineNumber) {
                 // the entire deleted lines are above
                 deleteAboveCount = deleteToLineNumber - deleteFromLineNumber + 1;
@@ -94,18 +95,18 @@ var RenderedLinesCollection = /** @class */ (function () {
             }
             this._rendLineNumberStart -= deleteAboveCount;
         }
-        var deleted = this._lines.splice(deleteStartIndex, deleteCount);
+        const deleted = this._lines.splice(deleteStartIndex, deleteCount);
         return deleted;
-    };
-    RenderedLinesCollection.prototype.onLinesChanged = function (changeFromLineNumber, changeToLineNumber) {
+    }
+    onLinesChanged(changeFromLineNumber, changeToLineNumber) {
         if (this.getCount() === 0) {
             // no lines
             return false;
         }
-        var startLineNumber = this.getStartLineNumber();
-        var endLineNumber = this.getEndLineNumber();
-        var someoneNotified = false;
-        for (var changedLineNumber = changeFromLineNumber; changedLineNumber <= changeToLineNumber; changedLineNumber++) {
+        const startLineNumber = this.getStartLineNumber();
+        const endLineNumber = this.getEndLineNumber();
+        let someoneNotified = false;
+        for (let changedLineNumber = changeFromLineNumber; changedLineNumber <= changeToLineNumber; changedLineNumber++) {
             if (changedLineNumber >= startLineNumber && changedLineNumber <= endLineNumber) {
                 // Notify the line
                 this._lines[changedLineNumber - this._rendLineNumberStart].onContentChanged();
@@ -113,15 +114,15 @@ var RenderedLinesCollection = /** @class */ (function () {
             }
         }
         return someoneNotified;
-    };
-    RenderedLinesCollection.prototype.onLinesInserted = function (insertFromLineNumber, insertToLineNumber) {
+    }
+    onLinesInserted(insertFromLineNumber, insertToLineNumber) {
         if (this.getCount() === 0) {
             // no lines
             return null;
         }
-        var insertCnt = insertToLineNumber - insertFromLineNumber + 1;
-        var startLineNumber = this.getStartLineNumber();
-        var endLineNumber = this.getEndLineNumber();
+        const insertCnt = insertToLineNumber - insertFromLineNumber + 1;
+        const startLineNumber = this.getStartLineNumber();
+        const endLineNumber = this.getEndLineNumber();
         if (insertFromLineNumber <= startLineNumber) {
             // inserting above the viewport
             this._rendLineNumberStart += insertCnt;
@@ -133,146 +134,141 @@ var RenderedLinesCollection = /** @class */ (function () {
         }
         if (insertCnt + insertFromLineNumber > endLineNumber) {
             // insert inside the viewport in such a way that all remaining lines are pushed outside
-            var deleted = this._lines.splice(insertFromLineNumber - this._rendLineNumberStart, endLineNumber - insertFromLineNumber + 1);
+            const deleted = this._lines.splice(insertFromLineNumber - this._rendLineNumberStart, endLineNumber - insertFromLineNumber + 1);
             return deleted;
         }
         // insert inside the viewport, push out some lines, but not all remaining lines
-        var newLines = [];
-        for (var i = 0; i < insertCnt; i++) {
+        const newLines = [];
+        for (let i = 0; i < insertCnt; i++) {
             newLines[i] = this._createLine();
         }
-        var insertIndex = insertFromLineNumber - this._rendLineNumberStart;
-        var beforeLines = this._lines.slice(0, insertIndex);
-        var afterLines = this._lines.slice(insertIndex, this._lines.length - insertCnt);
-        var deletedLines = this._lines.slice(this._lines.length - insertCnt, this._lines.length);
+        const insertIndex = insertFromLineNumber - this._rendLineNumberStart;
+        const beforeLines = this._lines.slice(0, insertIndex);
+        const afterLines = this._lines.slice(insertIndex, this._lines.length - insertCnt);
+        const deletedLines = this._lines.slice(this._lines.length - insertCnt, this._lines.length);
         this._lines = beforeLines.concat(newLines).concat(afterLines);
         return deletedLines;
-    };
-    RenderedLinesCollection.prototype.onTokensChanged = function (ranges) {
+    }
+    onTokensChanged(ranges) {
         if (this.getCount() === 0) {
             // no lines
             return false;
         }
-        var startLineNumber = this.getStartLineNumber();
-        var endLineNumber = this.getEndLineNumber();
-        var notifiedSomeone = false;
-        for (var i = 0, len = ranges.length; i < len; i++) {
-            var rng = ranges[i];
+        const startLineNumber = this.getStartLineNumber();
+        const endLineNumber = this.getEndLineNumber();
+        let notifiedSomeone = false;
+        for (let i = 0, len = ranges.length; i < len; i++) {
+            const rng = ranges[i];
             if (rng.toLineNumber < startLineNumber || rng.fromLineNumber > endLineNumber) {
                 // range outside viewport
                 continue;
             }
-            var from = Math.max(startLineNumber, rng.fromLineNumber);
-            var to = Math.min(endLineNumber, rng.toLineNumber);
-            for (var lineNumber = from; lineNumber <= to; lineNumber++) {
-                var lineIndex = lineNumber - this._rendLineNumberStart;
+            const from = Math.max(startLineNumber, rng.fromLineNumber);
+            const to = Math.min(endLineNumber, rng.toLineNumber);
+            for (let lineNumber = from; lineNumber <= to; lineNumber++) {
+                const lineIndex = lineNumber - this._rendLineNumberStart;
                 this._lines[lineIndex].onTokensChanged();
                 notifiedSomeone = true;
             }
         }
         return notifiedSomeone;
-    };
-    return RenderedLinesCollection;
-}());
-export { RenderedLinesCollection };
-var VisibleLinesCollection = /** @class */ (function () {
-    function VisibleLinesCollection(host) {
-        var _this = this;
+    }
+}
+export class VisibleLinesCollection {
+    constructor(host) {
         this._host = host;
         this.domNode = this._createDomNode();
-        this._linesCollection = new RenderedLinesCollection(function () { return _this._host.createVisibleLine(); });
+        this._linesCollection = new RenderedLinesCollection(() => this._host.createVisibleLine());
     }
-    VisibleLinesCollection.prototype._createDomNode = function () {
-        var domNode = createFastDomNode(document.createElement('div'));
+    _createDomNode() {
+        const domNode = createFastDomNode(document.createElement('div'));
         domNode.setClassName('view-layer');
         domNode.setPosition('absolute');
         domNode.domNode.setAttribute('role', 'presentation');
         domNode.domNode.setAttribute('aria-hidden', 'true');
         return domNode;
-    };
+    }
     // ---- begin view event handlers
-    VisibleLinesCollection.prototype.onConfigurationChanged = function (e) {
-        if (e.hasChanged(107 /* layoutInfo */)) {
+    onConfigurationChanged(e) {
+        if (e.hasChanged(130 /* layoutInfo */)) {
             return true;
         }
         return false;
-    };
-    VisibleLinesCollection.prototype.onFlushed = function (e) {
+    }
+    onFlushed(e) {
         this._linesCollection.flush();
         // No need to clear the dom node because a full .innerHTML will occur in ViewLayerRenderer._render
         return true;
-    };
-    VisibleLinesCollection.prototype.onLinesChanged = function (e) {
+    }
+    onLinesChanged(e) {
         return this._linesCollection.onLinesChanged(e.fromLineNumber, e.toLineNumber);
-    };
-    VisibleLinesCollection.prototype.onLinesDeleted = function (e) {
-        var deleted = this._linesCollection.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
+    }
+    onLinesDeleted(e) {
+        const deleted = this._linesCollection.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
         if (deleted) {
             // Remove from DOM
-            for (var i = 0, len = deleted.length; i < len; i++) {
-                var lineDomNode = deleted[i].getDomNode();
+            for (let i = 0, len = deleted.length; i < len; i++) {
+                const lineDomNode = deleted[i].getDomNode();
                 if (lineDomNode) {
                     this.domNode.domNode.removeChild(lineDomNode);
                 }
             }
         }
         return true;
-    };
-    VisibleLinesCollection.prototype.onLinesInserted = function (e) {
-        var deleted = this._linesCollection.onLinesInserted(e.fromLineNumber, e.toLineNumber);
+    }
+    onLinesInserted(e) {
+        const deleted = this._linesCollection.onLinesInserted(e.fromLineNumber, e.toLineNumber);
         if (deleted) {
             // Remove from DOM
-            for (var i = 0, len = deleted.length; i < len; i++) {
-                var lineDomNode = deleted[i].getDomNode();
+            for (let i = 0, len = deleted.length; i < len; i++) {
+                const lineDomNode = deleted[i].getDomNode();
                 if (lineDomNode) {
                     this.domNode.domNode.removeChild(lineDomNode);
                 }
             }
         }
         return true;
-    };
-    VisibleLinesCollection.prototype.onScrollChanged = function (e) {
+    }
+    onScrollChanged(e) {
         return e.scrollTopChanged;
-    };
-    VisibleLinesCollection.prototype.onTokensChanged = function (e) {
+    }
+    onTokensChanged(e) {
         return this._linesCollection.onTokensChanged(e.ranges);
-    };
-    VisibleLinesCollection.prototype.onZonesChanged = function (e) {
+    }
+    onZonesChanged(e) {
         return true;
-    };
+    }
     // ---- end view event handlers
-    VisibleLinesCollection.prototype.getStartLineNumber = function () {
+    getStartLineNumber() {
         return this._linesCollection.getStartLineNumber();
-    };
-    VisibleLinesCollection.prototype.getEndLineNumber = function () {
+    }
+    getEndLineNumber() {
         return this._linesCollection.getEndLineNumber();
-    };
-    VisibleLinesCollection.prototype.getVisibleLine = function (lineNumber) {
+    }
+    getVisibleLine(lineNumber) {
         return this._linesCollection.getLine(lineNumber);
-    };
-    VisibleLinesCollection.prototype.renderLines = function (viewportData) {
-        var inp = this._linesCollection._get();
-        var renderer = new ViewLayerRenderer(this.domNode.domNode, this._host, viewportData);
-        var ctx = {
+    }
+    renderLines(viewportData) {
+        const inp = this._linesCollection._get();
+        const renderer = new ViewLayerRenderer(this.domNode.domNode, this._host, viewportData);
+        const ctx = {
             rendLineNumberStart: inp.rendLineNumberStart,
             lines: inp.lines,
             linesLength: inp.lines.length
         };
         // Decide if this render will do a single update (single large .innerHTML) or many updates (inserting/removing dom nodes)
-        var resCtx = renderer.render(ctx, viewportData.startLineNumber, viewportData.endLineNumber, viewportData.relativeVerticalOffset);
+        const resCtx = renderer.render(ctx, viewportData.startLineNumber, viewportData.endLineNumber, viewportData.relativeVerticalOffset);
         this._linesCollection._set(resCtx.rendLineNumberStart, resCtx.lines);
-    };
-    return VisibleLinesCollection;
-}());
-export { VisibleLinesCollection };
-var ViewLayerRenderer = /** @class */ (function () {
-    function ViewLayerRenderer(domNode, host, viewportData) {
+    }
+}
+class ViewLayerRenderer {
+    constructor(domNode, host, viewportData) {
         this.domNode = domNode;
         this.host = host;
         this.viewportData = viewportData;
     }
-    ViewLayerRenderer.prototype.render = function (inContext, startLineNumber, stopLineNumber, deltaTop) {
-        var ctx = {
+    render(inContext, startLineNumber, stopLineNumber, deltaTop) {
+        const ctx = {
             rendLineNumberStart: inContext.rendLineNumberStart,
             lines: inContext.lines.slice(0),
             linesLength: inContext.linesLength
@@ -282,7 +278,7 @@ var ViewLayerRenderer = /** @class */ (function () {
             ctx.rendLineNumberStart = startLineNumber;
             ctx.linesLength = stopLineNumber - startLineNumber + 1;
             ctx.lines = [];
-            for (var x = startLineNumber; x <= stopLineNumber; x++) {
+            for (let x = startLineNumber; x <= stopLineNumber; x++) {
                 ctx.lines[x - startLineNumber] = this.host.createVisibleLine();
             }
             this._finishRendering(ctx, true, deltaTop);
@@ -292,8 +288,8 @@ var ViewLayerRenderer = /** @class */ (function () {
         this._renderUntouchedLines(ctx, Math.max(startLineNumber - ctx.rendLineNumberStart, 0), Math.min(stopLineNumber - ctx.rendLineNumberStart, ctx.linesLength - 1), deltaTop, startLineNumber);
         if (ctx.rendLineNumberStart > startLineNumber) {
             // Insert lines before
-            var fromLineNumber = startLineNumber;
-            var toLineNumber = Math.min(stopLineNumber, ctx.rendLineNumberStart - 1);
+            const fromLineNumber = startLineNumber;
+            const toLineNumber = Math.min(stopLineNumber, ctx.rendLineNumberStart - 1);
             if (fromLineNumber <= toLineNumber) {
                 this._insertLinesBefore(ctx, fromLineNumber, toLineNumber, deltaTop, startLineNumber);
                 ctx.linesLength += toLineNumber - fromLineNumber + 1;
@@ -301,7 +297,7 @@ var ViewLayerRenderer = /** @class */ (function () {
         }
         else if (ctx.rendLineNumberStart < startLineNumber) {
             // Remove lines before
-            var removeCnt = Math.min(ctx.linesLength, startLineNumber - ctx.rendLineNumberStart);
+            const removeCnt = Math.min(ctx.linesLength, startLineNumber - ctx.rendLineNumberStart);
             if (removeCnt > 0) {
                 this._removeLinesBefore(ctx, removeCnt);
                 ctx.linesLength -= removeCnt;
@@ -310,8 +306,8 @@ var ViewLayerRenderer = /** @class */ (function () {
         ctx.rendLineNumberStart = startLineNumber;
         if (ctx.rendLineNumberStart + ctx.linesLength - 1 < stopLineNumber) {
             // Insert lines after
-            var fromLineNumber = ctx.rendLineNumberStart + ctx.linesLength;
-            var toLineNumber = stopLineNumber;
+            const fromLineNumber = ctx.rendLineNumberStart + ctx.linesLength;
+            const toLineNumber = stopLineNumber;
             if (fromLineNumber <= toLineNumber) {
                 this._insertLinesAfter(ctx, fromLineNumber, toLineNumber, deltaTop, startLineNumber);
                 ctx.linesLength += toLineNumber - fromLineNumber + 1;
@@ -319,9 +315,9 @@ var ViewLayerRenderer = /** @class */ (function () {
         }
         else if (ctx.rendLineNumberStart + ctx.linesLength - 1 > stopLineNumber) {
             // Remove lines after
-            var fromLineNumber = Math.max(0, stopLineNumber - ctx.rendLineNumberStart + 1);
-            var toLineNumber = ctx.linesLength - 1;
-            var removeCnt = toLineNumber - fromLineNumber + 1;
+            const fromLineNumber = Math.max(0, stopLineNumber - ctx.rendLineNumberStart + 1);
+            const toLineNumber = ctx.linesLength - 1;
+            const removeCnt = toLineNumber - fromLineNumber + 1;
             if (removeCnt > 0) {
                 this._removeLinesAfter(ctx, removeCnt);
                 ctx.linesLength -= removeCnt;
@@ -329,98 +325,104 @@ var ViewLayerRenderer = /** @class */ (function () {
         }
         this._finishRendering(ctx, false, deltaTop);
         return ctx;
-    };
-    ViewLayerRenderer.prototype._renderUntouchedLines = function (ctx, startIndex, endIndex, deltaTop, deltaLN) {
-        var rendLineNumberStart = ctx.rendLineNumberStart;
-        var lines = ctx.lines;
-        for (var i = startIndex; i <= endIndex; i++) {
-            var lineNumber = rendLineNumberStart + i;
+    }
+    _renderUntouchedLines(ctx, startIndex, endIndex, deltaTop, deltaLN) {
+        const rendLineNumberStart = ctx.rendLineNumberStart;
+        const lines = ctx.lines;
+        for (let i = startIndex; i <= endIndex; i++) {
+            const lineNumber = rendLineNumberStart + i;
             lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN]);
         }
-    };
-    ViewLayerRenderer.prototype._insertLinesBefore = function (ctx, fromLineNumber, toLineNumber, deltaTop, deltaLN) {
-        var newLines = [];
-        var newLinesLen = 0;
-        for (var lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
+    }
+    _insertLinesBefore(ctx, fromLineNumber, toLineNumber, deltaTop, deltaLN) {
+        const newLines = [];
+        let newLinesLen = 0;
+        for (let lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
             newLines[newLinesLen++] = this.host.createVisibleLine();
         }
         ctx.lines = newLines.concat(ctx.lines);
-    };
-    ViewLayerRenderer.prototype._removeLinesBefore = function (ctx, removeCount) {
-        for (var i = 0; i < removeCount; i++) {
-            var lineDomNode = ctx.lines[i].getDomNode();
+    }
+    _removeLinesBefore(ctx, removeCount) {
+        for (let i = 0; i < removeCount; i++) {
+            const lineDomNode = ctx.lines[i].getDomNode();
             if (lineDomNode) {
                 this.domNode.removeChild(lineDomNode);
             }
         }
         ctx.lines.splice(0, removeCount);
-    };
-    ViewLayerRenderer.prototype._insertLinesAfter = function (ctx, fromLineNumber, toLineNumber, deltaTop, deltaLN) {
-        var newLines = [];
-        var newLinesLen = 0;
-        for (var lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
+    }
+    _insertLinesAfter(ctx, fromLineNumber, toLineNumber, deltaTop, deltaLN) {
+        const newLines = [];
+        let newLinesLen = 0;
+        for (let lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
             newLines[newLinesLen++] = this.host.createVisibleLine();
         }
         ctx.lines = ctx.lines.concat(newLines);
-    };
-    ViewLayerRenderer.prototype._removeLinesAfter = function (ctx, removeCount) {
-        var removeIndex = ctx.linesLength - removeCount;
-        for (var i = 0; i < removeCount; i++) {
-            var lineDomNode = ctx.lines[removeIndex + i].getDomNode();
+    }
+    _removeLinesAfter(ctx, removeCount) {
+        const removeIndex = ctx.linesLength - removeCount;
+        for (let i = 0; i < removeCount; i++) {
+            const lineDomNode = ctx.lines[removeIndex + i].getDomNode();
             if (lineDomNode) {
                 this.domNode.removeChild(lineDomNode);
             }
         }
         ctx.lines.splice(removeIndex, removeCount);
-    };
-    ViewLayerRenderer.prototype._finishRenderingNewLines = function (ctx, domNodeIsEmpty, newLinesHTML, wasNew) {
-        var lastChild = this.domNode.lastChild;
+    }
+    _finishRenderingNewLines(ctx, domNodeIsEmpty, newLinesHTML, wasNew) {
+        if (ViewLayerRenderer._ttPolicy) {
+            newLinesHTML = ViewLayerRenderer._ttPolicy.createHTML(newLinesHTML);
+        }
+        const lastChild = this.domNode.lastChild;
         if (domNodeIsEmpty || !lastChild) {
-            this.domNode.innerHTML = newLinesHTML;
+            this.domNode.innerHTML = newLinesHTML; // explains the ugly casts -> https://github.com/microsoft/vscode/issues/106396#issuecomment-692625393;
         }
         else {
             lastChild.insertAdjacentHTML('afterend', newLinesHTML);
         }
-        var currChild = this.domNode.lastChild;
-        for (var i = ctx.linesLength - 1; i >= 0; i--) {
-            var line = ctx.lines[i];
+        let currChild = this.domNode.lastChild;
+        for (let i = ctx.linesLength - 1; i >= 0; i--) {
+            const line = ctx.lines[i];
             if (wasNew[i]) {
                 line.setDomNode(currChild);
                 currChild = currChild.previousSibling;
             }
         }
-    };
-    ViewLayerRenderer.prototype._finishRenderingInvalidLines = function (ctx, invalidLinesHTML, wasInvalid) {
-        var hugeDomNode = document.createElement('div');
+    }
+    _finishRenderingInvalidLines(ctx, invalidLinesHTML, wasInvalid) {
+        const hugeDomNode = document.createElement('div');
+        if (ViewLayerRenderer._ttPolicy) {
+            invalidLinesHTML = ViewLayerRenderer._ttPolicy.createHTML(invalidLinesHTML);
+        }
         hugeDomNode.innerHTML = invalidLinesHTML;
-        for (var i = 0; i < ctx.linesLength; i++) {
-            var line = ctx.lines[i];
+        for (let i = 0; i < ctx.linesLength; i++) {
+            const line = ctx.lines[i];
             if (wasInvalid[i]) {
-                var source = hugeDomNode.firstChild;
-                var lineDomNode = line.getDomNode();
+                const source = hugeDomNode.firstChild;
+                const lineDomNode = line.getDomNode();
                 lineDomNode.parentNode.replaceChild(source, lineDomNode);
                 line.setDomNode(source);
             }
         }
-    };
-    ViewLayerRenderer.prototype._finishRendering = function (ctx, domNodeIsEmpty, deltaTop) {
-        var sb = ViewLayerRenderer._sb;
-        var linesLength = ctx.linesLength;
-        var lines = ctx.lines;
-        var rendLineNumberStart = ctx.rendLineNumberStart;
-        var wasNew = [];
+    }
+    _finishRendering(ctx, domNodeIsEmpty, deltaTop) {
+        const sb = ViewLayerRenderer._sb;
+        const linesLength = ctx.linesLength;
+        const lines = ctx.lines;
+        const rendLineNumberStart = ctx.rendLineNumberStart;
+        const wasNew = [];
         {
             sb.reset();
-            var hadNewLine = false;
-            for (var i = 0; i < linesLength; i++) {
-                var line = lines[i];
+            let hadNewLine = false;
+            for (let i = 0; i < linesLength; i++) {
+                const line = lines[i];
                 wasNew[i] = false;
-                var lineDomNode = line.getDomNode();
+                const lineDomNode = line.getDomNode();
                 if (lineDomNode) {
                     // line is not new
                     continue;
                 }
-                var renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this.viewportData, sb);
+                const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this.viewportData, sb);
                 if (!renderResult) {
                     // line does not need rendering
                     continue;
@@ -434,16 +436,16 @@ var ViewLayerRenderer = /** @class */ (function () {
         }
         {
             sb.reset();
-            var hadInvalidLine = false;
-            var wasInvalid = [];
-            for (var i = 0; i < linesLength; i++) {
-                var line = lines[i];
+            let hadInvalidLine = false;
+            const wasInvalid = [];
+            for (let i = 0; i < linesLength; i++) {
+                const line = lines[i];
                 wasInvalid[i] = false;
                 if (wasNew[i]) {
                     // line was new
                     continue;
                 }
-                var renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this.viewportData, sb);
+                const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this.viewportData, sb);
                 if (!renderResult) {
                     // line does not need rendering
                     continue;
@@ -455,7 +457,7 @@ var ViewLayerRenderer = /** @class */ (function () {
                 this._finishRenderingInvalidLines(ctx, sb.build(), wasInvalid);
             }
         }
-    };
-    ViewLayerRenderer._sb = createStringBuilder(100000);
-    return ViewLayerRenderer;
-}());
+    }
+}
+ViewLayerRenderer._ttPolicy = (_a = window.trustedTypes) === null || _a === void 0 ? void 0 : _a.createPolicy('editorViewLayer', { createHTML: value => value });
+ViewLayerRenderer._sb = createStringBuilder(100000);

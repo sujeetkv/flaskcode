@@ -5,20 +5,21 @@
 import * as strings from '../../../../base/common/strings.js';
 import { StringBuffer, createLineStarts, createLineStartsFast } from './pieceTreeBase.js';
 import { PieceTreeTextBuffer } from './pieceTreeTextBuffer.js';
-var PieceTreeTextBufferFactory = /** @class */ (function () {
-    function PieceTreeTextBufferFactory(_chunks, _bom, _cr, _lf, _crlf, _containsRTL, _isBasicASCII, _normalizeEOL) {
+export class PieceTreeTextBufferFactory {
+    constructor(_chunks, _bom, _cr, _lf, _crlf, _containsRTL, _containsUnusualLineTerminators, _isBasicASCII, _normalizeEOL) {
         this._chunks = _chunks;
         this._bom = _bom;
         this._cr = _cr;
         this._lf = _lf;
         this._crlf = _crlf;
         this._containsRTL = _containsRTL;
+        this._containsUnusualLineTerminators = _containsUnusualLineTerminators;
         this._isBasicASCII = _isBasicASCII;
         this._normalizeEOL = _normalizeEOL;
     }
-    PieceTreeTextBufferFactory.prototype._getEOL = function (defaultEOL) {
-        var totalEOLCount = this._cr + this._lf + this._crlf;
-        var totalCRCount = this._cr + this._crlf;
+    _getEOL(defaultEOL) {
+        const totalEOLCount = this._cr + this._lf + this._crlf;
+        const totalCRCount = this._cr + this._crlf;
         if (totalEOLCount === 0) {
             // This is an empty file or a file with precisely one line
             return (defaultEOL === 1 /* LF */ ? '\n' : '\r\n');
@@ -29,27 +30,26 @@ var PieceTreeTextBufferFactory = /** @class */ (function () {
         }
         // At least one line more ends in \n
         return '\n';
-    };
-    PieceTreeTextBufferFactory.prototype.create = function (defaultEOL) {
-        var eol = this._getEOL(defaultEOL);
-        var chunks = this._chunks;
+    }
+    create(defaultEOL) {
+        const eol = this._getEOL(defaultEOL);
+        let chunks = this._chunks;
         if (this._normalizeEOL &&
             ((eol === '\r\n' && (this._cr > 0 || this._lf > 0))
                 || (eol === '\n' && (this._cr > 0 || this._crlf > 0)))) {
             // Normalize pieces
-            for (var i = 0, len = chunks.length; i < len; i++) {
-                var str = chunks[i].buffer.replace(/\r\n|\r|\n/g, eol);
-                var newLineStart = createLineStartsFast(str);
+            for (let i = 0, len = chunks.length; i < len; i++) {
+                let str = chunks[i].buffer.replace(/\r\n|\r|\n/g, eol);
+                let newLineStart = createLineStartsFast(str);
                 chunks[i] = new StringBuffer(str, newLineStart);
             }
         }
-        return new PieceTreeTextBuffer(chunks, this._bom, eol, this._containsRTL, this._isBasicASCII, this._normalizeEOL);
-    };
-    return PieceTreeTextBufferFactory;
-}());
-export { PieceTreeTextBufferFactory };
-var PieceTreeTextBufferBuilder = /** @class */ (function () {
-    function PieceTreeTextBufferBuilder() {
+        const textBuffer = new PieceTreeTextBuffer(chunks, this._bom, eol, this._containsRTL, this._containsUnusualLineTerminators, this._isBasicASCII, this._normalizeEOL);
+        return { textBuffer: textBuffer, disposable: textBuffer };
+    }
+}
+export class PieceTreeTextBufferBuilder {
+    constructor() {
         this.chunks = [];
         this.BOM = '';
         this._hasPreviousChar = false;
@@ -59,9 +59,10 @@ var PieceTreeTextBufferBuilder = /** @class */ (function () {
         this.lf = 0;
         this.crlf = 0;
         this.containsRTL = false;
+        this.containsUnusualLineTerminators = false;
         this.isBasicASCII = true;
     }
-    PieceTreeTextBufferBuilder.prototype.acceptChunk = function (chunk) {
+    acceptChunk(chunk) {
         if (chunk.length === 0) {
             return;
         }
@@ -71,7 +72,7 @@ var PieceTreeTextBufferBuilder = /** @class */ (function () {
                 chunk = chunk.substr(1);
             }
         }
-        var lastChar = chunk.charCodeAt(chunk.length - 1);
+        const lastChar = chunk.charCodeAt(chunk.length - 1);
         if (lastChar === 13 /* CarriageReturn */ || (lastChar >= 0xD800 && lastChar <= 0xDBFF)) {
             // last character is \r or a high surrogate => keep it back
             this._acceptChunk1(chunk.substr(0, chunk.length - 1), false);
@@ -83,8 +84,8 @@ var PieceTreeTextBufferBuilder = /** @class */ (function () {
             this._hasPreviousChar = false;
             this._previousChar = lastChar;
         }
-    };
-    PieceTreeTextBufferBuilder.prototype._acceptChunk1 = function (chunk, allowEmptyStrings) {
+    }
+    _acceptChunk1(chunk, allowEmptyStrings) {
         if (!allowEmptyStrings && chunk.length === 0) {
             // Nothing to do
             return;
@@ -95,9 +96,9 @@ var PieceTreeTextBufferBuilder = /** @class */ (function () {
         else {
             this._acceptChunk2(chunk);
         }
-    };
-    PieceTreeTextBufferBuilder.prototype._acceptChunk2 = function (chunk) {
-        var lineStarts = createLineStarts(this._tmpLineStarts, chunk);
+    }
+    _acceptChunk2(chunk) {
+        const lineStarts = createLineStarts(this._tmpLineStarts, chunk);
         this.chunks.push(new StringBuffer(chunk, lineStarts.lineStarts));
         this.cr += lineStarts.cr;
         this.lf += lineStarts.lf;
@@ -106,31 +107,32 @@ var PieceTreeTextBufferBuilder = /** @class */ (function () {
             this.isBasicASCII = lineStarts.isBasicASCII;
         }
         if (!this.isBasicASCII && !this.containsRTL) {
-            // No need to check if is basic ASCII
+            // No need to check if it is basic ASCII
             this.containsRTL = strings.containsRTL(chunk);
         }
-    };
-    PieceTreeTextBufferBuilder.prototype.finish = function (normalizeEOL) {
-        if (normalizeEOL === void 0) { normalizeEOL = true; }
+        if (!this.isBasicASCII && !this.containsUnusualLineTerminators) {
+            // No need to check if it is basic ASCII
+            this.containsUnusualLineTerminators = strings.containsUnusualLineTerminators(chunk);
+        }
+    }
+    finish(normalizeEOL = true) {
         this._finish();
-        return new PieceTreeTextBufferFactory(this.chunks, this.BOM, this.cr, this.lf, this.crlf, this.containsRTL, this.isBasicASCII, normalizeEOL);
-    };
-    PieceTreeTextBufferBuilder.prototype._finish = function () {
+        return new PieceTreeTextBufferFactory(this.chunks, this.BOM, this.cr, this.lf, this.crlf, this.containsRTL, this.containsUnusualLineTerminators, this.isBasicASCII, normalizeEOL);
+    }
+    _finish() {
         if (this.chunks.length === 0) {
             this._acceptChunk1('', true);
         }
         if (this._hasPreviousChar) {
             this._hasPreviousChar = false;
             // recreate last chunk
-            var lastChunk = this.chunks[this.chunks.length - 1];
+            let lastChunk = this.chunks[this.chunks.length - 1];
             lastChunk.buffer += String.fromCharCode(this._previousChar);
-            var newLineStarts = createLineStartsFast(lastChunk.buffer);
+            let newLineStarts = createLineStartsFast(lastChunk.buffer);
             lastChunk.lineStarts = newLineStarts;
             if (this._previousChar === 13 /* CarriageReturn */) {
                 this.cr++;
             }
         }
-    };
-    return PieceTreeTextBufferBuilder;
-}());
-export { PieceTreeTextBufferBuilder };
+    }
+}

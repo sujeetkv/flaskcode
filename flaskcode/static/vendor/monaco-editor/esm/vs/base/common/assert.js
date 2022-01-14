@@ -7,6 +7,6 @@
  */
 export function ok(value, message) {
     if (!value) {
-        throw new Error(message ? 'Assertion failed (' + message + ')' : 'Assertion Failed');
+        throw new Error(message ? `Assertion failed (${message})` : 'Assertion Failed');
     }
 }

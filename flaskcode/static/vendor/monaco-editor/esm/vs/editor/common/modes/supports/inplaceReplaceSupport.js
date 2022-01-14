@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var BasicInplaceReplace = /** @class */ (function () {
-    function BasicInplaceReplace() {
+export class BasicInplaceReplace {
+    constructor() {
         this._defaultValueSet = [
             ['true', 'false'],
             ['True', 'False'],
@@ -11,9 +11,9 @@ var BasicInplaceReplace = /** @class */ (function () {
             ['public', 'protected', 'private'],
         ];
     }
-    BasicInplaceReplace.prototype.navigateValueSet = function (range1, text1, range2, text2, up) {
+    navigateValueSet(range1, text1, range2, text2, up) {
         if (range1 && text1) {
-            var result = this.doNavigateValueSet(text1, up);
+            let result = this.doNavigateValueSet(text1, up);
             if (result) {
                 return {
                     range: range1,
@@ -22,7 +22,7 @@ var BasicInplaceReplace = /** @class */ (function () {
             }
         }
         if (range2 && text2) {
-            var result = this.doNavigateValueSet(text2, up);
+            let result = this.doNavigateValueSet(text2, up);
             if (result) {
                 return {
                     range: range2,
@@ -31,18 +31,18 @@ var BasicInplaceReplace = /** @class */ (function () {
             }
         }
         return null;
-    };
-    BasicInplaceReplace.prototype.doNavigateValueSet = function (text, up) {
-        var numberResult = this.numberReplace(text, up);
+    }
+    doNavigateValueSet(text, up) {
+        let numberResult = this.numberReplace(text, up);
         if (numberResult !== null) {
             return numberResult;
         }
         return this.textReplace(text, up);
-    };
-    BasicInplaceReplace.prototype.numberReplace = function (value, up) {
-        var precision = Math.pow(10, value.length - (value.lastIndexOf('.') + 1));
-        var n1 = Number(value);
-        var n2 = parseFloat(value);
+    }
+    numberReplace(value, up) {
+        let precision = Math.pow(10, value.length - (value.lastIndexOf('.') + 1));
+        let n1 = Number(value);
+        let n2 = parseFloat(value);
         if (!isNaN(n1) && !isNaN(n2) && n1 === n2) {
             if (n1 === 0 && !up) {
                 return null; // don't do negative
@@ -56,19 +56,19 @@ var BasicInplaceReplace = /** @class */ (function () {
             }
         }
         return null;
-    };
-    BasicInplaceReplace.prototype.textReplace = function (value, up) {
+    }
+    textReplace(value, up) {
         return this.valueSetsReplace(this._defaultValueSet, value, up);
-    };
-    BasicInplaceReplace.prototype.valueSetsReplace = function (valueSets, value, up) {
-        var result = null;
-        for (var i = 0, len = valueSets.length; result === null && i < len; i++) {
+    }
+    valueSetsReplace(valueSets, value, up) {
+        let result = null;
+        for (let i = 0, len = valueSets.length; result === null && i < len; i++) {
             result = this.valueSetReplace(valueSets[i], value, up);
         }
         return result;
-    };
-    BasicInplaceReplace.prototype.valueSetReplace = function (valueSet, value, up) {
-        var idx = valueSet.indexOf(value);
+    }
+    valueSetReplace(valueSet, value, up) {
+        let idx = valueSet.indexOf(value);
         if (idx >= 0) {
             idx += up ? +1 : -1;
             if (idx < 0) {
@@ -80,8 +80,6 @@ var BasicInplaceReplace = /** @class */ (function () {
             return valueSet[idx];
         }
         return null;
-    };
-    BasicInplaceReplace.INSTANCE = new BasicInplaceReplace();
-    return BasicInplaceReplace;
-}());
-export { BasicInplaceReplace };
+    }
+}
+BasicInplaceReplace.INSTANCE = new BasicInplaceReplace();

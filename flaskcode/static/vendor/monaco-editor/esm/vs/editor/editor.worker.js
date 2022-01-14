@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 import { SimpleWorkerServer } from '../base/common/worker/simpleWorker.js';
 import { EditorSimpleWorker } from './common/services/editorSimpleWorker.js';
-var initialized = false;
+let initialized = false;
 export function initialize(foreignModule) {
     if (initialized) {
         return;
     }
     initialized = true;
-    var simpleWorker = new SimpleWorkerServer(function (msg) {
+    const simpleWorker = new SimpleWorkerServer((msg) => {
         self.postMessage(msg);
-    }, function (host) { return new EditorSimpleWorker(host, foreignModule); });
-    self.onmessage = function (e) {
+    }, (host) => new EditorSimpleWorker(host, foreignModule));
+    self.onmessage = (e) => {
         simpleWorker.onmessage(e.data);
     };
 }
-self.onmessage = function (e) {
+self.onmessage = (e) => {
     // Ignore first message in this case and initialize if not yet initialized
     if (!initialized) {
         initialize(null);

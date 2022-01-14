@@ -5,12 +5,12 @@
 /**
  * Represents information about a specific difference between two sequences.
  */
-var DiffChange = /** @class */ (function () {
+export class DiffChange {
     /**
      * Constructs a new DiffChange with the given sequence information
      * and content.
      */
-    function DiffChange(originalStart, originalLength, modifiedStart, modifiedLength) {
+    constructor(originalStart, originalLength, modifiedStart, modifiedLength) {
         //Debug.Assert(originalLength > 0 || modifiedLength > 0, "originalLength and modifiedLength cannot both be <= 0");
         this.originalStart = originalStart;
         this.originalLength = originalLength;
@@ -20,15 +20,13 @@ var DiffChange = /** @class */ (function () {
     /**
      * The end point (exclusive) of the change in the original sequence.
      */
-    DiffChange.prototype.getOriginalEnd = function () {
+    getOriginalEnd() {
         return this.originalStart + this.originalLength;
-    };
+    }
     /**
      * The end point (exclusive) of the change in the modified sequence.
      */
-    DiffChange.prototype.getModifiedEnd = function () {
+    getModifiedEnd() {
         return this.modifiedStart + this.modifiedLength;
-    };
-    return DiffChange;
-}());
-export { DiffChange };
+    }
+}

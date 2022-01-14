@@ -2,206 +2,209 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-import './findWidget.css';
-import * as nls from '../../../nls.js';
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 import * as dom from '../../../base/browser/dom.js';
 import { alert as alertFn } from '../../../base/browser/ui/aria/aria.js';
 import { Checkbox } from '../../../base/browser/ui/checkbox/checkbox.js';
 import { Sash } from '../../../base/browser/ui/sash/sash.js';
 import { Widget } from '../../../base/browser/ui/widget.js';
 import { Delayer } from '../../../base/common/async.js';
+import { Codicon } from '../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import * as platform from '../../../base/common/platform.js';
 import * as strings from '../../../base/common/strings.js';
+import './findWidget.css';
 import { Range } from '../../common/core/range.js';
 import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_REPLACE_INPUT_FOCUSED, FIND_IDS, MATCHES_LIMIT } from './findModel.js';
-import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetResizeBorder, errorForeground, inputActiveOptionBorder, inputActiveOptionBackground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground, focusBorder } from '../../../platform/theme/common/colorRegistry.js';
-import { registerThemingParticipant } from '../../../platform/theme/common/themeService.js';
+import * as nls from '../../../nls.js';
 import { ContextScopedFindInput, ContextScopedReplaceInput } from '../../../platform/browser/contextScopedHistoryWidget.js';
-var NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
-var NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
-var NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous match");
-var NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next match");
-var NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind', "Find in selection");
-var NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
-var NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
-var NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Replace");
-var NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
-var NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
-var NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
-var NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first {0} results are highlighted, but all find operations work on the entire text.", MATCHES_LIMIT);
-var NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
-var NLS_NO_RESULTS = nls.localize('label.noResults', "No Results");
-var FIND_WIDGET_INITIAL_WIDTH = 419;
-var PART_WIDTH = 275;
-var FIND_INPUT_AREA_WIDTH = PART_WIDTH - 54;
-var MAX_MATCHES_COUNT_WIDTH = 69;
+import { showHistoryKeybindingHint } from '../../../platform/browser/historyWidgetKeybindingHint.js';
+import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetForeground, editorWidgetResizeBorder, errorForeground, focusBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, toolbarHoverBackground, widgetShadow } from '../../../platform/theme/common/colorRegistry.js';
+import { registerIcon, widgetClose } from '../../../platform/theme/common/iconRegistry.js';
+import { registerThemingParticipant, ThemeIcon } from '../../../platform/theme/common/themeService.js';
+const findSelectionIcon = registerIcon('find-selection', Codicon.selection, nls.localize('findSelectionIcon', 'Icon for \'Find in Selection\' in the editor find widget.'));
+const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight, nls.localize('findCollapsedIcon', 'Icon to indicate that the editor find widget is collapsed.'));
+const findExpandedIcon = registerIcon('find-expanded', Codicon.chevronDown, nls.localize('findExpandedIcon', 'Icon to indicate that the editor find widget is expanded.'));
+export const findReplaceIcon = registerIcon('find-replace', Codicon.replace, nls.localize('findReplaceIcon', 'Icon for \'Replace\' in the editor find widget.'));
+export const findReplaceAllIcon = registerIcon('find-replace-all', Codicon.replaceAll, nls.localize('findReplaceAllIcon', 'Icon for \'Replace All\' in the editor find widget.'));
+export const findPreviousMatchIcon = registerIcon('find-previous-match', Codicon.arrowUp, nls.localize('findPreviousMatchIcon', 'Icon for \'Find Previous\' in the editor find widget.'));
+export const findNextMatchIcon = registerIcon('find-next-match', Codicon.arrowDown, nls.localize('findNextMatchIcon', 'Icon for \'Find Next\' in the editor find widget.'));
+const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
+const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
+const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
+const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
+const NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind', "Find in Selection");
+const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
+const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
+const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Replace");
+const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
+const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
+const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace");
+const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first {0} results are highlighted, but all find operations work on the entire text.", MATCHES_LIMIT);
+export const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
+export const NLS_NO_RESULTS = nls.localize('label.noResults', "No results");
+const FIND_WIDGET_INITIAL_WIDTH = 419;
+const PART_WIDTH = 275;
+const FIND_INPUT_AREA_WIDTH = PART_WIDTH - 54;
+let MAX_MATCHES_COUNT_WIDTH = 69;
 // let FIND_ALL_CONTROLS_WIDTH = 17/** Find Input margin-left */ + (MAX_MATCHES_COUNT_WIDTH + 3 + 1) /** Match Results */ + 23 /** Button */ * 4 + 2/** sash */;
-var FIND_INPUT_AREA_HEIGHT = 33; // The height of Find Widget when Replace Input is not visible.
-var ctrlEnterReplaceAllWarningPromptedKey = 'ctrlEnterReplaceAll.windows.donotask';
-var ctrlKeyMod = (platform.isMacintosh ? 256 /* WinCtrl */ : 2048 /* CtrlCmd */);
-var FindWidgetViewZone = /** @class */ (function () {
-    function FindWidgetViewZone(afterLineNumber) {
+const FIND_INPUT_AREA_HEIGHT = 33; // The height of Find Widget when Replace Input is not visible.
+const ctrlEnterReplaceAllWarningPromptedKey = 'ctrlEnterReplaceAll.windows.donotask';
+const ctrlKeyMod = (platform.isMacintosh ? 256 /* WinCtrl */ : 2048 /* CtrlCmd */);
+export class FindWidgetViewZone {
+    constructor(afterLineNumber) {
         this.afterLineNumber = afterLineNumber;
         this.heightInPx = FIND_INPUT_AREA_HEIGHT;
         this.suppressMouseDown = false;
         this.domNode = document.createElement('div');
         this.domNode.className = 'dock-find-viewzone';
     }
-    return FindWidgetViewZone;
-}());
-export { FindWidgetViewZone };
+}
 function stopPropagationForMultiLineUpwards(event, value, textarea) {
-    var isMultiline = !!value.match(/\n/);
+    const isMultiline = !!value.match(/\n/);
     if (textarea && isMultiline && textarea.selectionStart > 0) {
         event.stopPropagation();
         return;
     }
 }
 function stopPropagationForMultiLineDownwards(event, value, textarea) {
-    var isMultiline = !!value.match(/\n/);
+    const isMultiline = !!value.match(/\n/);
     if (textarea && isMultiline && textarea.selectionEnd < textarea.value.length) {
         event.stopPropagation();
         return;
     }
 }
-var FindWidget = /** @class */ (function (_super) {
-    __extends(FindWidget, _super);
-    function FindWidget(codeEditor, controller, state, contextViewProvider, keybindingService, contextKeyService, themeService, storageService, notificationService) {
-        var _this = _super.call(this) || this;
-        _this._cachedHeight = null;
-        _this._codeEditor = codeEditor;
-        _this._controller = controller;
-        _this._state = state;
-        _this._contextViewProvider = contextViewProvider;
-        _this._keybindingService = keybindingService;
-        _this._contextKeyService = contextKeyService;
-        _this._storageService = storageService;
-        _this._notificationService = notificationService;
-        _this._ctrlEnterReplaceAllWarningPrompted = !!storageService.getBoolean(ctrlEnterReplaceAllWarningPromptedKey, 0 /* GLOBAL */);
-        _this._isVisible = false;
-        _this._isReplaceVisible = false;
-        _this._ignoreChangeEvent = false;
-        _this._updateHistoryDelayer = new Delayer(500);
-        _this._register(toDisposable(function () { return _this._updateHistoryDelayer.cancel(); }));
-        _this._register(_this._state.onFindReplaceStateChange(function (e) { return _this._onStateChanged(e); }));
-        _this._buildDomNode();
-        _this._updateButtons();
-        _this._tryUpdateWidgetWidth();
-        _this._findInput.inputBox.layout();
-        _this._register(_this._codeEditor.onDidChangeConfiguration(function (e) {
-            if (e.hasChanged(68 /* readOnly */)) {
-                if (_this._codeEditor.getOption(68 /* readOnly */)) {
+export class FindWidget extends Widget {
+    constructor(codeEditor, controller, state, contextViewProvider, keybindingService, contextKeyService, themeService, storageService, notificationService) {
+        super();
+        this._cachedHeight = null;
+        this._revealTimeouts = [];
+        this._codeEditor = codeEditor;
+        this._controller = controller;
+        this._state = state;
+        this._contextViewProvider = contextViewProvider;
+        this._keybindingService = keybindingService;
+        this._contextKeyService = contextKeyService;
+        this._storageService = storageService;
+        this._notificationService = notificationService;
+        this._ctrlEnterReplaceAllWarningPrompted = !!storageService.getBoolean(ctrlEnterReplaceAllWarningPromptedKey, 0 /* GLOBAL */);
+        this._isVisible = false;
+        this._isReplaceVisible = false;
+        this._ignoreChangeEvent = false;
+        this._updateHistoryDelayer = new Delayer(500);
+        this._register(toDisposable(() => this._updateHistoryDelayer.cancel()));
+        this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
+        this._buildDomNode();
+        this._updateButtons();
+        this._tryUpdateWidgetWidth();
+        this._findInput.inputBox.layout();
+        this._register(this._codeEditor.onDidChangeConfiguration((e) => {
+            if (e.hasChanged(80 /* readOnly */)) {
+                if (this._codeEditor.getOption(80 /* readOnly */)) {
                     // Hide replace part if editor becomes read only
-                    _this._state.change({ isReplaceRevealed: false }, false);
+                    this._state.change({ isReplaceRevealed: false }, false);
                 }
-                _this._updateButtons();
+                this._updateButtons();
             }
-            if (e.hasChanged(107 /* layoutInfo */)) {
-                _this._tryUpdateWidgetWidth();
+            if (e.hasChanged(130 /* layoutInfo */)) {
+                this._tryUpdateWidgetWidth();
             }
             if (e.hasChanged(2 /* accessibilitySupport */)) {
-                _this.updateAccessibilitySupport();
+                this.updateAccessibilitySupport();
             }
-            if (e.hasChanged(28 /* find */)) {
-                var addExtraSpaceOnTop = _this._codeEditor.getOption(28 /* find */).addExtraSpaceOnTop;
-                if (addExtraSpaceOnTop && !_this._viewZone) {
-                    _this._viewZone = new FindWidgetViewZone(0);
-                    _this._showViewZone();
+            if (e.hasChanged(35 /* find */)) {
+                const addExtraSpaceOnTop = this._codeEditor.getOption(35 /* find */).addExtraSpaceOnTop;
+                if (addExtraSpaceOnTop && !this._viewZone) {
+                    this._viewZone = new FindWidgetViewZone(0);
+                    this._showViewZone();
                 }
-                if (!addExtraSpaceOnTop && _this._viewZone) {
-                    _this._removeViewZone();
-                }
-            }
-        }));
-        _this.updateAccessibilitySupport();
-        _this._register(_this._codeEditor.onDidChangeCursorSelection(function () {
-            if (_this._isVisible) {
-                _this._updateToggleSelectionFindButton();
-            }
-        }));
-        _this._register(_this._codeEditor.onDidFocusEditorWidget(function () {
-            if (_this._isVisible) {
-                var globalBufferTerm = _this._controller.getGlobalBufferTerm();
-                if (globalBufferTerm && globalBufferTerm !== _this._state.searchString) {
-                    _this._state.change({ searchString: globalBufferTerm }, true);
-                    _this._findInput.select();
+                if (!addExtraSpaceOnTop && this._viewZone) {
+                    this._removeViewZone();
                 }
             }
         }));
-        _this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
-        _this._findFocusTracker = _this._register(dom.trackFocus(_this._findInput.inputBox.inputElement));
-        _this._register(_this._findFocusTracker.onDidFocus(function () {
-            _this._findInputFocused.set(true);
-            _this._updateSearchScope();
+        this.updateAccessibilitySupport();
+        this._register(this._codeEditor.onDidChangeCursorSelection(() => {
+            if (this._isVisible) {
+                this._updateToggleSelectionFindButton();
+            }
         }));
-        _this._register(_this._findFocusTracker.onDidBlur(function () {
-            _this._findInputFocused.set(false);
+        this._register(this._codeEditor.onDidFocusEditorWidget(() => __awaiter(this, void 0, void 0, function* () {
+            if (this._isVisible) {
+                let globalBufferTerm = yield this._controller.getGlobalBufferTerm();
+                if (globalBufferTerm && globalBufferTerm !== this._state.searchString) {
+                    this._state.change({ searchString: globalBufferTerm }, false);
+                    this._findInput.select();
+                }
+            }
+        })));
+        this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
+        this._findFocusTracker = this._register(dom.trackFocus(this._findInput.inputBox.inputElement));
+        this._register(this._findFocusTracker.onDidFocus(() => {
+            this._findInputFocused.set(true);
+            this._updateSearchScope();
         }));
-        _this._replaceInputFocused = CONTEXT_REPLACE_INPUT_FOCUSED.bindTo(contextKeyService);
-        _this._replaceFocusTracker = _this._register(dom.trackFocus(_this._replaceInput.inputBox.inputElement));
-        _this._register(_this._replaceFocusTracker.onDidFocus(function () {
-            _this._replaceInputFocused.set(true);
-            _this._updateSearchScope();
+        this._register(this._findFocusTracker.onDidBlur(() => {
+            this._findInputFocused.set(false);
         }));
-        _this._register(_this._replaceFocusTracker.onDidBlur(function () {
-            _this._replaceInputFocused.set(false);
+        this._replaceInputFocused = CONTEXT_REPLACE_INPUT_FOCUSED.bindTo(contextKeyService);
+        this._replaceFocusTracker = this._register(dom.trackFocus(this._replaceInput.inputBox.inputElement));
+        this._register(this._replaceFocusTracker.onDidFocus(() => {
+            this._replaceInputFocused.set(true);
+            this._updateSearchScope();
         }));
-        _this._codeEditor.addOverlayWidget(_this);
-        if (_this._codeEditor.getOption(28 /* find */).addExtraSpaceOnTop) {
-            _this._viewZone = new FindWidgetViewZone(0); // Put it before the first line then users can scroll beyond the first line.
+        this._register(this._replaceFocusTracker.onDidBlur(() => {
+            this._replaceInputFocused.set(false);
+        }));
+        this._codeEditor.addOverlayWidget(this);
+        if (this._codeEditor.getOption(35 /* find */).addExtraSpaceOnTop) {
+            this._viewZone = new FindWidgetViewZone(0); // Put it before the first line then users can scroll beyond the first line.
         }
-        _this._applyTheme(themeService.getTheme());
-        _this._register(themeService.onThemeChange(_this._applyTheme.bind(_this)));
-        _this._register(_this._codeEditor.onDidChangeModel(function () {
-            if (!_this._isVisible) {
+        this._applyTheme(themeService.getColorTheme());
+        this._register(themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
+        this._register(this._codeEditor.onDidChangeModel(() => {
+            if (!this._isVisible) {
                 return;
             }
-            _this._viewZoneId = undefined;
+            this._viewZoneId = undefined;
         }));
-        _this._register(_this._codeEditor.onDidScrollChange(function (e) {
+        this._register(this._codeEditor.onDidScrollChange((e) => {
             if (e.scrollTopChanged) {
-                _this._layoutViewZone();
+                this._layoutViewZone();
                 return;
             }
             // for other scroll changes, layout the viewzone in next tick to avoid ruining current rendering.
-            setTimeout(function () {
-                _this._layoutViewZone();
+            setTimeout(() => {
+                this._layoutViewZone();
             }, 0);
         }));
-        return _this;
     }
     // ----- IOverlayWidget API
-    FindWidget.prototype.getId = function () {
+    getId() {
         return FindWidget.ID;
-    };
-    FindWidget.prototype.getDomNode = function () {
+    }
+    getDomNode() {
         return this._domNode;
-    };
-    FindWidget.prototype.getPosition = function () {
+    }
+    getPosition() {
         if (this._isVisible) {
             return {
                 preference: 0 /* TOP_RIGHT_CORNER */
             };
         }
         return null;
-    };
+    }
     // ----- React to state changes
-    FindWidget.prototype._onStateChanged = function (e) {
+    _onStateChanged(e) {
         if (e.searchString) {
             try {
                 this._ignoreChangeEvent = true;
@@ -225,7 +228,7 @@ var FindWidget = /** @class */ (function (_super) {
         }
         if (e.isReplaceRevealed) {
             if (this._state.isReplaceRevealed) {
-                if (!this._codeEditor.getOption(68 /* readOnly */) && !this._isReplaceVisible) {
+                if (!this._codeEditor.getOption(80 /* readOnly */) && !this._isReplaceVisible) {
                     this._isReplaceVisible = true;
                     this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
                     this._updateButtons();
@@ -253,6 +256,9 @@ var FindWidget = /** @class */ (function (_super) {
         if (e.matchCase) {
             this._findInput.setCaseSensitive(this._state.matchCase);
         }
+        if (e.preserveCase) {
+            this._replaceInput.setPreserveCase(this._state.preserveCase);
+        }
         if (e.searchScope) {
             if (this._state.searchScope) {
                 this._toggleSelectionFind.checked = true;
@@ -263,8 +269,8 @@ var FindWidget = /** @class */ (function (_super) {
             this._updateToggleSelectionFindButton();
         }
         if (e.searchString || e.matchesCount || e.matchesPosition) {
-            var showRedOutline = (this._state.searchString.length > 0 && this._state.matchesCount === 0);
-            dom.toggleClass(this._domNode, 'no-results', showRedOutline);
+            let showRedOutline = (this._state.searchString.length > 0 && this._state.matchesCount === 0);
+            this._domNode.classList.toggle('no-results', showRedOutline);
             this._updateMatchesCount();
             this._updateButtons();
         }
@@ -274,19 +280,22 @@ var FindWidget = /** @class */ (function (_super) {
         if (e.updateHistory) {
             this._delayedUpdateHistory();
         }
-    };
-    FindWidget.prototype._delayedUpdateHistory = function () {
-        this._updateHistoryDelayer.trigger(this._updateHistory.bind(this));
-    };
-    FindWidget.prototype._updateHistory = function () {
+        if (e.loop) {
+            this._updateButtons();
+        }
+    }
+    _delayedUpdateHistory() {
+        this._updateHistoryDelayer.trigger(this._updateHistory.bind(this)).then(undefined, onUnexpectedError);
+    }
+    _updateHistory() {
         if (this._state.searchString) {
             this._findInput.inputBox.addToHistory();
         }
         if (this._state.replaceString) {
             this._replaceInput.inputBox.addToHistory();
         }
-    };
-    FindWidget.prototype._updateMatchesCount = function () {
+    }
+    _updateMatchesCount() {
         this._matchesCount.style.minWidth = MAX_MATCHES_COUNT_WIDTH + 'px';
         if (this._state.matchesCount >= MATCHES_LIMIT) {
             this._matchesCount.title = NLS_MATCHES_COUNT_LIMIT_TITLE;
@@ -298,13 +307,13 @@ var FindWidget = /** @class */ (function (_super) {
         if (this._matchesCount.firstChild) {
             this._matchesCount.removeChild(this._matchesCount.firstChild);
         }
-        var label;
+        let label;
         if (this._state.matchesCount > 0) {
-            var matchesCount = String(this._state.matchesCount);
+            let matchesCount = String(this._state.matchesCount);
             if (this._state.matchesCount >= MATCHES_LIMIT) {
                 matchesCount += '+';
             }
-            var matchesPosition = String(this._state.matchesPosition);
+            let matchesPosition = String(this._state.matchesPosition);
             if (matchesPosition === '0') {
                 matchesPosition = '?';
             }
@@ -314,59 +323,67 @@ var FindWidget = /** @class */ (function (_super) {
             label = NLS_NO_RESULTS;
         }
         this._matchesCount.appendChild(document.createTextNode(label));
-        alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString), true);
+        alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString));
         MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
-    };
+    }
     // ----- actions
-    FindWidget.prototype._getAriaLabel = function (label, currentMatch, searchString) {
+    _getAriaLabel(label, currentMatch, searchString) {
         if (label === NLS_NO_RESULTS) {
             return searchString === ''
                 ? nls.localize('ariaSearchNoResultEmpty', "{0} found", label)
-                : nls.localize('ariaSearchNoResult', "{0} found for {1}", label, searchString);
+                : nls.localize('ariaSearchNoResult', "{0} found for '{1}'", label, searchString);
         }
-        return currentMatch
-            ? nls.localize('ariaSearchNoResultWithLineNum', "{0} found for {1} at {2}", label, searchString, currentMatch.startLineNumber + ':' + currentMatch.startColumn)
-            : nls.localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for {1}", label, searchString);
-    };
+        if (currentMatch) {
+            const ariaLabel = nls.localize('ariaSearchNoResultWithLineNum', "{0} found for '{1}', at {2}", label, searchString, currentMatch.startLineNumber + ':' + currentMatch.startColumn);
+            const model = this._codeEditor.getModel();
+            if (model && (currentMatch.startLineNumber <= model.getLineCount()) && (currentMatch.startLineNumber >= 1)) {
+                const lineContent = model.getLineContent(currentMatch.startLineNumber);
+                return `${lineContent}, ${ariaLabel}`;
+            }
+            return ariaLabel;
+        }
+        return nls.localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for '{1}'", label, searchString);
+    }
     /**
      * If 'selection find' is ON we should not disable the button (its function is to cancel 'selection find').
      * If 'selection find' is OFF we enable the button only if there is a selection.
      */
-    FindWidget.prototype._updateToggleSelectionFindButton = function () {
-        var selection = this._codeEditor.getSelection();
-        var isSelection = selection ? (selection.startLineNumber !== selection.endLineNumber || selection.startColumn !== selection.endColumn) : false;
-        var isChecked = this._toggleSelectionFind.checked;
+    _updateToggleSelectionFindButton() {
+        let selection = this._codeEditor.getSelection();
+        let isSelection = selection ? (selection.startLineNumber !== selection.endLineNumber || selection.startColumn !== selection.endColumn) : false;
+        let isChecked = this._toggleSelectionFind.checked;
         if (this._isVisible && (isChecked || isSelection)) {
             this._toggleSelectionFind.enable();
         }
         else {
             this._toggleSelectionFind.disable();
         }
-    };
-    FindWidget.prototype._updateButtons = function () {
+    }
+    _updateButtons() {
         this._findInput.setEnabled(this._isVisible);
         this._replaceInput.setEnabled(this._isVisible && this._isReplaceVisible);
         this._updateToggleSelectionFindButton();
         this._closeBtn.setEnabled(this._isVisible);
-        var findInputIsNonEmpty = (this._state.searchString.length > 0);
-        var matchesCount = this._state.matchesCount ? true : false;
-        this._prevBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount);
-        this._nextBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount);
+        let findInputIsNonEmpty = (this._state.searchString.length > 0);
+        let matchesCount = this._state.matchesCount ? true : false;
+        this._prevBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount && this._state.canNavigateBack());
+        this._nextBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount && this._state.canNavigateForward());
         this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
         this._replaceAllBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
-        dom.toggleClass(this._domNode, 'replaceToggled', this._isReplaceVisible);
-        this._toggleReplaceBtn.toggleClass('codicon-chevron-right', !this._isReplaceVisible);
-        this._toggleReplaceBtn.toggleClass('codicon-chevron-down', this._isReplaceVisible);
+        this._domNode.classList.toggle('replaceToggled', this._isReplaceVisible);
         this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
-        var canReplace = !this._codeEditor.getOption(68 /* readOnly */);
+        let canReplace = !this._codeEditor.getOption(80 /* readOnly */);
         this._toggleReplaceBtn.setEnabled(this._isVisible && canReplace);
-    };
-    FindWidget.prototype._reveal = function () {
-        var _this = this;
+    }
+    _reveal() {
+        this._revealTimeouts.forEach(e => {
+            clearTimeout(e);
+        });
+        this._revealTimeouts = [];
         if (!this._isVisible) {
             this._isVisible = true;
-            var selection = this._codeEditor.getSelection();
-            switch (this._codeEditor.getOption(28 /* find */).autoFindInSelection) {
+            const selection = this._codeEditor.getSelection();
+            switch (this._codeEditor.getOption(35 /* find */).autoFindInSelection) {
                 case 'always':
                     this._toggleSelectionFind.checked = true;
                     break;
@@ -374,7 +391,7 @@ var FindWidget = /** @class */ (function (_super) {
                     this._toggleSelectionFind.checked = false;
                     break;
                 case 'multiline':
-                    var isSelectionMultipleLine = !!selection && selection.startLineNumber !== selection.endLineNumber;
+                    const isSelectionMultipleLine = !!selection && selection.startLineNumber !== selection.endLineNumber;
                     this._toggleSelectionFind.checked = isSelectionMultipleLine;
                     break;
                 default:
@@ -382,33 +399,33 @@ var FindWidget = /** @class */ (function (_super) {
             }
             this._tryUpdateWidgetWidth();
             this._updateButtons();
-            setTimeout(function () {
-                dom.addClass(_this._domNode, 'visible');
-                _this._domNode.setAttribute('aria-hidden', 'false');
-            }, 0);
+            this._revealTimeouts.push(setTimeout(() => {
+                this._domNode.classList.add('visible');
+                this._domNode.setAttribute('aria-hidden', 'false');
+            }, 0));
             // validate query again as it's being dismissed when we hide the find widget.
-            setTimeout(function () {
-                _this._findInput.validate();
-            }, 200);
+            this._revealTimeouts.push(setTimeout(() => {
+                this._findInput.validate();
+            }, 200));
             this._codeEditor.layoutOverlayWidget(this);
-            var adjustEditorScrollTop = true;
-            if (this._codeEditor.getOption(28 /* find */).seedSearchStringFromSelection && selection) {
-                var domNode = this._codeEditor.getDomNode();
+            let adjustEditorScrollTop = true;
+            if (this._codeEditor.getOption(35 /* find */).seedSearchStringFromSelection && selection) {
+                const domNode = this._codeEditor.getDomNode();
                 if (domNode) {
-                    var editorCoords = dom.getDomNodePagePosition(domNode);
-                    var startCoords = this._codeEditor.getScrolledVisiblePosition(selection.getStartPosition());
-                    var startLeft = editorCoords.left + (startCoords ? startCoords.left : 0);
-                    var startTop = startCoords ? startCoords.top : 0;
+                    const editorCoords = dom.getDomNodePagePosition(domNode);
+                    const startCoords = this._codeEditor.getScrolledVisiblePosition(selection.getStartPosition());
+                    const startLeft = editorCoords.left + (startCoords ? startCoords.left : 0);
+                    const startTop = startCoords ? startCoords.top : 0;
                     if (this._viewZone && startTop < this._viewZone.heightInPx) {
                         if (selection.endLineNumber > selection.startLineNumber) {
                             adjustEditorScrollTop = false;
                         }
-                        var leftOfFindWidget = dom.getTopLeftOffset(this._domNode).left;
+                        const leftOfFindWidget = dom.getTopLeftOffset(this._domNode).left;
                         if (startLeft > leftOfFindWidget) {
                             adjustEditorScrollTop = false;
                         }
-                        var endCoords = this._codeEditor.getScrolledVisiblePosition(selection.getEndPosition());
-                        var endLeft = editorCoords.left + (endCoords ? endCoords.left : 0);
+                        const endCoords = this._codeEditor.getScrolledVisiblePosition(selection.getEndPosition());
+                        const endLeft = editorCoords.left + (endCoords ? endCoords.left : 0);
                         if (endLeft > leftOfFindWidget) {
                             adjustEditorScrollTop = false;
                         }
@@ -417,12 +434,16 @@ var FindWidget = /** @class */ (function (_super) {
             }
             this._showViewZone(adjustEditorScrollTop);
         }
-    };
-    FindWidget.prototype._hide = function (focusTheEditor) {
+    }
+    _hide(focusTheEditor) {
+        this._revealTimeouts.forEach(e => {
+            clearTimeout(e);
+        });
+        this._revealTimeouts = [];
         if (this._isVisible) {
             this._isVisible = false;
             this._updateButtons();
-            dom.removeClass(this._domNode, 'visible');
+            this._domNode.classList.remove('visible');
             this._domNode.setAttribute('aria-hidden', 'true');
             this._findInput.clearMessage();
             if (focusTheEditor) {
@@ -431,10 +452,9 @@ var FindWidget = /** @class */ (function (_super) {
             this._codeEditor.layoutOverlayWidget(this);
             this._removeViewZone();
         }
-    };
-    FindWidget.prototype._layoutViewZone = function () {
-        var _this = this;
-        var addExtraSpaceOnTop = this._codeEditor.getOption(28 /* find */).addExtraSpaceOnTop;
+    }
+    _layoutViewZone(targetScrollTop) {
+        const addExtraSpaceOnTop = this._codeEditor.getOption(35 /* find */).addExtraSpaceOnTop;
         if (!addExtraSpaceOnTop) {
             this._removeViewZone();
             return;
@@ -442,73 +462,76 @@ var FindWidget = /** @class */ (function (_super) {
         if (!this._isVisible) {
             return;
         }
-        var viewZone = this._viewZone;
+        const viewZone = this._viewZone;
         if (this._viewZoneId !== undefined || !viewZone) {
             return;
         }
-        this._codeEditor.changeViewZones(function (accessor) {
-            viewZone.heightInPx = _this._getHeight();
-            _this._viewZoneId = accessor.addZone(viewZone);
+        this._codeEditor.changeViewZones((accessor) => {
+            viewZone.heightInPx = this._getHeight();
+            this._viewZoneId = accessor.addZone(viewZone);
             // scroll top adjust to make sure the editor doesn't scroll when adding viewzone at the beginning.
-            _this._codeEditor.setScrollTop(_this._codeEditor.getScrollTop() + viewZone.heightInPx);
+            this._codeEditor.setScrollTop(targetScrollTop || this._codeEditor.getScrollTop() + viewZone.heightInPx);
         });
-    };
-    FindWidget.prototype._showViewZone = function (adjustScroll) {
-        var _this = this;
-        if (adjustScroll === void 0) { adjustScroll = true; }
+    }
+    _showViewZone(adjustScroll = true) {
         if (!this._isVisible) {
             return;
         }
-        var addExtraSpaceOnTop = this._codeEditor.getOption(28 /* find */).addExtraSpaceOnTop;
+        const addExtraSpaceOnTop = this._codeEditor.getOption(35 /* find */).addExtraSpaceOnTop;
         if (!addExtraSpaceOnTop) {
             return;
         }
         if (this._viewZone === undefined) {
             this._viewZone = new FindWidgetViewZone(0);
         }
-        var viewZone = this._viewZone;
-        this._codeEditor.changeViewZones(function (accessor) {
-            if (_this._viewZoneId !== undefined) {
+        const viewZone = this._viewZone;
+        this._codeEditor.changeViewZones((accessor) => {
+            if (this._viewZoneId !== undefined) {
                 // the view zone already exists, we need to update the height
-                var newHeight = _this._getHeight();
+                const newHeight = this._getHeight();
                 if (newHeight === viewZone.heightInPx) {
                     return;
                 }
-                var scrollAdjustment = newHeight - viewZone.heightInPx;
+                let scrollAdjustment = newHeight - viewZone.heightInPx;
                 viewZone.heightInPx = newHeight;
-                accessor.layoutZone(_this._viewZoneId);
+                accessor.layoutZone(this._viewZoneId);
                 if (adjustScroll) {
-                    _this._codeEditor.setScrollTop(_this._codeEditor.getScrollTop() + scrollAdjustment);
+                    this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
                 }
                 return;
             }
             else {
-                var scrollAdjustment = _this._getHeight();
+                let scrollAdjustment = this._getHeight();
+                // if the editor has top padding, factor that into the zone height
+                scrollAdjustment -= this._codeEditor.getOption(74 /* padding */).top;
+                if (scrollAdjustment <= 0) {
+                    return;
+                }
                 viewZone.heightInPx = scrollAdjustment;
-                _this._viewZoneId = accessor.addZone(viewZone);
+                this._viewZoneId = accessor.addZone(viewZone);
                 if (adjustScroll) {
-                    _this._codeEditor.setScrollTop(_this._codeEditor.getScrollTop() + scrollAdjustment);
+                    this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
                 }
             }
         });
-    };
-    FindWidget.prototype._removeViewZone = function () {
-        var _this = this;
-        this._codeEditor.changeViewZones(function (accessor) {
-            if (_this._viewZoneId !== undefined) {
-                accessor.removeZone(_this._viewZoneId);
-                _this._viewZoneId = undefined;
-                if (_this._viewZone) {
-                    _this._codeEditor.setScrollTop(_this._codeEditor.getScrollTop() - _this._viewZone.heightInPx);
-                    _this._viewZone = undefined;
+    }
+    _removeViewZone() {
+        this._codeEditor.changeViewZones((accessor) => {
+            if (this._viewZoneId !== undefined) {
+                accessor.removeZone(this._viewZoneId);
+                this._viewZoneId = undefined;
+                if (this._viewZone) {
+                    this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() - this._viewZone.heightInPx);
+                    this._viewZone = undefined;
                 }
             }
         });
-    };
-    FindWidget.prototype._applyTheme = function (theme) {
-        var inputStyles = {
+    }
+    _applyTheme(theme) {
+        let inputStyles = {
             inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
             inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
+            inputActiveOptionForeground: theme.getColor(inputActiveOptionForeground),
             inputBackground: theme.getColor(inputBackground),
             inputForeground: theme.getColor(inputForeground),
             inputBorder: theme.getColor(inputBorder),
@@ -525,8 +548,8 @@ var FindWidget = /** @class */ (function (_super) {
         this._findInput.style(inputStyles);
         this._replaceInput.style(inputStyles);
         this._toggleSelectionFind.style(inputStyles);
-    };
-    FindWidget.prototype._tryUpdateWidgetWidth = function () {
+    }
+    _tryUpdateWidgetWidth() {
         if (!this._isVisible) {
             return;
         }
@@ -534,26 +557,26 @@ var FindWidget = /** @class */ (function (_super) {
             // the widget is not in the DOM
             return;
         }
-        var layoutInfo = this._codeEditor.getLayoutInfo();
-        var editorContentWidth = layoutInfo.contentWidth;
+        const layoutInfo = this._codeEditor.getLayoutInfo();
+        const editorContentWidth = layoutInfo.contentWidth;
         if (editorContentWidth <= 0) {
             // for example, diff view original editor
-            dom.addClass(this._domNode, 'hiddenEditor');
+            this._domNode.classList.add('hiddenEditor');
             return;
         }
-        else if (dom.hasClass(this._domNode, 'hiddenEditor')) {
-            dom.removeClass(this._domNode, 'hiddenEditor');
+        else if (this._domNode.classList.contains('hiddenEditor')) {
+            this._domNode.classList.remove('hiddenEditor');
         }
-        var editorWidth = layoutInfo.width;
-        var minimapWidth = layoutInfo.minimapWidth;
-        var collapsedFindWidget = false;
-        var reducedFindWidget = false;
-        var narrowFindWidget = false;
+        const editorWidth = layoutInfo.width;
+        const minimapWidth = layoutInfo.minimap.minimapWidth;
+        let collapsedFindWidget = false;
+        let reducedFindWidget = false;
+        let narrowFindWidget = false;
         if (this._resized) {
-            var widgetWidth = dom.getTotalWidth(this._domNode);
+            let widgetWidth = dom.getTotalWidth(this._domNode);
             if (widgetWidth > FIND_WIDGET_INITIAL_WIDTH) {
                 // as the widget is resized by users, we may need to change the max width of the widget as the editor width changes.
-                this._domNode.style.maxWidth = editorWidth - 28 - minimapWidth - 15 + "px";
+                this._domNode.style.maxWidth = `${editorWidth - 28 - minimapWidth - 15}px`;
                 this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
                 return;
             }
@@ -567,16 +590,16 @@ var FindWidget = /** @class */ (function (_super) {
         if (FIND_WIDGET_INITIAL_WIDTH + 28 + minimapWidth - MAX_MATCHES_COUNT_WIDTH >= editorWidth + 50) {
             collapsedFindWidget = true;
         }
-        dom.toggleClass(this._domNode, 'collapsed-find-widget', collapsedFindWidget);
-        dom.toggleClass(this._domNode, 'narrow-find-widget', narrowFindWidget);
-        dom.toggleClass(this._domNode, 'reduced-find-widget', reducedFindWidget);
+        this._domNode.classList.toggle('collapsed-find-widget', collapsedFindWidget);
+        this._domNode.classList.toggle('narrow-find-widget', narrowFindWidget);
+        this._domNode.classList.toggle('reduced-find-widget', reducedFindWidget);
         if (!narrowFindWidget && !collapsedFindWidget) {
             // the minimal left offset of findwidget is 15px.
-            this._domNode.style.maxWidth = editorWidth - 28 - minimapWidth - 15 + "px";
+            this._domNode.style.maxWidth = `${editorWidth - 28 - minimapWidth - 15}px`;
         }
         if (this._resized) {
             this._findInput.inputBox.layout();
-            var findInputWidth = this._findInput.inputBox.element.clientWidth;
+            let findInputWidth = this._findInput.inputBox.element.clientWidth;
             if (findInputWidth > 0) {
                 this._replaceInput.width = findInputWidth;
             }
@@ -584,9 +607,9 @@ var FindWidget = /** @class */ (function (_super) {
         else if (this._isReplaceVisible) {
             this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
         }
-    };
-    FindWidget.prototype._getHeight = function () {
-        var totalheight = 0;
+    }
+    _getHeight() {
+        let totalheight = 0;
         // find input margin top
         totalheight += 4;
         // find input height
@@ -599,59 +622,70 @@ var FindWidget = /** @class */ (function (_super) {
         // margin bottom
         totalheight += 4;
         return totalheight;
-    };
-    FindWidget.prototype._tryUpdateHeight = function () {
-        var totalHeight = this._getHeight();
+    }
+    _tryUpdateHeight() {
+        const totalHeight = this._getHeight();
         if (this._cachedHeight !== null && this._cachedHeight === totalHeight) {
             return false;
         }
         this._cachedHeight = totalHeight;
-        this._domNode.style.height = totalHeight + "px";
+        this._domNode.style.height = `${totalHeight}px`;
         return true;
-    };
+    }
     // ----- Public
-    FindWidget.prototype.focusFindInput = function () {
+    focusFindInput() {
         this._findInput.select();
         // Edge browser requires focus() in addition to select()
         this._findInput.focus();
-    };
-    FindWidget.prototype.focusReplaceInput = function () {
+    }
+    focusReplaceInput() {
         this._replaceInput.select();
         // Edge browser requires focus() in addition to select()
         this._replaceInput.focus();
-    };
-    FindWidget.prototype.highlightFindOptions = function () {
+    }
+    highlightFindOptions() {
         this._findInput.highlightFindOptions();
-    };
-    FindWidget.prototype._updateSearchScope = function () {
+    }
+    _updateSearchScope() {
         if (!this._codeEditor.hasModel()) {
             return;
         }
         if (this._toggleSelectionFind.checked) {
-            var selection = this._codeEditor.getSelection();
-            if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
-                selection = selection.setEndPosition(selection.endLineNumber - 1, this._codeEditor.getModel().getLineMaxColumn(selection.endLineNumber - 1));
-            }
-            var currentMatch = this._state.currentMatch;
-            if (selection.startLineNumber !== selection.endLineNumber) {
-                if (!Range.equalsRange(selection, currentMatch)) {
-                    // Reseed find scope
-                    this._state.change({ searchScope: selection }, true);
+            let selections = this._codeEditor.getSelections();
+            selections.map(selection => {
+                if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
+                    selection = selection.setEndPosition(selection.endLineNumber - 1, this._codeEditor.getModel().getLineMaxColumn(selection.endLineNumber - 1));
                 }
+                const currentMatch = this._state.currentMatch;
+                if (selection.startLineNumber !== selection.endLineNumber) {
+                    if (!Range.equalsRange(selection, currentMatch)) {
+                        return selection;
+                    }
+                }
+                return null;
+            }).filter(element => !!element);
+            if (selections.length) {
+                this._state.change({ searchScope: selections }, true);
             }
         }
-    };
-    FindWidget.prototype._onFindInputMouseDown = function (e) {
+    }
+    _onFindInputMouseDown(e) {
         // on linux, middle key does pasting.
         if (e.middleButton) {
             e.stopPropagation();
         }
-    };
-    FindWidget.prototype._onFindInputKeyDown = function (e) {
+    }
+    _onFindInputKeyDown(e) {
         if (e.equals(ctrlKeyMod | 3 /* Enter */)) {
-            this._findInput.inputBox.insertAtCursor('\n');
-            e.preventDefault();
-            return;
+            if (this._keybindingService.dispatchEvent(e, e.target)) {
+                e.preventDefault();
+                return;
+            }
+            else {
+                this._findInput.inputBox.insertAtCursor('\n');
+                e.preventDefault();
+                return;
+            }
         }
         if (e.equals(2 /* Tab */)) {
             if (this._isReplaceVisible) {
@@ -674,18 +708,24 @@ var FindWidget = /** @class */ (function (_super) {
         if (e.equals(18 /* DownArrow */)) {
             return stopPropagationForMultiLineDownwards(e, this._findInput.getValue(), this._findInput.domNode.querySelector('textarea'));
         }
-    };
-    FindWidget.prototype._onReplaceInputKeyDown = function (e) {
+    }
+    _onReplaceInputKeyDown(e) {
         if (e.equals(ctrlKeyMod | 3 /* Enter */)) {
-            if (platform.isWindows && platform.isNative && !this._ctrlEnterReplaceAllWarningPrompted) {
-                // this is the first time when users press Ctrl + Enter to replace all
-                this._notificationService.info(nls.localize('ctrlEnter.keybindingChanged', 'Ctrl+Enter now inserts line break instead of replacing all. You can modify the keybinding for editor.action.replaceAll to override this behavior.'));
-                this._ctrlEnterReplaceAllWarningPrompted = true;
-                this._storageService.store(ctrlEnterReplaceAllWarningPromptedKey, true, 0 /* GLOBAL */);
+            if (this._keybindingService.dispatchEvent(e, e.target)) {
+                e.preventDefault();
+                return;
             }
-            this._replaceInput.inputBox.insertAtCursor('\n');
-            e.preventDefault();
-            return;
+            else {
+                if (platform.isWindows && platform.isNative && !this._ctrlEnterReplaceAllWarningPrompted) {
+                    // this is the first time when users press Ctrl + Enter to replace all
+                    this._notificationService.info(nls.localize('ctrlEnter.keybindingChanged', 'Ctrl+Enter now inserts line break instead of replacing all. You can modify the keybinding for editor.action.replaceAll to override this behavior.'));
+                    this._ctrlEnterReplaceAllWarningPrompted = true;
+                    this._storageService.store(ctrlEnterReplaceAllWarningPromptedKey, true, 0 /* GLOBAL */, 0 /* USER */);
+                }
+                this._replaceInput.inputBox.insertAtCursor('\n');
+                e.preventDefault();
+                return;
+            }
         }
         if (e.equals(2 /* Tab */)) {
             this._findInput.focusOnCaseSensitive();
@@ -708,29 +748,22 @@ var FindWidget = /** @class */ (function (_super) {
         if (e.equals(18 /* DownArrow */)) {
             return stopPropagationForMultiLineDownwards(e, this._replaceInput.inputBox.value, this._replaceInput.inputBox.element.querySelector('textarea'));
         }
-    };
+    }
     // ----- sash
-    FindWidget.prototype.getHorizontalSashTop = function (_sash) {
+    getVerticalSashLeft(_sash) {
         return 0;
-    };
-    FindWidget.prototype.getHorizontalSashLeft = function (_sash) {
-        return 0;
-    };
-    FindWidget.prototype.getHorizontalSashWidth = function (_sash) {
-        return 500;
-    };
+    }
     // ----- initialization
-    FindWidget.prototype._keybindingLabelFor = function (actionId) {
-        var kb = this._keybindingService.lookupKeybinding(actionId);
+    _keybindingLabelFor(actionId) {
+        let kb = this._keybindingService.lookupKeybinding(actionId);
         if (!kb) {
             return '';
         }
-        return " (" + kb.getLabel() + ")";
-    };
-    FindWidget.prototype._buildDomNode = function () {
-        var _this = this;
-        var flexibleHeight = true;
-        var flexibleWidth = true;
+        return ` (${kb.getLabel()})`;
+    }
+    _buildDomNode() {
+        const flexibleHeight = true;
+        const flexibleWidth = true;
         // Find input
         this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewProvider, {
             width: FIND_INPUT_AREA_WIDTH,
@@ -739,62 +772,64 @@ var FindWidget = /** @class */ (function (_super) {
             appendCaseSensitiveLabel: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
             appendWholeWordsLabel: this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
             appendRegexLabel: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
-            validation: function (value) {
-                if (value.length === 0 || !_this._findInput.getRegex()) {
+            validation: (value) => {
+                if (value.length === 0 || !this._findInput.getRegex()) {
                     return null;
                 }
                 try {
-                    new RegExp(value);
+                    // use `g` and `u` which are also used by the TextModel search
+                    new RegExp(value, 'gu');
                     return null;
                 }
                 catch (e) {
                     return { content: e.message };
                 }
             },
-            flexibleHeight: flexibleHeight,
-            flexibleWidth: flexibleWidth,
-            flexibleMaxHeight: 118
+            flexibleHeight,
+            flexibleWidth,
+            flexibleMaxHeight: 118,
+            showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService)
         }, this._contextKeyService, true));
         this._findInput.setRegex(!!this._state.isRegex);
         this._findInput.setCaseSensitive(!!this._state.matchCase);
         this._findInput.setWholeWords(!!this._state.wholeWord);
-        this._register(this._findInput.onKeyDown(function (e) { return _this._onFindInputKeyDown(e); }));
-        this._register(this._findInput.inputBox.onDidChange(function () {
-            if (_this._ignoreChangeEvent) {
+        this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
+        this._register(this._findInput.inputBox.onDidChange(() => {
+            if (this._ignoreChangeEvent) {
                 return;
             }
-            _this._state.change({ searchString: _this._findInput.getValue() }, true);
+            this._state.change({ searchString: this._findInput.getValue() }, true);
         }));
-        this._register(this._findInput.onDidOptionChange(function () {
-            _this._state.change({
-                isRegex: _this._findInput.getRegex(),
-                wholeWord: _this._findInput.getWholeWords(),
-                matchCase: _this._findInput.getCaseSensitive()
+        this._register(this._findInput.onDidOptionChange(() => {
+            this._state.change({
+                isRegex: this._findInput.getRegex(),
+                wholeWord: this._findInput.getWholeWords(),
+                matchCase: this._findInput.getCaseSensitive()
             }, true);
         }));
-        this._register(this._findInput.onCaseSensitiveKeyDown(function (e) {
+        this._register(this._findInput.onCaseSensitiveKeyDown((e) => {
             if (e.equals(1024 /* Shift */ | 2 /* Tab */)) {
-                if (_this._isReplaceVisible) {
-                    _this._replaceInput.focus();
+                if (this._isReplaceVisible) {
+                    this._replaceInput.focus();
                     e.preventDefault();
                 }
             }
         }));
-        this._register(this._findInput.onRegexKeyDown(function (e) {
+        this._register(this._findInput.onRegexKeyDown((e) => {
             if (e.equals(2 /* Tab */)) {
-                if (_this._isReplaceVisible) {
-                    _this._replaceInput.focusOnPreserve();
+                if (this._isReplaceVisible) {
+                    this._replaceInput.focusOnPreserve();
                     e.preventDefault();
                 }
             }
         }));
-        this._register(this._findInput.inputBox.onDidHeightChange(function (e) {
-            if (_this._tryUpdateHeight()) {
-                _this._showViewZone();
+        this._register(this._findInput.inputBox.onDidHeightChange((e) => {
+            if (this._tryUpdateHeight()) {
+                this._showViewZone();
             }
         }));
         if (platform.isLinux) {
-            this._register(this._findInput.onMouseDown(function (e) { return _this._onFindInputMouseDown(e); }));
+            this._register(this._findInput.onMouseDown((e) => this._onFindInputMouseDown(e)));
         }
         this._matchesCount = document.createElement('div');
         this._matchesCount.className = 'matchesCount';
@@ -802,23 +837,23 @@ var FindWidget = /** @class */ (function (_super) {
         // Previous button
         this._prevBtn = this._register(new SimpleButton({
             label: NLS_PREVIOUS_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.PreviousMatchFindAction),
-            className: 'codicon codicon-arrow-up',
-            onTrigger: function () {
-                _this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().then(undefined, onUnexpectedError);
+            icon: findPreviousMatchIcon,
+            onTrigger: () => {
+                this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().then(undefined, onUnexpectedError);
             }
         }));
         // Next button
         this._nextBtn = this._register(new SimpleButton({
             label: NLS_NEXT_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.NextMatchFindAction),
-            className: 'codicon codicon-arrow-down',
-            onTrigger: function () {
-                _this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().then(undefined, onUnexpectedError);
+            icon: findNextMatchIcon,
+            onTrigger: () => {
+                this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().then(undefined, onUnexpectedError);
             }
         }));
-        var findPart = document.createElement('div');
+        let findPart = document.createElement('div');
         findPart.className = 'find-part';
         findPart.appendChild(this._findInput.domNode);
-        var actionsContainer = document.createElement('div');
+        const actionsContainer = document.createElement('div');
         actionsContainer.className = 'find-actions';
         findPart.appendChild(actionsContainer);
         actionsContainer.appendChild(this._matchesCount);
@@ -826,42 +861,48 @@ var FindWidget = /** @class */ (function (_super) {
         actionsContainer.appendChild(this._nextBtn.domNode);
         // Toggle selection button
         this._toggleSelectionFind = this._register(new Checkbox({
-            actionClassName: 'codicon codicon-selection',
+            icon: findSelectionIcon,
             title: NLS_TOGGLE_SELECTION_FIND_TITLE + this._keybindingLabelFor(FIND_IDS.ToggleSearchScopeCommand),
             isChecked: false
         }));
-        this._register(this._toggleSelectionFind.onChange(function () {
-            if (_this._toggleSelectionFind.checked) {
-                if (_this._codeEditor.hasModel()) {
-                    var selection = _this._codeEditor.getSelection();
-                    if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
-                        selection = selection.setEndPosition(selection.endLineNumber - 1, _this._codeEditor.getModel().getLineMaxColumn(selection.endLineNumber - 1));
-                    }
-                    if (!selection.isEmpty()) {
-                        _this._state.change({ searchScope: selection }, true);
+        this._register(this._toggleSelectionFind.onChange(() => {
+            if (this._toggleSelectionFind.checked) {
+                if (this._codeEditor.hasModel()) {
+                    let selections = this._codeEditor.getSelections();
+                    selections.map(selection => {
+                        if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
+                            selection = selection.setEndPosition(selection.endLineNumber - 1, this._codeEditor.getModel().getLineMaxColumn(selection.endLineNumber - 1));
+                        }
+                        if (!selection.isEmpty()) {
+                            return selection;
+                        }
+                        return null;
+                    }).filter(element => !!element);
+                    if (selections.length) {
+                        this._state.change({ searchScope: selections }, true);
                     }
                 }
             }
             else {
-                _this._state.change({ searchScope: null }, true);
+                this._state.change({ searchScope: null }, true);
             }
         }));
         actionsContainer.appendChild(this._toggleSelectionFind.domNode);
         // Close button
         this._closeBtn = this._register(new SimpleButton({
             label: NLS_CLOSE_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.CloseFindWidgetCommand),
-            className: 'codicon codicon-close',
-            onTrigger: function () {
-                _this._state.change({ isRevealed: false, searchScope: null }, false);
+            icon: widgetClose,
+            onTrigger: () => {
+                this._state.change({ isRevealed: false, searchScope: null }, false);
             },
-            onKeyDown: function (e) {
+            onKeyDown: (e) => {
                 if (e.equals(2 /* Tab */)) {
-                    if (_this._isReplaceVisible) {
-                        if (_this._replaceBtn.isEnabled()) {
-                            _this._replaceBtn.focus();
+                    if (this._isReplaceVisible) {
+                        if (this._replaceBtn.isEnabled()) {
+                            this._replaceBtn.focus();
                         }
                         else {
-                            _this._codeEditor.focus();
+                            this._codeEditor.focus();
                         }
                         e.preventDefault();
                     }
@@ -873,39 +914,41 @@ var FindWidget = /** @class */ (function (_super) {
         this._replaceInput = this._register(new ContextScopedReplaceInput(null, undefined, {
             label: NLS_REPLACE_INPUT_LABEL,
             placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
+            appendPreserveCaseLabel: this._keybindingLabelFor(FIND_IDS.TogglePreserveCaseCommand),
             history: [],
-            flexibleHeight: flexibleHeight,
-            flexibleWidth: flexibleWidth,
-            flexibleMaxHeight: 118
+            flexibleHeight,
+            flexibleWidth,
+            flexibleMaxHeight: 118,
+            showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService)
         }, this._contextKeyService, true));
         this._replaceInput.setPreserveCase(!!this._state.preserveCase);
-        this._register(this._replaceInput.onKeyDown(function (e) { return _this._onReplaceInputKeyDown(e); }));
-        this._register(this._replaceInput.inputBox.onDidChange(function () {
-            _this._state.change({ replaceString: _this._replaceInput.inputBox.value }, false);
+        this._register(this._replaceInput.onKeyDown((e) => this._onReplaceInputKeyDown(e)));
+        this._register(this._replaceInput.inputBox.onDidChange(() => {
+            this._state.change({ replaceString: this._replaceInput.inputBox.value }, false);
         }));
-        this._register(this._replaceInput.inputBox.onDidHeightChange(function (e) {
-            if (_this._isReplaceVisible && _this._tryUpdateHeight()) {
-                _this._showViewZone();
+        this._register(this._replaceInput.inputBox.onDidHeightChange((e) => {
+            if (this._isReplaceVisible && this._tryUpdateHeight()) {
+                this._showViewZone();
             }
         }));
-        this._register(this._replaceInput.onDidOptionChange(function () {
-            _this._state.change({
-                preserveCase: _this._replaceInput.getPreserveCase()
+        this._register(this._replaceInput.onDidOptionChange(() => {
+            this._state.change({
+                preserveCase: this._replaceInput.getPreserveCase()
             }, true);
         }));
-        this._register(this._replaceInput.onPreserveCaseKeyDown(function (e) {
+        this._register(this._replaceInput.onPreserveCaseKeyDown((e) => {
             if (e.equals(2 /* Tab */)) {
-                if (_this._prevBtn.isEnabled()) {
-                    _this._prevBtn.focus();
+                if (this._prevBtn.isEnabled()) {
+                    this._prevBtn.focus();
                 }
-                else if (_this._nextBtn.isEnabled()) {
-                    _this._nextBtn.focus();
+                else if (this._nextBtn.isEnabled()) {
+                    this._nextBtn.focus();
                 }
-                else if (_this._toggleSelectionFind.enabled) {
-                    _this._toggleSelectionFind.focus();
+                else if (this._toggleSelectionFind.enabled) {
+                    this._toggleSelectionFind.focus();
                 }
-                else if (_this._closeBtn.isEnabled()) {
-                    _this._closeBtn.focus();
+                else if (this._closeBtn.isEnabled()) {
+                    this._closeBtn.focus();
                 }
                 e.preventDefault();
             }
@@ -913,13 +956,13 @@ var FindWidget = /** @class */ (function (_super) {
         // Replace one button
         this._replaceBtn = this._register(new SimpleButton({
             label: NLS_REPLACE_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.ReplaceOneAction),
-            className: 'codicon codicon-replace',
-            onTrigger: function () {
-                _this._controller.replace();
+            icon: findReplaceIcon,
+            onTrigger: () => {
+                this._controller.replace();
             },
-            onKeyDown: function (e) {
+            onKeyDown: (e) => {
                 if (e.equals(1024 /* Shift */ | 2 /* Tab */)) {
-                    _this._closeBtn.focus();
+                    this._closeBtn.focus();
                     e.preventDefault();
                 }
             }
@@ -927,15 +970,15 @@ var FindWidget = /** @class */ (function (_super) {
         // Replace all button
         this._replaceAllBtn = this._register(new SimpleButton({
             label: NLS_REPLACE_ALL_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.ReplaceAllAction),
-            className: 'codicon codicon-replace-all',
-            onTrigger: function () {
-                _this._controller.replaceAll();
+            icon: findReplaceAllIcon,
+            onTrigger: () => {
+                this._controller.replaceAll();
             }
         }));
-        var replacePart = document.createElement('div');
+        let replacePart = document.createElement('div');
         replacePart.className = 'replace-part';
         replacePart.appendChild(this._replaceInput.domNode);
-        var replaceActionsContainer = document.createElement('div');
+        const replaceActionsContainer = document.createElement('div');
         replaceActionsContainer.className = 'replace-actions';
         replacePart.appendChild(replaceActionsContainer);
         replaceActionsContainer.appendChild(this._replaceBtn.domNode);
@@ -944,193 +987,203 @@ var FindWidget = /** @class */ (function (_super) {
         this._toggleReplaceBtn = this._register(new SimpleButton({
             label: NLS_TOGGLE_REPLACE_MODE_BTN_LABEL,
             className: 'codicon toggle left',
-            onTrigger: function () {
-                _this._state.change({ isReplaceRevealed: !_this._isReplaceVisible }, false);
-                if (_this._isReplaceVisible) {
-                    _this._replaceInput.width = dom.getTotalWidth(_this._findInput.domNode);
-                    _this._replaceInput.inputBox.layout();
+            onTrigger: () => {
+                this._state.change({ isReplaceRevealed: !this._isReplaceVisible }, false);
+                if (this._isReplaceVisible) {
+                    this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
+                    this._replaceInput.inputBox.layout();
                 }
-                _this._showViewZone();
+                this._showViewZone();
             }
         }));
-        this._toggleReplaceBtn.toggleClass('codicon-chevron-down', this._isReplaceVisible);
-        this._toggleReplaceBtn.toggleClass('codicon-chevron-right', !this._isReplaceVisible);
         this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
         // Widget
         this._domNode = document.createElement('div');
         this._domNode.className = 'editor-widget find-widget';
         this._domNode.setAttribute('aria-hidden', 'true');
         // We need to set this explicitly, otherwise on IE11, the width inheritence of flex doesn't work.
-        this._domNode.style.width = FIND_WIDGET_INITIAL_WIDTH + "px";
+        this._domNode.style.width = `${FIND_WIDGET_INITIAL_WIDTH}px`;
         this._domNode.appendChild(this._toggleReplaceBtn.domNode);
         this._domNode.appendChild(findPart);
         this._domNode.appendChild(replacePart);
-        this._resizeSash = new Sash(this._domNode, this, { orientation: 0 /* VERTICAL */ });
+        this._resizeSash = new Sash(this._domNode, this, { orientation: 0 /* VERTICAL */, size: 2 });
         this._resized = false;
-        var originalWidth = FIND_WIDGET_INITIAL_WIDTH;
-        this._register(this._resizeSash.onDidStart(function () {
-            originalWidth = dom.getTotalWidth(_this._domNode);
+        let originalWidth = FIND_WIDGET_INITIAL_WIDTH;
+        this._register(this._resizeSash.onDidStart(() => {
+            originalWidth = dom.getTotalWidth(this._domNode);
         }));
-        this._register(this._resizeSash.onDidChange(function (evt) {
-            _this._resized = true;
-            var width = originalWidth + evt.startX - evt.currentX;
+        this._register(this._resizeSash.onDidChange((evt) => {
+            this._resized = true;
+            let width = originalWidth + evt.startX - evt.currentX;
             if (width < FIND_WIDGET_INITIAL_WIDTH) {
                 // narrow down the find widget should be handled by CSS.
                 return;
             }
-            var maxWidth = parseFloat(dom.getComputedStyle(_this._domNode).maxWidth) || 0;
+            const maxWidth = parseFloat(dom.getComputedStyle(this._domNode).maxWidth) || 0;
             if (width > maxWidth) {
                 return;
             }
-            _this._domNode.style.width = width + "px";
-            if (_this._isReplaceVisible) {
-                _this._replaceInput.width = dom.getTotalWidth(_this._findInput.domNode);
+            this._domNode.style.width = `${width}px`;
+            if (this._isReplaceVisible) {
+                this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
             }
-            _this._findInput.inputBox.layout();
-            _this._tryUpdateHeight();
+            this._findInput.inputBox.layout();
+            this._tryUpdateHeight();
         }));
-        this._register(this._resizeSash.onDidReset(function () {
+        this._register(this._resizeSash.onDidReset(() => {
             // users double click on the sash
-            var currentWidth = dom.getTotalWidth(_this._domNode);
+            const currentWidth = dom.getTotalWidth(this._domNode);
             if (currentWidth < FIND_WIDGET_INITIAL_WIDTH) {
                 // The editor is narrow and the width of the find widget is controlled fully by CSS.
                 return;
             }
-            var width = FIND_WIDGET_INITIAL_WIDTH;
-            if (!_this._resized || currentWidth === FIND_WIDGET_INITIAL_WIDTH) {
+            let width = FIND_WIDGET_INITIAL_WIDTH;
+            if (!this._resized || currentWidth === FIND_WIDGET_INITIAL_WIDTH) {
                 // 1. never resized before, double click should maximizes it
                 // 2. users resized it already but its width is the same as default
-                var layoutInfo = _this._codeEditor.getLayoutInfo();
-                width = layoutInfo.width - 28 - layoutInfo.minimapWidth - 15;
-                _this._resized = true;
+                const layoutInfo = this._codeEditor.getLayoutInfo();
+                width = layoutInfo.width - 28 - layoutInfo.minimap.minimapWidth - 15;
+                this._resized = true;
             }
             else {
                 /**
                  * no op, the find widget should be shrinked to its default size.
                  */
             }
-            _this._domNode.style.width = width + "px";
-            if (_this._isReplaceVisible) {
-                _this._replaceInput.width = dom.getTotalWidth(_this._findInput.domNode);
+            this._domNode.style.width = `${width}px`;
+            if (this._isReplaceVisible) {
+                this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
             }
-            _this._findInput.inputBox.layout();
+            this._findInput.inputBox.layout();
         }));
-    };
-    FindWidget.prototype.updateAccessibilitySupport = function () {
-        var value = this._codeEditor.getOption(2 /* accessibilitySupport */);
+    }
+    updateAccessibilitySupport() {
+        const value = this._codeEditor.getOption(2 /* accessibilitySupport */);
         this._findInput.setFocusInputOnOptionClick(value !== 2 /* Enabled */);
-    };
-    FindWidget.ID = 'editor.contrib.findWidget';
-    return FindWidget;
-}(Widget));
-export { FindWidget };
-var SimpleButton = /** @class */ (function (_super) {
-    __extends(SimpleButton, _super);
-    function SimpleButton(opts) {
-        var _this = _super.call(this) || this;
-        _this._opts = opts;
-        _this._domNode = document.createElement('div');
-        _this._domNode.title = _this._opts.label;
-        _this._domNode.tabIndex = 0;
-        _this._domNode.className = 'button ' + _this._opts.className;
-        _this._domNode.setAttribute('role', 'button');
-        _this._domNode.setAttribute('aria-label', _this._opts.label);
-        _this.onclick(_this._domNode, function (e) {
-            _this._opts.onTrigger();
+    }
+}
+FindWidget.ID = 'editor.contrib.findWidget';
+export class SimpleButton extends Widget {
+    constructor(opts) {
+        super();
+        this._opts = opts;
+        let className = 'button';
+        if (this._opts.className) {
+            className = className + ' ' + this._opts.className;
+        }
+        if (this._opts.icon) {
+            className = className + ' ' + ThemeIcon.asClassName(this._opts.icon);
+        }
+        this._domNode = document.createElement('div');
+        this._domNode.title = this._opts.label;
+        this._domNode.tabIndex = 0;
+        this._domNode.className = className;
+        this._domNode.setAttribute('role', 'button');
+        this._domNode.setAttribute('aria-label', this._opts.label);
+        this.onclick(this._domNode, (e) => {
+            this._opts.onTrigger();
             e.preventDefault();
         });
-        _this.onkeydown(_this._domNode, function (e) {
+        this.onkeydown(this._domNode, (e) => {
             if (e.equals(10 /* Space */) || e.equals(3 /* Enter */)) {
-                _this._opts.onTrigger();
+                this._opts.onTrigger();
                 e.preventDefault();
                 return;
             }
-            if (_this._opts.onKeyDown) {
-                _this._opts.onKeyDown(e);
+            if (this._opts.onKeyDown) {
+                this._opts.onKeyDown(e);
             }
         });
-        return _this;
     }
-    Object.defineProperty(SimpleButton.prototype, "domNode", {
-        get: function () {
-            return this._domNode;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    SimpleButton.prototype.isEnabled = function () {
+    get domNode() {
+        return this._domNode;
+    }
+    isEnabled() {
         return (this._domNode.tabIndex >= 0);
-    };
-    SimpleButton.prototype.focus = function () {
+    }
+    focus() {
         this._domNode.focus();
-    };
-    SimpleButton.prototype.setEnabled = function (enabled) {
-        dom.toggleClass(this._domNode, 'disabled', !enabled);
+    }
+    setEnabled(enabled) {
+        this._domNode.classList.toggle('disabled', !enabled);
         this._domNode.setAttribute('aria-disabled', String(!enabled));
         this._domNode.tabIndex = enabled ? 0 : -1;
-    };
-    SimpleButton.prototype.setExpanded = function (expanded) {
+    }
+    setExpanded(expanded) {
         this._domNode.setAttribute('aria-expanded', String(!!expanded));
-    };
-    SimpleButton.prototype.toggleClass = function (className, shouldHaveIt) {
-        dom.toggleClass(this._domNode, className, shouldHaveIt);
-    };
-    return SimpleButton;
-}(Widget));
-export { SimpleButton };
+        if (expanded) {
+            this._domNode.classList.remove(...ThemeIcon.asClassNameArray(findCollapsedIcon));
+            this._domNode.classList.add(...ThemeIcon.asClassNameArray(findExpandedIcon));
+        }
+        else {
+            this._domNode.classList.remove(...ThemeIcon.asClassNameArray(findExpandedIcon));
+            this._domNode.classList.add(...ThemeIcon.asClassNameArray(findCollapsedIcon));
+        }
+    }
+}
 // theming
-registerThemingParticipant(function (theme, collector) {
-    var addBackgroundColorRule = function (selector, color) {
+registerThemingParticipant((theme, collector) => {
+    const addBackgroundColorRule = (selector, color) => {
         if (color) {
-            collector.addRule(".monaco-editor " + selector + " { background-color: " + color + "; }");
+            collector.addRule(`.monaco-editor ${selector} { background-color: ${color}; }`);
         }
     };
     addBackgroundColorRule('.findMatch', theme.getColor(editorFindMatchHighlight));
     addBackgroundColorRule('.currentFindMatch', theme.getColor(editorFindMatch));
     addBackgroundColorRule('.findScope', theme.getColor(editorFindRangeHighlight));
-    var widgetBackground = theme.getColor(editorWidgetBackground);
+    const widgetBackground = theme.getColor(editorWidgetBackground);
     addBackgroundColorRule('.find-widget', widgetBackground);
-    var widgetShadowColor = theme.getColor(widgetShadow);
+    const widgetShadowColor = theme.getColor(widgetShadow);
     if (widgetShadowColor) {
-        collector.addRule(".monaco-editor .find-widget { box-shadow: 0 2px 8px " + widgetShadowColor + "; }");
+        collector.addRule(`.monaco-editor .find-widget { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
     }
-    var findMatchHighlightBorder = theme.getColor(editorFindMatchHighlightBorder);
+    const findMatchHighlightBorder = theme.getColor(editorFindMatchHighlightBorder);
     if (findMatchHighlightBorder) {
-        collector.addRule(".monaco-editor .findMatch { border: 1px " + (theme.type === 'hc' ? 'dotted' : 'solid') + " " + findMatchHighlightBorder + "; box-sizing: border-box; }");
+        collector.addRule(`.monaco-editor .findMatch { border: 1px ${theme.type === 'hc' ? 'dotted' : 'solid'} ${findMatchHighlightBorder}; box-sizing: border-box; }`);
     }
-    var findMatchBorder = theme.getColor(editorFindMatchBorder);
+    const findMatchBorder = theme.getColor(editorFindMatchBorder);
     if (findMatchBorder) {
-        collector.addRule(".monaco-editor .currentFindMatch { border: 2px solid " + findMatchBorder + "; padding: 1px; box-sizing: border-box; }");
+        collector.addRule(`.monaco-editor .currentFindMatch { border: 2px solid ${findMatchBorder}; padding: 1px; box-sizing: border-box; }`);
     }
-    var findRangeHighlightBorder = theme.getColor(editorFindRangeHighlightBorder);
+    const findRangeHighlightBorder = theme.getColor(editorFindRangeHighlightBorder);
     if (findRangeHighlightBorder) {
-        collector.addRule(".monaco-editor .findScope { border: 1px " + (theme.type === 'hc' ? 'dashed' : 'solid') + " " + findRangeHighlightBorder + "; }");
+        collector.addRule(`.monaco-editor .findScope { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${findRangeHighlightBorder}; }`);
     }
-    var hcBorder = theme.getColor(contrastBorder);
+    const hcBorder = theme.getColor(contrastBorder);
     if (hcBorder) {
-        collector.addRule(".monaco-editor .find-widget { border: 1px solid " + hcBorder + "; }");
+        collector.addRule(`.monaco-editor .find-widget { border: 1px solid ${hcBorder}; }`);
     }
-    var foreground = theme.getColor(editorWidgetForeground);
+    const foreground = theme.getColor(editorWidgetForeground);
     if (foreground) {
-        collector.addRule(".monaco-editor .find-widget { color: " + foreground + "; }");
+        collector.addRule(`.monaco-editor .find-widget { color: ${foreground}; }`);
     }
-    var error = theme.getColor(errorForeground);
+    const error = theme.getColor(errorForeground);
     if (error) {
-        collector.addRule(".monaco-editor .find-widget.no-results .matchesCount { color: " + error + "; }");
+        collector.addRule(`.monaco-editor .find-widget.no-results .matchesCount { color: ${error}; }`);
     }
-    var resizeBorderBackground = theme.getColor(editorWidgetResizeBorder);
+    const resizeBorderBackground = theme.getColor(editorWidgetResizeBorder);
     if (resizeBorderBackground) {
-        collector.addRule(".monaco-editor .find-widget .monaco-sash { background-color: " + resizeBorderBackground + "; width: 3px !important; margin-left: -4px;}");
+        collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${resizeBorderBackground}; }`);
     }
     else {
-        var border = theme.getColor(editorWidgetBorder);
+        const border = theme.getColor(editorWidgetBorder);
         if (border) {
-            collector.addRule(".monaco-editor .find-widget .monaco-sash { background-color: " + border + "; width: 3px !important; margin-left: -4px;}");
+            collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${border}; }`);
         }
     }
+    // Action bars
+    const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
+    if (toolbarHoverBackgroundColor) {
+        collector.addRule(`
+		.monaco-editor .find-widget .button:not(.disabled):hover,
+		.monaco-editor .find-widget .codicon-find-selection:hover {
+			background-color: ${toolbarHoverBackgroundColor} !important;
+		}
+	`);
+    }
     // This rule is used to override the outline color for synthetic-focus find input.
-    var focusOutline = theme.getColor(focusBorder);
+    const focusOutline = theme.getColor(focusBorder);
     if (focusOutline) {
-        collector.addRule(".monaco-editor .find-widget .monaco-inputbox.synthetic-focus { outline-color: " + focusOutline + "; }");
+        collector.addRule(`.monaco-editor .find-widget .monaco-inputbox.synthetic-focus { outline-color: ${focusOutline}; }`);
     }
 });

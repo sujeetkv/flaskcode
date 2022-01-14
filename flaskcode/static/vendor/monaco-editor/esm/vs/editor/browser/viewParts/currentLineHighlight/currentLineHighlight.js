@@ -2,110 +2,106 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 import './currentLineHighlight.css';
 import { DynamicViewOverlay } from '../../view/dynamicViewOverlay.js';
 import { editorLineHighlight, editorLineHighlightBorder } from '../../../common/view/editorColorRegistry.js';
 import * as arrays from '../../../../base/common/arrays.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
-var isRenderedUsingBorder = true;
-var AbstractLineHighlightOverlay = /** @class */ (function (_super) {
-    __extends(AbstractLineHighlightOverlay, _super);
-    function AbstractLineHighlightOverlay(context) {
-        var _this = _super.call(this) || this;
-        _this._context = context;
-        var options = _this._context.configuration.options;
-        var layoutInfo = options.get(107 /* layoutInfo */);
-        _this._lineHeight = options.get(49 /* lineHeight */);
-        _this._renderLineHighlight = options.get(72 /* renderLineHighlight */);
-        _this._contentLeft = layoutInfo.contentLeft;
-        _this._contentWidth = layoutInfo.contentWidth;
-        _this._selectionIsEmpty = true;
-        _this._cursorLineNumbers = [];
-        _this._selections = [];
-        _this._renderData = null;
-        _this._context.addEventHandler(_this);
-        return _this;
+import { Selection } from '../../../common/core/selection.js';
+let isRenderedUsingBorder = true;
+export class AbstractLineHighlightOverlay extends DynamicViewOverlay {
+    constructor(context) {
+        super();
+        this._context = context;
+        const options = this._context.configuration.options;
+        const layoutInfo = options.get(130 /* layoutInfo */);
+        this._lineHeight = options.get(58 /* lineHeight */);
+        this._renderLineHighlight = options.get(84 /* renderLineHighlight */);
+        this._renderLineHighlightOnlyWhenFocus = options.get(85 /* renderLineHighlightOnlyWhenFocus */);
+        this._contentLeft = layoutInfo.contentLeft;
+        this._contentWidth = layoutInfo.contentWidth;
+        this._selectionIsEmpty = true;
+        this._focused = false;
+        this._cursorLineNumbers = [1];
+        this._selections = [new Selection(1, 1, 1, 1)];
+        this._renderData = null;
+        this._context.addEventHandler(this);
     }
-    AbstractLineHighlightOverlay.prototype.dispose = function () {
+    dispose() {
         this._context.removeEventHandler(this);
-        _super.prototype.dispose.call(this);
-    };
-    AbstractLineHighlightOverlay.prototype._readFromSelections = function () {
-        var hasChanged = false;
+        super.dispose();
+    }
+    _readFromSelections() {
+        let hasChanged = false;
         // Only render the first selection when using border
-        var renderSelections = isRenderedUsingBorder ? this._selections.slice(0, 1) : this._selections;
-        var cursorsLineNumbers = renderSelections.map(function (s) { return s.positionLineNumber; });
-        cursorsLineNumbers.sort(function (a, b) { return a - b; });
+        const renderSelections = isRenderedUsingBorder ? this._selections.slice(0, 1) : this._selections;
+        const cursorsLineNumbers = renderSelections.map(s => s.positionLineNumber);
+        cursorsLineNumbers.sort((a, b) => a - b);
         if (!arrays.equals(this._cursorLineNumbers, cursorsLineNumbers)) {
             this._cursorLineNumbers = cursorsLineNumbers;
             hasChanged = true;
         }
-        var selectionIsEmpty = renderSelections.every(function (s) { return s.isEmpty(); });
+        const selectionIsEmpty = renderSelections.every(s => s.isEmpty());
         if (this._selectionIsEmpty !== selectionIsEmpty) {
             this._selectionIsEmpty = selectionIsEmpty;
             hasChanged = true;
         }
         return hasChanged;
-    };
+    }
     // --- begin event handlers
-    AbstractLineHighlightOverlay.prototype.onThemeChanged = function (e) {
+    onThemeChanged(e) {
         return this._readFromSelections();
-    };
-    AbstractLineHighlightOverlay.prototype.onConfigurationChanged = function (e) {
-        var options = this._context.configuration.options;
-        var layoutInfo = options.get(107 /* layoutInfo */);
-        this._lineHeight = options.get(49 /* lineHeight */);
-        this._renderLineHighlight = options.get(72 /* renderLineHighlight */);
+    }
+    onConfigurationChanged(e) {
+        const options = this._context.configuration.options;
+        const layoutInfo = options.get(130 /* layoutInfo */);
+        this._lineHeight = options.get(58 /* lineHeight */);
+        this._renderLineHighlight = options.get(84 /* renderLineHighlight */);
+        this._renderLineHighlightOnlyWhenFocus = options.get(85 /* renderLineHighlightOnlyWhenFocus */);
         this._contentLeft = layoutInfo.contentLeft;
         this._contentWidth = layoutInfo.contentWidth;
         return true;
-    };
-    AbstractLineHighlightOverlay.prototype.onCursorStateChanged = function (e) {
+    }
+    onCursorStateChanged(e) {
         this._selections = e.selections;
         return this._readFromSelections();
-    };
-    AbstractLineHighlightOverlay.prototype.onFlushed = function (e) {
+    }
+    onFlushed(e) {
         return true;
-    };
-    AbstractLineHighlightOverlay.prototype.onLinesDeleted = function (e) {
+    }
+    onLinesDeleted(e) {
         return true;
-    };
-    AbstractLineHighlightOverlay.prototype.onLinesInserted = function (e) {
+    }
+    onLinesInserted(e) {
         return true;
-    };
-    AbstractLineHighlightOverlay.prototype.onScrollChanged = function (e) {
+    }
+    onScrollChanged(e) {
         return e.scrollWidthChanged || e.scrollTopChanged;
-    };
-    AbstractLineHighlightOverlay.prototype.onZonesChanged = function (e) {
+    }
+    onZonesChanged(e) {
         return true;
-    };
+    }
+    onFocusChanged(e) {
+        if (!this._renderLineHighlightOnlyWhenFocus) {
+            return false;
+        }
+        this._focused = e.isFocused;
+        return true;
+    }
     // --- end event handlers
-    AbstractLineHighlightOverlay.prototype.prepareRender = function (ctx) {
+    prepareRender(ctx) {
         if (!this._shouldRenderThis()) {
             this._renderData = null;
             return;
         }
-        var renderedLine = this._renderOne(ctx);
-        var visibleStartLineNumber = ctx.visibleRange.startLineNumber;
-        var visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-        var len = this._cursorLineNumbers.length;
-        var index = 0;
-        var renderData = [];
-        for (var lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
-            var lineIndex = lineNumber - visibleStartLineNumber;
+        const renderedLine = this._renderOne(ctx);
+        const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+        const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
+        const len = this._cursorLineNumbers.length;
+        let index = 0;
+        const renderData = [];
+        for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
+            const lineIndex = lineNumber - visibleStartLineNumber;
             while (index < len && this._cursorLineNumbers[index] < lineNumber) {
                 index++;
             }
@@ -117,74 +113,67 @@ var AbstractLineHighlightOverlay = /** @class */ (function (_super) {
             }
         }
         this._renderData = renderData;
-    };
-    AbstractLineHighlightOverlay.prototype.render = function (startLineNumber, lineNumber) {
+    }
+    render(startLineNumber, lineNumber) {
         if (!this._renderData) {
             return '';
         }
-        var lineIndex = lineNumber - startLineNumber;
+        const lineIndex = lineNumber - startLineNumber;
         if (lineIndex >= this._renderData.length) {
             return '';
         }
         return this._renderData[lineIndex];
-    };
-    return AbstractLineHighlightOverlay;
-}(DynamicViewOverlay));
-export { AbstractLineHighlightOverlay };
-var CurrentLineHighlightOverlay = /** @class */ (function (_super) {
-    __extends(CurrentLineHighlightOverlay, _super);
-    function CurrentLineHighlightOverlay() {
-        return _super !== null && _super.apply(this, arguments) || this;
     }
-    CurrentLineHighlightOverlay.prototype._renderOne = function (ctx) {
-        var className = 'current-line' + (this._shouldRenderOther() ? ' current-line-both' : '');
-        return "<div class=\"" + className + "\" style=\"width:" + Math.max(ctx.scrollWidth, this._contentWidth) + "px; height:" + this._lineHeight + "px;\"></div>";
-    };
-    CurrentLineHighlightOverlay.prototype._shouldRenderThis = function () {
-        return ((this._renderLineHighlight === 'line' || this._renderLineHighlight === 'all')
-            && this._selectionIsEmpty);
-    };
-    CurrentLineHighlightOverlay.prototype._shouldRenderOther = function () {
-        return ((this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all'));
-    };
-    return CurrentLineHighlightOverlay;
-}(AbstractLineHighlightOverlay));
-export { CurrentLineHighlightOverlay };
-var CurrentLineMarginHighlightOverlay = /** @class */ (function (_super) {
-    __extends(CurrentLineMarginHighlightOverlay, _super);
-    function CurrentLineMarginHighlightOverlay() {
-        return _super !== null && _super.apply(this, arguments) || this;
+}
+export class CurrentLineHighlightOverlay extends AbstractLineHighlightOverlay {
+    _renderOne(ctx) {
+        const className = 'current-line' + (this._shouldRenderOther() ? ' current-line-both' : '');
+        return `<div class="${className}" style="width:${Math.max(ctx.scrollWidth, this._contentWidth)}px; height:${this._lineHeight}px;"></div>`;
     }
-    CurrentLineMarginHighlightOverlay.prototype._renderOne = function (ctx) {
-        var className = 'current-line current-line-margin' + (this._shouldRenderOther() ? ' current-line-margin-both' : '');
-        return "<div class=\"" + className + "\" style=\"width:" + this._contentLeft + "px; height:" + this._lineHeight + "px;\"></div>";
-    };
-    CurrentLineMarginHighlightOverlay.prototype._shouldRenderThis = function () {
-        return ((this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all'));
-    };
-    CurrentLineMarginHighlightOverlay.prototype._shouldRenderOther = function () {
+    _shouldRenderThis() {
         return ((this._renderLineHighlight === 'line' || this._renderLineHighlight === 'all')
-            && this._selectionIsEmpty);
-    };
-    return CurrentLineMarginHighlightOverlay;
-}(AbstractLineHighlightOverlay));
-export { CurrentLineMarginHighlightOverlay };
-registerThemingParticipant(function (theme, collector) {
+            && this._selectionIsEmpty
+            && (!this._renderLineHighlightOnlyWhenFocus || this._focused));
+    }
+    _shouldRenderOther() {
+        return ((this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all')
+            && (!this._renderLineHighlightOnlyWhenFocus || this._focused));
+    }
+}
+export class CurrentLineMarginHighlightOverlay extends AbstractLineHighlightOverlay {
+    _renderOne(ctx) {
+        const className = 'current-line' + (this._shouldRenderMargin() ? ' current-line-margin' : '') + (this._shouldRenderOther() ? ' current-line-margin-both' : '');
+        return `<div class="${className}" style="width:${this._contentLeft}px; height:${this._lineHeight}px;"></div>`;
+    }
+    _shouldRenderMargin() {
+        return ((this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all')
+            && (!this._renderLineHighlightOnlyWhenFocus || this._focused));
+    }
+    _shouldRenderThis() {
+        return true;
+    }
+    _shouldRenderOther() {
+        return ((this._renderLineHighlight === 'line' || this._renderLineHighlight === 'all')
+            && this._selectionIsEmpty
+            && (!this._renderLineHighlightOnlyWhenFocus || this._focused));
+    }
+}
+registerThemingParticipant((theme, collector) => {
     isRenderedUsingBorder = false;
-    var lineHighlight = theme.getColor(editorLineHighlight);
+    const lineHighlight = theme.getColor(editorLineHighlight);
     if (lineHighlight) {
-        collector.addRule(".monaco-editor .view-overlays .current-line { background-color: " + lineHighlight + "; }");
-        collector.addRule(".monaco-editor .margin-view-overlays .current-line-margin { background-color: " + lineHighlight + "; border: none; }");
+        collector.addRule(`.monaco-editor .view-overlays .current-line { background-color: ${lineHighlight}; }`);
+        collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { background-color: ${lineHighlight}; border: none; }`);
     }
     if (!lineHighlight || lineHighlight.isTransparent() || theme.defines(editorLineHighlightBorder)) {
-        var lineHighlightBorder = theme.getColor(editorLineHighlightBorder);
+        const lineHighlightBorder = theme.getColor(editorLineHighlightBorder);
         if (lineHighlightBorder) {
             isRenderedUsingBorder = true;
-            collector.addRule(".monaco-editor .view-overlays .current-line { border: 2px solid " + lineHighlightBorder + "; }");
-            collector.addRule(".monaco-editor .margin-view-overlays .current-line-margin { border: 2px solid " + lineHighlightBorder + "; }");
+            collector.addRule(`.monaco-editor .view-overlays .current-line { border: 2px solid ${lineHighlightBorder}; }`);
+            collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { border: 2px solid ${lineHighlightBorder}; }`);
             if (theme.type === 'hc') {
-                collector.addRule(".monaco-editor .view-overlays .current-line { border-width: 1px; }");
-                collector.addRule(".monaco-editor .margin-view-overlays .current-line-margin { border-width: 1px; }");
+                collector.addRule(`.monaco-editor .view-overlays .current-line { border-width: 1px; }`);
+                collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { border-width: 1px; }`);
             }
         }
     }

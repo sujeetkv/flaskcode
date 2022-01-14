@@ -2,31 +2,28 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var Token = /** @class */ (function () {
-    function Token(offset, type, language) {
-        this.offset = offset | 0; // @perf
+export class Token {
+    constructor(offset, type, language) {
+        this._tokenBrand = undefined;
+        this.offset = offset;
         this.type = type;
         this.language = language;
     }
-    Token.prototype.toString = function () {
+    toString() {
         return '(' + this.offset + ', ' + this.type + ')';
-    };
-    return Token;
-}());
-export { Token };
-var TokenizationResult = /** @class */ (function () {
-    function TokenizationResult(tokens, endState) {
+    }
+}
+export class TokenizationResult {
+    constructor(tokens, endState) {
+        this._tokenizationResultBrand = undefined;
         this.tokens = tokens;
         this.endState = endState;
     }
-    return TokenizationResult;
-}());
-export { TokenizationResult };
-var TokenizationResult2 = /** @class */ (function () {
-    function TokenizationResult2(tokens, endState) {
+}
+export class TokenizationResult2 {
+    constructor(tokens, endState) {
+        this._tokenizationResult2Brand = undefined;
         this.tokens = tokens;
         this.endState = endState;
     }
-    return TokenizationResult2;
-}());
-export { TokenizationResult2 };
+}

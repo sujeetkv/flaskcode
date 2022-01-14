@@ -4,22 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 import { Range } from '../core/range.js';
 import { Selection } from '../core/selection.js';
-var SurroundSelectionCommand = /** @class */ (function () {
-    function SurroundSelectionCommand(range, charBeforeSelection, charAfterSelection) {
+export class SurroundSelectionCommand {
+    constructor(range, charBeforeSelection, charAfterSelection) {
         this._range = range;
         this._charBeforeSelection = charBeforeSelection;
         this._charAfterSelection = charAfterSelection;
     }
-    SurroundSelectionCommand.prototype.getEditOperations = function (model, builder) {
+    getEditOperations(model, builder) {
         builder.addTrackedEditOperation(new Range(this._range.startLineNumber, this._range.startColumn, this._range.startLineNumber, this._range.startColumn), this._charBeforeSelection);
         builder.addTrackedEditOperation(new Range(this._range.endLineNumber, this._range.endColumn, this._range.endLineNumber, this._range.endColumn), this._charAfterSelection);
-    };
-    SurroundSelectionCommand.prototype.computeCursorState = function (model, helper) {
-        var inverseEditOperations = helper.getInverseEditOperations();
-        var firstOperationRange = inverseEditOperations[0].range;
-        var secondOperationRange = inverseEditOperations[1].range;
+    }
+    computeCursorState(model, helper) {
+        let inverseEditOperations = helper.getInverseEditOperations();
+        let firstOperationRange = inverseEditOperations[0].range;
+        let secondOperationRange = inverseEditOperations[1].range;
         return new Selection(firstOperationRange.endLineNumber, firstOperationRange.endColumn, secondOperationRange.endLineNumber, secondOperationRange.endColumn - this._charAfterSelection.length);
-    };
-    return SurroundSelectionCommand;
-}());
-export { SurroundSelectionCommand };
+    }
+}

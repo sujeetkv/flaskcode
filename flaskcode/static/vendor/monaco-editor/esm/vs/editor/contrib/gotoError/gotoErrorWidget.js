@@ -2,56 +2,59 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-import './media/gotoErrorWidget.css';
-import * as nls from '../../../nls.js';
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 import * as dom from '../../../base/browser/dom.js';
-import { dispose, DisposableStore } from '../../../base/common/lifecycle.js';
-import { MarkerSeverity } from '../../../platform/markers/common/markers.js';
-import { Range } from '../../common/core/range.js';
-import { registerColor, oneOf, textLinkForeground, editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoForeground, editorInfoBorder } from '../../../platform/theme/common/colorRegistry.js';
-import { registerThemingParticipant } from '../../../platform/theme/common/themeService.js';
-import { Color } from '../../../base/common/color.js';
 import { ScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { getBaseLabel, getPathLabel } from '../../../base/common/labels.js';
 import { isNonEmptyArray } from '../../../base/common/arrays.js';
+import { Color } from '../../../base/common/color.js';
 import { Emitter } from '../../../base/common/event.js';
-import { PeekViewWidget, peekViewTitleForeground, peekViewTitleInfoForeground } from '../peekView/peekView.js';
+import { getBaseLabel } from '../../../base/common/labels.js';
+import { DisposableStore, dispose } from '../../../base/common/lifecycle.js';
 import { basename } from '../../../base/common/resources.js';
+import { splitLines } from '../../../base/common/strings.js';
+import './media/gotoErrorWidget.css';
+import { Range } from '../../common/core/range.js';
+import { peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from '../peekView/peekView.js';
+import * as nls from '../../../nls.js';
+import { createAndFillInActionBarActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenuService, MenuId } from '../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../platform/label/common/label.js';
+import { MarkerSeverity } from '../../../platform/markers/common/markers.js';
+import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { SeverityIcon } from '../../../platform/severityIcon/common/severityIcon.js';
-var MessageWidget = /** @class */ (function () {
-    function MessageWidget(parent, editor, onRelatedInformation, _openerService) {
-        var _this = this;
+import { contrastBorder, editorBackground, editorErrorBorder, editorErrorForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, oneOf, registerColor, transparent } from '../../../platform/theme/common/colorRegistry.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+class MessageWidget {
+    constructor(parent, editor, onRelatedInformation, _openerService, _labelService) {
         this._openerService = _openerService;
+        this._labelService = _labelService;
         this._lines = 0;
         this._longestLineLength = 0;
         this._relatedDiagnostics = new WeakMap();
         this._disposables = new DisposableStore();
         this._editor = editor;
-        var domNode = document.createElement('div');
+        const domNode = document.createElement('div');
         domNode.className = 'descriptioncontainer';
-        domNode.setAttribute('aria-live', 'assertive');
-        domNode.setAttribute('role', 'alert');
         this._messageBlock = document.createElement('div');
-        dom.addClass(this._messageBlock, 'message');
+        this._messageBlock.classList.add('message');
+        this._messageBlock.setAttribute('aria-live', 'assertive');
+        this._messageBlock.setAttribute('role', 'alert');
         domNode.appendChild(this._messageBlock);
         this._relatedBlock = document.createElement('div');
         domNode.appendChild(this._relatedBlock);
-        this._disposables.add(dom.addStandardDisposableListener(this._relatedBlock, 'click', function (event) {
+        this._disposables.add(dom.addStandardDisposableListener(this._relatedBlock, 'click', event => {
             event.preventDefault();
-            var related = _this._relatedDiagnostics.get(event.target);
+            const related = this._relatedDiagnostics.get(event.target);
             if (related) {
                 onRelatedInformation(related);
             }
@@ -60,23 +63,22 @@ var MessageWidget = /** @class */ (function () {
             horizontal: 1 /* Auto */,
             vertical: 1 /* Auto */,
             useShadows: false,
-            horizontalScrollbarSize: 3,
-            verticalScrollbarSize: 3
+            horizontalScrollbarSize: 6,
+            verticalScrollbarSize: 6
         });
         parent.appendChild(this._scrollable.getDomNode());
-        this._disposables.add(this._scrollable.onScroll(function (e) {
-            domNode.style.left = "-" + e.scrollLeft + "px";
-            domNode.style.top = "-" + e.scrollTop + "px";
+        this._disposables.add(this._scrollable.onScroll(e => {
+            domNode.style.left = `-${e.scrollLeft}px`;
+            domNode.style.top = `-${e.scrollTop}px`;
         }));
         this._disposables.add(this._scrollable);
     }
-    MessageWidget.prototype.dispose = function () {
+    dispose() {
         dispose(this._disposables);
-    };
-    MessageWidget.prototype.update = function (_a) {
-        var _this = this;
-        var source = _a.source, message = _a.message, relatedInformation = _a.relatedInformation, code = _a.code;
-        var sourceAndCodeLength = ((source === null || source === void 0 ? void 0 : source.length) || 0) + '()'.length;
+    }
+    update(marker) {
+        const { source, message, relatedInformation, code } = marker;
+        let sourceAndCodeLength = ((source === null || source === void 0 ? void 0 : source.length) || 0) + '()'.length;
         if (code) {
             if (typeof code === 'string') {
                 sourceAndCodeLength += code.length;
@@ -85,18 +87,17 @@ var MessageWidget = /** @class */ (function () {
                 sourceAndCodeLength += code.value.length;
             }
         }
-        var lines = message.split(/\r\n|\r|\n/g);
+        const lines = splitLines(message);
         this._lines = lines.length;
         this._longestLineLength = 0;
-        for (var _i = 0, lines_1 = lines; _i < lines_1.length; _i++) {
-            var line = lines_1[_i];
+        for (const line of lines) {
             this._longestLineLength = Math.max(line.length + sourceAndCodeLength, this._longestLineLength);
         }
         dom.clearNode(this._messageBlock);
+        this._messageBlock.setAttribute('aria-label', this.getAriaLabel(marker));
         this._editor.applyFontInfo(this._messageBlock);
-        var lastLineElement = this._messageBlock;
-        for (var _b = 0, lines_2 = lines; _b < lines_2.length; _b++) {
-            var line = lines_2[_b];
+        let lastLineElement = this._messageBlock;
+        for (const line of lines) {
             lastLineElement = document.createElement('div');
             lastLineElement.innerText = line;
             if (line === '') {
@@ -105,31 +106,31 @@ var MessageWidget = /** @class */ (function () {
             this._messageBlock.appendChild(lastLineElement);
         }
         if (source || code) {
-            var detailsElement = document.createElement('span');
-            dom.addClass(detailsElement, 'details');
+            const detailsElement = document.createElement('span');
+            detailsElement.classList.add('details');
             lastLineElement.appendChild(detailsElement);
             if (source) {
-                var sourceElement = document.createElement('span');
+                const sourceElement = document.createElement('span');
                 sourceElement.innerText = source;
-                dom.addClass(sourceElement, 'source');
+                sourceElement.classList.add('source');
                 detailsElement.appendChild(sourceElement);
             }
             if (code) {
                 if (typeof code === 'string') {
-                    var codeElement = document.createElement('span');
-                    codeElement.innerText = "(" + code + ")";
-                    dom.addClass(codeElement, 'code');
+                    const codeElement = document.createElement('span');
+                    codeElement.innerText = `(${code})`;
+                    codeElement.classList.add('code');
                     detailsElement.appendChild(codeElement);
                 }
                 else {
                     this._codeLink = dom.$('a.code-link');
-                    this._codeLink.setAttribute('href', "" + code.link.toString());
-                    this._codeLink.onclick = function (e) {
-                        _this._openerService.open(code.link);
+                    this._codeLink.setAttribute('href', `${code.target.toString()}`);
+                    this._codeLink.onclick = (e) => {
+                        this._openerService.open(code.target, { allowCommands: true });
                         e.preventDefault();
                         e.stopPropagation();
                     };
-                    var codeElement = dom.append(this._codeLink, dom.$('span'));
+                    const codeElement = dom.append(this._codeLink, dom.$('span'));
                     codeElement.innerText = code.value;
                     detailsElement.appendChild(this._codeLink);
                 }
@@ -138,18 +139,17 @@ var MessageWidget = /** @class */ (function () {
         dom.clearNode(this._relatedBlock);
         this._editor.applyFontInfo(this._relatedBlock);
         if (isNonEmptyArray(relatedInformation)) {
-            var relatedInformationNode = this._relatedBlock.appendChild(document.createElement('div'));
-            relatedInformationNode.style.paddingTop = Math.floor(this._editor.getOption(49 /* lineHeight */) * 0.66) + "px";
+            const relatedInformationNode = this._relatedBlock.appendChild(document.createElement('div'));
+            relatedInformationNode.style.paddingTop = `${Math.floor(this._editor.getOption(58 /* lineHeight */) * 0.66)}px`;
             this._lines += 1;
-            for (var _c = 0, relatedInformation_1 = relatedInformation; _c < relatedInformation_1.length; _c++) {
-                var related = relatedInformation_1[_c];
-                var container = document.createElement('div');
-                var relatedResource = document.createElement('a');
-                dom.addClass(relatedResource, 'filename');
-                relatedResource.innerHTML = getBaseLabel(related.resource) + "(" + related.startLineNumber + ", " + related.startColumn + "): ";
-                relatedResource.title = getPathLabel(related.resource, undefined);
+            for (const related of relatedInformation) {
+                let container = document.createElement('div');
+                let relatedResource = document.createElement('a');
+                relatedResource.classList.add('filename');
+                relatedResource.innerText = `${getBaseLabel(related.resource)}(${related.startLineNumber}, ${related.startColumn}): `;
+                relatedResource.title = this._labelService.getUriLabel(related.resource);
                 this._relatedDiagnostics.set(relatedResource, related);
-                var relatedMessage = document.createElement('span');
+                let relatedMessage = document.createElement('span');
                 relatedMessage.innerText = related.message;
                 container.appendChild(relatedResource);
                 container.appendChild(relatedMessage);
@@ -157,93 +157,119 @@ var MessageWidget = /** @class */ (function () {
                 relatedInformationNode.appendChild(container);
             }
         }
-        var fontInfo = this._editor.getOption(34 /* fontInfo */);
-        var scrollWidth = Math.ceil(fontInfo.typicalFullwidthCharacterWidth * this._longestLineLength * 0.75);
-        var scrollHeight = fontInfo.lineHeight * this._lines;
-        this._scrollable.setScrollDimensions({ scrollWidth: scrollWidth, scrollHeight: scrollHeight });
-    };
-    MessageWidget.prototype.layout = function (height, width) {
-        this._scrollable.getDomNode().style.height = height + "px";
-        this._scrollable.getDomNode().style.width = width + "px";
-        this._scrollable.setScrollDimensions({ width: width, height: height });
-    };
-    MessageWidget.prototype.getHeightInLines = function () {
-        return Math.min(17, this._lines);
-    };
-    return MessageWidget;
-}());
-var MarkerNavigationWidget = /** @class */ (function (_super) {
-    __extends(MarkerNavigationWidget, _super);
-    function MarkerNavigationWidget(editor, actions, _themeService, _openerService) {
-        var _this = _super.call(this, editor, { showArrow: true, showFrame: true, isAccessible: true }) || this;
-        _this.actions = actions;
-        _this._themeService = _themeService;
-        _this._openerService = _openerService;
-        _this._callOnDispose = new DisposableStore();
-        _this._onDidSelectRelatedInformation = new Emitter();
-        _this.onDidSelectRelatedInformation = _this._onDidSelectRelatedInformation.event;
-        _this._severity = MarkerSeverity.Warning;
-        _this._backgroundColor = Color.white;
-        _this._applyTheme(_themeService.getTheme());
-        _this._callOnDispose.add(_themeService.onThemeChange(_this._applyTheme.bind(_this)));
-        _this.create();
-        return _this;
+        const fontInfo = this._editor.getOption(43 /* fontInfo */);
+        const scrollWidth = Math.ceil(fontInfo.typicalFullwidthCharacterWidth * this._longestLineLength * 0.75);
+        const scrollHeight = fontInfo.lineHeight * this._lines;
+        this._scrollable.setScrollDimensions({ scrollWidth, scrollHeight });
     }
-    MarkerNavigationWidget.prototype._applyTheme = function (theme) {
+    layout(height, width) {
+        this._scrollable.getDomNode().style.height = `${height}px`;
+        this._scrollable.getDomNode().style.width = `${width}px`;
+        this._scrollable.setScrollDimensions({ width, height });
+    }
+    getHeightInLines() {
+        return Math.min(17, this._lines);
+    }
+    getAriaLabel(marker) {
+        let severityLabel = '';
+        switch (marker.severity) {
+            case MarkerSeverity.Error:
+                severityLabel = nls.localize('Error', "Error");
+                break;
+            case MarkerSeverity.Warning:
+                severityLabel = nls.localize('Warning', "Warning");
+                break;
+            case MarkerSeverity.Info:
+                severityLabel = nls.localize('Info', "Info");
+                break;
+            case MarkerSeverity.Hint:
+                severityLabel = nls.localize('Hint', "Hint");
+                break;
+        }
+        let ariaLabel = nls.localize('marker aria', "{0} at {1}. ", severityLabel, marker.startLineNumber + ':' + marker.startColumn);
+        const model = this._editor.getModel();
+        if (model && (marker.startLineNumber <= model.getLineCount()) && (marker.startLineNumber >= 1)) {
+            const lineContent = model.getLineContent(marker.startLineNumber);
+            ariaLabel = `${lineContent}, ${ariaLabel}`;
+        }
+        return ariaLabel;
+    }
+}
+let MarkerNavigationWidget = class MarkerNavigationWidget extends PeekViewWidget {
+    constructor(editor, _themeService, _openerService, _menuService, instantiationService, _contextKeyService, _labelService) {
+        super(editor, { showArrow: true, showFrame: true, isAccessible: true, frameWidth: 1 }, instantiationService);
+        this._themeService = _themeService;
+        this._openerService = _openerService;
+        this._menuService = _menuService;
+        this._contextKeyService = _contextKeyService;
+        this._labelService = _labelService;
+        this._callOnDispose = new DisposableStore();
+        this._onDidSelectRelatedInformation = new Emitter();
+        this.onDidSelectRelatedInformation = this._onDidSelectRelatedInformation.event;
+        this._severity = MarkerSeverity.Warning;
+        this._backgroundColor = Color.white;
+        this._applyTheme(_themeService.getColorTheme());
+        this._callOnDispose.add(_themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
+        this.create();
+    }
+    _applyTheme(theme) {
         this._backgroundColor = theme.getColor(editorMarkerNavigationBackground);
-        var colorId = editorMarkerNavigationError;
+        let colorId = editorMarkerNavigationError;
+        let headerBackground = editorMarkerNavigationErrorHeader;
         if (this._severity === MarkerSeverity.Warning) {
             colorId = editorMarkerNavigationWarning;
+            headerBackground = editorMarkerNavigationWarningHeader;
         }
         else if (this._severity === MarkerSeverity.Info) {
             colorId = editorMarkerNavigationInfo;
+            headerBackground = editorMarkerNavigationInfoHeader;
         }
-        var frameColor = theme.getColor(colorId);
+        const frameColor = theme.getColor(colorId);
+        const headerBg = theme.getColor(headerBackground);
         this.style({
             arrowColor: frameColor,
             frameColor: frameColor,
-            headerBackgroundColor: this._backgroundColor,
+            headerBackgroundColor: headerBg,
             primaryHeadingColor: theme.getColor(peekViewTitleForeground),
             secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
         }); // style() will trigger _applyStyles
-    };
-    MarkerNavigationWidget.prototype._applyStyles = function () {
+    }
+    _applyStyles() {
         if (this._parentContainer) {
             this._parentContainer.style.backgroundColor = this._backgroundColor ? this._backgroundColor.toString() : '';
         }
-        _super.prototype._applyStyles.call(this);
-    };
-    MarkerNavigationWidget.prototype.dispose = function () {
+        super._applyStyles();
+    }
+    dispose() {
         this._callOnDispose.dispose();
-        _super.prototype.dispose.call(this);
-    };
-    MarkerNavigationWidget.prototype._fillHead = function (container) {
-        _super.prototype._fillHead.call(this, container);
-        this._actionbarWidget.push(this.actions, { label: false, icon: true, index: 0 });
-    };
-    MarkerNavigationWidget.prototype._fillTitleIcon = function (container) {
+        super.dispose();
+    }
+    _fillHead(container) {
+        super._fillHead(container);
+        this._disposables.add(this._actionbarWidget.actionRunner.onBeforeRun(e => this.editor.focus()));
+        const actions = [];
+        const menu = this._menuService.createMenu(MarkerNavigationWidget.TitleMenu, this._contextKeyService);
+        createAndFillInActionBarActions(menu, undefined, actions);
+        this._actionbarWidget.push(actions, { label: false, icon: true, index: 0 });
+        menu.dispose();
+    }
+    _fillTitleIcon(container) {
         this._icon = dom.append(container, dom.$(''));
-    };
-    MarkerNavigationWidget.prototype._getActionBarOptions = function () {
-        return {
-            orientation: 0 /* HORIZONTAL */
-        };
-    };
-    MarkerNavigationWidget.prototype._fillBody = function (container) {
-        var _this = this;
+    }
+    _fillBody(container) {
         this._parentContainer = container;
-        dom.addClass(container, 'marker-widget');
+        container.classList.add('marker-widget');
         this._parentContainer.tabIndex = 0;
         this._parentContainer.setAttribute('role', 'tooltip');
         this._container = document.createElement('div');
         container.appendChild(this._container);
-        this._message = new MessageWidget(this._container, this.editor, function (related) { return _this._onDidSelectRelatedInformation.fire(related); }, this._openerService);
+        this._message = new MessageWidget(this._container, this.editor, related => this._onDidSelectRelatedInformation.fire(related), this._openerService, this._labelService);
         this._disposables.add(this._message);
-    };
-    MarkerNavigationWidget.prototype.show = function (where, heightInLines) {
+    }
+    show() {
         throw new Error('call showAtMarker');
-    };
-    MarkerNavigationWidget.prototype.showAtMarker = function (marker, markerIdx, markerCount) {
+    }
+    showAtMarker(marker, markerIdx, markerCount) {
         // update:
         // * title
         // * message
@@ -251,61 +277,65 @@ var MarkerNavigationWidget = /** @class */ (function (_super) {
         this._message.update(marker);
         // update frame color (only applied on 'show')
         this._severity = marker.severity;
-        this._applyTheme(this._themeService.getTheme());
+        this._applyTheme(this._themeService.getColorTheme());
         // show
-        var range = Range.lift(marker);
-        var editorPosition = this.editor.getPosition();
-        var position = editorPosition && range.containsPosition(editorPosition) ? editorPosition : range.getStartPosition();
-        _super.prototype.show.call(this, position, this.computeRequiredHeight());
-        var model = this.editor.getModel();
+        let range = Range.lift(marker);
+        const editorPosition = this.editor.getPosition();
+        let position = editorPosition && range.containsPosition(editorPosition) ? editorPosition : range.getStartPosition();
+        super.show(position, this.computeRequiredHeight());
+        const model = this.editor.getModel();
         if (model) {
-            var detail = markerCount > 1
+            const detail = markerCount > 1
                 ? nls.localize('problems', "{0} of {1} problems", markerIdx, markerCount)
                 : nls.localize('change', "{0} of {1} problem", markerIdx, markerCount);
             this.setTitle(basename(model.uri), detail);
         }
-        this._icon.className = "codicon " + SeverityIcon.className(MarkerSeverity.toSeverity(this._severity));
-        this.editor.revealPositionInCenter(position, 0 /* Smooth */);
+        this._icon.className = `codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(this._severity))}`;
+        this.editor.revealPositionNearTop(position, 0 /* Smooth */);
         this.editor.focus();
-    };
-    MarkerNavigationWidget.prototype.updateMarker = function (marker) {
+    }
+    updateMarker(marker) {
         this._container.classList.remove('stale');
         this._message.update(marker);
-    };
-    MarkerNavigationWidget.prototype.showStale = function () {
+    }
+    showStale() {
         this._container.classList.add('stale');
         this._relayout();
-    };
-    MarkerNavigationWidget.prototype._doLayoutBody = function (heightInPixel, widthInPixel) {
-        _super.prototype._doLayoutBody.call(this, heightInPixel, widthInPixel);
+    }
+    _doLayoutBody(heightInPixel, widthInPixel) {
+        super._doLayoutBody(heightInPixel, widthInPixel);
         this._heightInPixel = heightInPixel;
         this._message.layout(heightInPixel, widthInPixel);
-        this._container.style.height = heightInPixel + "px";
-    };
-    MarkerNavigationWidget.prototype._onWidth = function (widthInPixel) {
+        this._container.style.height = `${heightInPixel}px`;
+    }
+    _onWidth(widthInPixel) {
         this._message.layout(this._heightInPixel, widthInPixel);
-    };
-    MarkerNavigationWidget.prototype._relayout = function () {
-        _super.prototype._relayout.call(this, this.computeRequiredHeight());
-    };
-    MarkerNavigationWidget.prototype.computeRequiredHeight = function () {
+    }
+    _relayout() {
+        super._relayout(this.computeRequiredHeight());
+    }
+    computeRequiredHeight() {
         return 3 + this._message.getHeightInLines();
-    };
-    return MarkerNavigationWidget;
-}(PeekViewWidget));
+    }
+};
+MarkerNavigationWidget.TitleMenu = new MenuId('gotoErrorTitleMenu');
+MarkerNavigationWidget = __decorate([
+    __param(1, IThemeService),
+    __param(2, IOpenerService),
+    __param(3, IMenuService),
+    __param(4, IInstantiationService),
+    __param(5, IContextKeyService),
+    __param(6, ILabelService)
+], MarkerNavigationWidget);
 export { MarkerNavigationWidget };
 // theming
-var errorDefault = oneOf(editorErrorForeground, editorErrorBorder);
-var warningDefault = oneOf(editorWarningForeground, editorWarningBorder);
-var infoDefault = oneOf(editorInfoForeground, editorInfoBorder);
-export var editorMarkerNavigationError = registerColor('editorMarkerNavigationError.background', { dark: errorDefault, light: errorDefault, hc: errorDefault }, nls.localize('editorMarkerNavigationError', 'Editor marker navigation widget error color.'));
-export var editorMarkerNavigationWarning = registerColor('editorMarkerNavigationWarning.background', { dark: warningDefault, light: warningDefault, hc: warningDefault }, nls.localize('editorMarkerNavigationWarning', 'Editor marker navigation widget warning color.'));
-export var editorMarkerNavigationInfo = registerColor('editorMarkerNavigationInfo.background', { dark: infoDefault, light: infoDefault, hc: infoDefault }, nls.localize('editorMarkerNavigationInfo', 'Editor marker navigation widget info color.'));
-export var editorMarkerNavigationBackground = registerColor('editorMarkerNavigation.background', { dark: '#2D2D30', light: Color.white, hc: '#0C141F' }, nls.localize('editorMarkerNavigationBackground', 'Editor marker navigation widget background.'));
-registerThemingParticipant(function (theme, collector) {
-    var linkFg = theme.getColor(textLinkForeground);
-    if (linkFg) {
-        collector.addRule(".monaco-editor .marker-widget a { color: " + linkFg + "; }");
-        collector.addRule(".monaco-editor .marker-widget a.code-link span:hover { color: " + linkFg + "; }");
-    }
-});
+let errorDefault = oneOf(editorErrorForeground, editorErrorBorder);
+let warningDefault = oneOf(editorWarningForeground, editorWarningBorder);
+let infoDefault = oneOf(editorInfoForeground, editorInfoBorder);
+export const editorMarkerNavigationError = registerColor('editorMarkerNavigationError.background', { dark: errorDefault, light: errorDefault, hc: contrastBorder }, nls.localize('editorMarkerNavigationError', 'Editor marker navigation widget error color.'));
+export const editorMarkerNavigationErrorHeader = registerColor('editorMarkerNavigationError.headerBackground', { dark: transparent(editorMarkerNavigationError, .1), light: transparent(editorMarkerNavigationError, .1), hc: null }, nls.localize('editorMarkerNavigationErrorHeaderBackground', 'Editor marker navigation widget error heading background.'));
+export const editorMarkerNavigationWarning = registerColor('editorMarkerNavigationWarning.background', { dark: warningDefault, light: warningDefault, hc: contrastBorder }, nls.localize('editorMarkerNavigationWarning', 'Editor marker navigation widget warning color.'));
+export const editorMarkerNavigationWarningHeader = registerColor('editorMarkerNavigationWarning.headerBackground', { dark: transparent(editorMarkerNavigationWarning, .1), light: transparent(editorMarkerNavigationWarning, .1), hc: '#0C141F' }, nls.localize('editorMarkerNavigationWarningBackground', 'Editor marker navigation widget warning heading background.'));
+export const editorMarkerNavigationInfo = registerColor('editorMarkerNavigationInfo.background', { dark: infoDefault, light: infoDefault, hc: contrastBorder }, nls.localize('editorMarkerNavigationInfo', 'Editor marker navigation widget info color.'));
+export const editorMarkerNavigationInfoHeader = registerColor('editorMarkerNavigationInfo.headerBackground', { dark: transparent(editorMarkerNavigationInfo, .1), light: transparent(editorMarkerNavigationInfo, .1), hc: null }, nls.localize('editorMarkerNavigationInfoHeaderBackground', 'Editor marker navigation widget info heading background.'));
+export const editorMarkerNavigationBackground = registerColor('editorMarkerNavigation.background', { dark: editorBackground, light: editorBackground, hc: editorBackground }, nls.localize('editorMarkerNavigationBackground', 'Editor marker navigation widget background.'));

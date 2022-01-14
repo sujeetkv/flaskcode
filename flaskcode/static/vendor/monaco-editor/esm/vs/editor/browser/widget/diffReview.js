@@ -2,19 +2,25 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var _a;
 import './media/diffReview.css';
 import * as nls from '../../../nls.js';
 import * as dom from '../../../base/browser/dom.js';
@@ -34,16 +40,19 @@ import { RenderLineInput, renderViewLine2 as renderViewLine } from '../../common
 import { ViewLineRenderingData } from '../../common/viewModel/viewModel.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 import { scrollbarShadow } from '../../../platform/theme/common/colorRegistry.js';
-import { registerThemingParticipant } from '../../../platform/theme/common/themeService.js';
-var DIFF_LINES_PADDING = 3;
-var DiffEntry = /** @class */ (function () {
-    function DiffEntry(originalLineStart, originalLineEnd, modifiedLineStart, modifiedLineEnd) {
+import { registerThemingParticipant, ThemeIcon } from '../../../platform/theme/common/themeService.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { registerIcon } from '../../../platform/theme/common/iconRegistry.js';
+import { IModeService } from '../../common/services/modeService.js';
+const DIFF_LINES_PADDING = 3;
+class DiffEntry {
+    constructor(originalLineStart, originalLineEnd, modifiedLineStart, modifiedLineEnd) {
         this.originalLineStart = originalLineStart;
         this.originalLineEnd = originalLineEnd;
         this.modifiedLineStart = modifiedLineStart;
         this.modifiedLineEnd = modifiedLineEnd;
     }
-    DiffEntry.prototype.getType = function () {
+    getType() {
         if (this.originalLineStart === 0) {
             return 1 /* Insert */;
         }
@@ -51,105 +60,93 @@ var DiffEntry = /** @class */ (function () {
             return 2 /* Delete */;
         }
         return 0 /* Equal */;
-    };
-    return DiffEntry;
-}());
-var Diff = /** @class */ (function () {
-    function Diff(entries) {
+    }
+}
+class Diff {
+    constructor(entries) {
         this.entries = entries;
     }
-    return Diff;
-}());
-var DiffReview = /** @class */ (function (_super) {
-    __extends(DiffReview, _super);
-    function DiffReview(diffEditor) {
-        var _this = _super.call(this) || this;
-        _this._width = 0;
-        _this._diffEditor = diffEditor;
-        _this._isVisible = false;
-        _this.shadow = createFastDomNode(document.createElement('div'));
-        _this.shadow.setClassName('diff-review-shadow');
-        _this.actionBarContainer = createFastDomNode(document.createElement('div'));
-        _this.actionBarContainer.setClassName('diff-review-actions');
-        _this._actionBar = _this._register(new ActionBar(_this.actionBarContainer.domNode));
-        _this._actionBar.push(new Action('diffreview.close', nls.localize('label.close', "Close"), 'close-diff-review', true, function () {
-            _this.hide();
-            return Promise.resolve(null);
-        }), { label: false, icon: true });
-        _this.domNode = createFastDomNode(document.createElement('div'));
-        _this.domNode.setClassName('diff-review monaco-editor-background');
-        _this._content = createFastDomNode(document.createElement('div'));
-        _this._content.setClassName('diff-review-content');
-        _this.scrollbar = _this._register(new DomScrollableElement(_this._content.domNode, {}));
-        _this.domNode.domNode.appendChild(_this.scrollbar.getDomNode());
-        _this._register(diffEditor.onDidUpdateDiff(function () {
-            if (!_this._isVisible) {
+}
+const diffReviewInsertIcon = registerIcon('diff-review-insert', Codicon.add, nls.localize('diffReviewInsertIcon', 'Icon for \'Insert\' in diff review.'));
+const diffReviewRemoveIcon = registerIcon('diff-review-remove', Codicon.remove, nls.localize('diffReviewRemoveIcon', 'Icon for \'Remove\' in diff review.'));
+const diffReviewCloseIcon = registerIcon('diff-review-close', Codicon.close, nls.localize('diffReviewCloseIcon', 'Icon for \'Close\' in diff review.'));
+let DiffReview = class DiffReview extends Disposable {
+    constructor(diffEditor, _modeService) {
+        super();
+        this._modeService = _modeService;
+        this._width = 0;
+        this._diffEditor = diffEditor;
+        this._isVisible = false;
+        this.shadow = createFastDomNode(document.createElement('div'));
+        this.shadow.setClassName('diff-review-shadow');
+        this.actionBarContainer = createFastDomNode(document.createElement('div'));
+        this.actionBarContainer.setClassName('diff-review-actions');
+        this._actionBar = this._register(new ActionBar(this.actionBarContainer.domNode));
+        this._actionBar.push(new Action('diffreview.close', nls.localize('label.close', "Close"), 'close-diff-review ' + ThemeIcon.asClassName(diffReviewCloseIcon), true, () => __awaiter(this, void 0, void 0, function* () { return this.hide(); })), { label: false, icon: true });
+        this.domNode = createFastDomNode(document.createElement('div'));
+        this.domNode.setClassName('diff-review monaco-editor-background');
+        this._content = createFastDomNode(document.createElement('div'));
+        this._content.setClassName('diff-review-content');
+        this._content.setAttribute('role', 'code');
+        this.scrollbar = this._register(new DomScrollableElement(this._content.domNode, {}));
+        this.domNode.domNode.appendChild(this.scrollbar.getDomNode());
+        this._register(diffEditor.onDidUpdateDiff(() => {
+            if (!this._isVisible) {
                 return;
             }
-            _this._diffs = _this._compute();
-            _this._render();
+            this._diffs = this._compute();
+            this._render();
         }));
-        _this._register(diffEditor.getModifiedEditor().onDidChangeCursorPosition(function () {
-            if (!_this._isVisible) {
+        this._register(diffEditor.getModifiedEditor().onDidChangeCursorPosition(() => {
+            if (!this._isVisible) {
                 return;
             }
-            _this._render();
+            this._render();
         }));
-        _this._register(diffEditor.getOriginalEditor().onDidFocusEditorWidget(function () {
-            if (_this._isVisible) {
-                _this.hide();
-            }
-        }));
-        _this._register(diffEditor.getModifiedEditor().onDidFocusEditorWidget(function () {
-            if (_this._isVisible) {
-                _this.hide();
-            }
-        }));
-        _this._register(dom.addStandardDisposableListener(_this.domNode.domNode, 'click', function (e) {
+        this._register(dom.addStandardDisposableListener(this.domNode.domNode, 'click', (e) => {
             e.preventDefault();
-            var row = dom.findParentWithClass(e.target, 'diff-review-row');
+            let row = dom.findParentWithClass(e.target, 'diff-review-row');
             if (row) {
-                _this._goToRow(row);
+                this._goToRow(row);
             }
         }));
-        _this._register(dom.addStandardDisposableListener(_this.domNode.domNode, 'keydown', function (e) {
+        this._register(dom.addStandardDisposableListener(this.domNode.domNode, 'keydown', (e) => {
             if (e.equals(18 /* DownArrow */)
                 || e.equals(2048 /* CtrlCmd */ | 18 /* DownArrow */)
                 || e.equals(512 /* Alt */ | 18 /* DownArrow */)) {
                 e.preventDefault();
-                _this._goToRow(_this._getNextRow());
+                this._goToRow(this._getNextRow());
             }
             if (e.equals(16 /* UpArrow */)
                 || e.equals(2048 /* CtrlCmd */ | 16 /* UpArrow */)
                 || e.equals(512 /* Alt */ | 16 /* UpArrow */)) {
                 e.preventDefault();
-                _this._goToRow(_this._getPrevRow());
+                this._goToRow(this._getPrevRow());
             }
             if (e.equals(9 /* Escape */)
                 || e.equals(2048 /* CtrlCmd */ | 9 /* Escape */)
                 || e.equals(512 /* Alt */ | 9 /* Escape */)
                 || e.equals(1024 /* Shift */ | 9 /* Escape */)) {
                 e.preventDefault();
-                _this.hide();
+                this.hide();
             }
             if (e.equals(10 /* Space */)
                 || e.equals(3 /* Enter */)) {
                 e.preventDefault();
-                _this.accept();
+                this.accept();
             }
         }));
-        _this._diffs = [];
-        _this._currentDiff = null;
-        return _this;
+        this._diffs = [];
+        this._currentDiff = null;
     }
-    DiffReview.prototype.prev = function () {
-        var index = 0;
+    prev() {
+        let index = 0;
         if (!this._isVisible) {
             this._diffs = this._compute();
         }
         if (this._isVisible) {
-            var currentIndex = -1;
-            for (var i = 0, len = this._diffs.length; i < len; i++) {
+            let currentIndex = -1;
+            for (let i = 0, len = this._diffs.length; i < len; i++) {
                 if (this._diffs[i] === this._currentDiff) {
                     currentIndex = i;
                     break;
@@ -165,20 +162,22 @@ var DiffReview = /** @class */ (function (_super) {
             return;
         }
         index = index % this._diffs.length;
-        this._diffEditor.setPosition(new Position(this._diffs[index].entries[0].modifiedLineStart, 1));
+        const entries = this._diffs[index].entries;
+        this._diffEditor.setPosition(new Position(entries[0].modifiedLineStart, 1));
+        this._diffEditor.setSelection({ startColumn: 1, startLineNumber: entries[0].modifiedLineStart, endColumn: 1073741824 /* MAX_SAFE_SMALL_INTEGER */, endLineNumber: entries[entries.length - 1].modifiedLineEnd });
         this._isVisible = true;
         this._diffEditor.doLayout();
         this._render();
         this._goToRow(this._getNextRow());
-    };
-    DiffReview.prototype.next = function () {
-        var index = 0;
+    }
+    next() {
+        let index = 0;
         if (!this._isVisible) {
             this._diffs = this._compute();
         }
         if (this._isVisible) {
-            var currentIndex = -1;
-            for (var i = 0, len = this._diffs.length; i < len; i++) {
+            let currentIndex = -1;
+            for (let i = 0, len = this._diffs.length; i < len; i++) {
                 if (this._diffs[i] === this._currentDiff) {
                     currentIndex = i;
                     break;
@@ -194,17 +193,19 @@ var DiffReview = /** @class */ (function (_super) {
             return;
         }
         index = index % this._diffs.length;
-        this._diffEditor.setPosition(new Position(this._diffs[index].entries[0].modifiedLineStart, 1));
+        const entries = this._diffs[index].entries;
+        this._diffEditor.setPosition(new Position(entries[0].modifiedLineStart, 1));
+        this._diffEditor.setSelection({ startColumn: 1, startLineNumber: entries[0].modifiedLineStart, endColumn: 1073741824 /* MAX_SAFE_SMALL_INTEGER */, endLineNumber: entries[entries.length - 1].modifiedLineEnd });
         this._isVisible = true;
         this._diffEditor.doLayout();
         this._render();
         this._goToRow(this._getNextRow());
-    };
-    DiffReview.prototype.accept = function () {
-        var jumpToLineNumber = -1;
-        var current = this._getCurrentFocusedRow();
+    }
+    accept() {
+        let jumpToLineNumber = -1;
+        let current = this._getCurrentFocusedRow();
         if (current) {
-            var lineNumber = parseInt(current.getAttribute('data-line'), 10);
+            let lineNumber = parseInt(current.getAttribute('data-line'), 10);
             if (!isNaN(lineNumber)) {
                 jumpToLineNumber = lineNumber;
             }
@@ -214,15 +215,16 @@ var DiffReview = /** @class */ (function (_super) {
             this._diffEditor.setPosition(new Position(jumpToLineNumber, 1));
             this._diffEditor.revealPosition(new Position(jumpToLineNumber, 1), 1 /* Immediate */);
         }
-    };
-    DiffReview.prototype.hide = function () {
+    }
+    hide() {
         this._isVisible = false;
+        this._diffEditor.updateOptions({ readOnly: false });
         this._diffEditor.focus();
         this._diffEditor.doLayout();
         this._render();
-    };
-    DiffReview.prototype._getPrevRow = function () {
-        var current = this._getCurrentFocusedRow();
+    }
+    _getPrevRow() {
+        let current = this._getCurrentFocusedRow();
         if (!current) {
             return this._getFirstRow();
         }
@@ -230,9 +232,9 @@ var DiffReview = /** @class */ (function (_super) {
             return current.previousElementSibling;
         }
         return current;
-    };
-    DiffReview.prototype._getNextRow = function () {
-        var current = this._getCurrentFocusedRow();
+    }
+    _getNextRow() {
+        let current = this._getCurrentFocusedRow();
         if (!current) {
             return this._getFirstRow();
         }
@@ -240,30 +242,30 @@ var DiffReview = /** @class */ (function (_super) {
             return current.nextElementSibling;
         }
         return current;
-    };
-    DiffReview.prototype._getFirstRow = function () {
+    }
+    _getFirstRow() {
         return this.domNode.domNode.querySelector('.diff-review-row');
-    };
-    DiffReview.prototype._getCurrentFocusedRow = function () {
-        var result = document.activeElement;
+    }
+    _getCurrentFocusedRow() {
+        let result = document.activeElement;
         if (result && /diff-review-row/.test(result.className)) {
             return result;
         }
         return null;
-    };
-    DiffReview.prototype._goToRow = function (row) {
-        var prev = this._getCurrentFocusedRow();
+    }
+    _goToRow(row) {
+        let prev = this._getCurrentFocusedRow();
         row.tabIndex = 0;
         row.focus();
         if (prev && prev !== row) {
             prev.tabIndex = -1;
         }
         this.scrollbar.scanDomNode();
-    };
-    DiffReview.prototype.isVisible = function () {
+    }
+    isVisible() {
         return this._isVisible;
-    };
-    DiffReview.prototype.layout = function (top, width, height) {
+    }
+    layout(top, width, height) {
         this._width = width;
         this.shadow.setTop(top - 6);
         this.shadow.setWidth(width);
@@ -281,40 +283,40 @@ var DiffReview = /** @class */ (function (_super) {
             this.actionBarContainer.setAttribute('aria-hidden', 'true');
             this.actionBarContainer.setDisplay('none');
         }
-    };
-    DiffReview.prototype._compute = function () {
-        var lineChanges = this._diffEditor.getLineChanges();
+    }
+    _compute() {
+        const lineChanges = this._diffEditor.getLineChanges();
         if (!lineChanges || lineChanges.length === 0) {
             return [];
         }
-        var originalModel = this._diffEditor.getOriginalEditor().getModel();
-        var modifiedModel = this._diffEditor.getModifiedEditor().getModel();
+        const originalModel = this._diffEditor.getOriginalEditor().getModel();
+        const modifiedModel = this._diffEditor.getModifiedEditor().getModel();
         if (!originalModel || !modifiedModel) {
             return [];
         }
         return DiffReview._mergeAdjacent(lineChanges, originalModel.getLineCount(), modifiedModel.getLineCount());
-    };
-    DiffReview._mergeAdjacent = function (lineChanges, originalLineCount, modifiedLineCount) {
+    }
+    static _mergeAdjacent(lineChanges, originalLineCount, modifiedLineCount) {
         if (!lineChanges || lineChanges.length === 0) {
             return [];
         }
-        var diffs = [], diffsLength = 0;
-        for (var i = 0, len = lineChanges.length; i < len; i++) {
-            var lineChange = lineChanges[i];
-            var originalStart = lineChange.originalStartLineNumber;
-            var originalEnd = lineChange.originalEndLineNumber;
-            var modifiedStart = lineChange.modifiedStartLineNumber;
-            var modifiedEnd = lineChange.modifiedEndLineNumber;
-            var r_1 = [], rLength_1 = 0;
+        let diffs = [], diffsLength = 0;
+        for (let i = 0, len = lineChanges.length; i < len; i++) {
+            const lineChange = lineChanges[i];
+            const originalStart = lineChange.originalStartLineNumber;
+            const originalEnd = lineChange.originalEndLineNumber;
+            const modifiedStart = lineChange.modifiedStartLineNumber;
+            const modifiedEnd = lineChange.modifiedEndLineNumber;
+            let r = [], rLength = 0;
             // Emit before anchors
             {
-                var originalEqualAbove = (originalEnd === 0 ? originalStart : originalStart - 1);
-                var modifiedEqualAbove = (modifiedEnd === 0 ? modifiedStart : modifiedStart - 1);
+                const originalEqualAbove = (originalEnd === 0 ? originalStart : originalStart - 1);
+                const modifiedEqualAbove = (modifiedEnd === 0 ? modifiedStart : modifiedStart - 1);
                 // Make sure we don't step into the previous diff
-                var minOriginal = 1;
-                var minModified = 1;
+                let minOriginal = 1;
+                let minModified = 1;
                 if (i > 0) {
-                    var prevLineChange = lineChanges[i - 1];
+                    const prevLineChange = lineChanges[i - 1];
                     if (prevLineChange.originalEndLineNumber === 0) {
                         minOriginal = prevLineChange.originalStartLineNumber + 1;
                     }
@@ -328,41 +330,41 @@ var DiffReview = /** @class */ (function (_super) {
                         minModified = prevLineChange.modifiedEndLineNumber + 1;
                     }
                 }
-                var fromOriginal = originalEqualAbove - DIFF_LINES_PADDING + 1;
-                var fromModified = modifiedEqualAbove - DIFF_LINES_PADDING + 1;
+                let fromOriginal = originalEqualAbove - DIFF_LINES_PADDING + 1;
+                let fromModified = modifiedEqualAbove - DIFF_LINES_PADDING + 1;
                 if (fromOriginal < minOriginal) {
-                    var delta = minOriginal - fromOriginal;
+                    const delta = minOriginal - fromOriginal;
                     fromOriginal = fromOriginal + delta;
                     fromModified = fromModified + delta;
                 }
                 if (fromModified < minModified) {
-                    var delta = minModified - fromModified;
+                    const delta = minModified - fromModified;
                     fromOriginal = fromOriginal + delta;
                     fromModified = fromModified + delta;
                 }
-                r_1[rLength_1++] = new DiffEntry(fromOriginal, originalEqualAbove, fromModified, modifiedEqualAbove);
+                r[rLength++] = new DiffEntry(fromOriginal, originalEqualAbove, fromModified, modifiedEqualAbove);
             }
             // Emit deleted lines
             {
                 if (originalEnd !== 0) {
-                    r_1[rLength_1++] = new DiffEntry(originalStart, originalEnd, 0, 0);
+                    r[rLength++] = new DiffEntry(originalStart, originalEnd, 0, 0);
                 }
             }
             // Emit inserted lines
             {
                 if (modifiedEnd !== 0) {
-                    r_1[rLength_1++] = new DiffEntry(0, 0, modifiedStart, modifiedEnd);
+                    r[rLength++] = new DiffEntry(0, 0, modifiedStart, modifiedEnd);
                 }
             }
             // Emit after anchors
             {
-                var originalEqualBelow = (originalEnd === 0 ? originalStart + 1 : originalEnd + 1);
-                var modifiedEqualBelow = (modifiedEnd === 0 ? modifiedStart + 1 : modifiedEnd + 1);
+                const originalEqualBelow = (originalEnd === 0 ? originalStart + 1 : originalEnd + 1);
+                const modifiedEqualBelow = (modifiedEnd === 0 ? modifiedStart + 1 : modifiedEnd + 1);
                 // Make sure we don't step into the next diff
-                var maxOriginal = originalLineCount;
-                var maxModified = modifiedLineCount;
+                let maxOriginal = originalLineCount;
+                let maxModified = modifiedLineCount;
                 if (i + 1 < len) {
-                    var nextLineChange = lineChanges[i + 1];
+                    const nextLineChange = lineChanges[i + 1];
                     if (nextLineChange.originalEndLineNumber === 0) {
                         maxOriginal = nextLineChange.originalStartLineNumber;
                     }
@@ -376,29 +378,29 @@ var DiffReview = /** @class */ (function (_super) {
                         maxModified = nextLineChange.modifiedStartLineNumber - 1;
                     }
                 }
-                var toOriginal = originalEqualBelow + DIFF_LINES_PADDING - 1;
-                var toModified = modifiedEqualBelow + DIFF_LINES_PADDING - 1;
+                let toOriginal = originalEqualBelow + DIFF_LINES_PADDING - 1;
+                let toModified = modifiedEqualBelow + DIFF_LINES_PADDING - 1;
                 if (toOriginal > maxOriginal) {
-                    var delta = maxOriginal - toOriginal;
+                    const delta = maxOriginal - toOriginal;
                     toOriginal = toOriginal + delta;
                     toModified = toModified + delta;
                 }
                 if (toModified > maxModified) {
-                    var delta = maxModified - toModified;
+                    const delta = maxModified - toModified;
                     toOriginal = toOriginal + delta;
                     toModified = toModified + delta;
                 }
-                r_1[rLength_1++] = new DiffEntry(originalEqualBelow, toOriginal, modifiedEqualBelow, toModified);
+                r[rLength++] = new DiffEntry(originalEqualBelow, toOriginal, modifiedEqualBelow, toModified);
             }
-            diffs[diffsLength++] = new Diff(r_1);
+            diffs[diffsLength++] = new Diff(r);
         }
         // Merge adjacent diffs
-        var curr = diffs[0].entries;
-        var r = [], rLength = 0;
-        for (var i = 1, len = diffs.length; i < len; i++) {
-            var thisDiff = diffs[i].entries;
-            var currLast = curr[curr.length - 1];
-            var thisFirst = thisDiff[0];
+        let curr = diffs[0].entries;
+        let r = [], rLength = 0;
+        for (let i = 1, len = diffs.length; i < len; i++) {
+            const thisDiff = diffs[i].entries;
+            const currLast = curr[curr.length - 1];
+            const thisFirst = thisDiff[0];
             if (currLast.getType() === 0 /* Equal */
                 && thisFirst.getType() === 0 /* Equal */
                 && thisFirst.originalLineStart <= currLast.originalLineEnd) {
@@ -412,51 +414,53 @@ var DiffReview = /** @class */ (function (_super) {
         }
         r[rLength++] = new Diff(curr);
         return r;
-    };
-    DiffReview.prototype._findDiffIndex = function (pos) {
-        var lineNumber = pos.lineNumber;
-        for (var i = 0, len = this._diffs.length; i < len; i++) {
-            var diff = this._diffs[i].entries;
-            var lastModifiedLine = diff[diff.length - 1].modifiedLineEnd;
+    }
+    _findDiffIndex(pos) {
+        const lineNumber = pos.lineNumber;
+        for (let i = 0, len = this._diffs.length; i < len; i++) {
+            const diff = this._diffs[i].entries;
+            const lastModifiedLine = diff[diff.length - 1].modifiedLineEnd;
             if (lineNumber <= lastModifiedLine) {
                 return i;
             }
         }
         return 0;
-    };
-    DiffReview.prototype._render = function () {
-        var originalOptions = this._diffEditor.getOriginalEditor().getOptions();
-        var modifiedOptions = this._diffEditor.getModifiedEditor().getOptions();
-        var originalModel = this._diffEditor.getOriginalEditor().getModel();
-        var modifiedModel = this._diffEditor.getModifiedEditor().getModel();
-        var originalModelOpts = originalModel.getOptions();
-        var modifiedModelOpts = modifiedModel.getOptions();
+    }
+    _render() {
+        const originalOptions = this._diffEditor.getOriginalEditor().getOptions();
+        const modifiedOptions = this._diffEditor.getModifiedEditor().getOptions();
+        const originalModel = this._diffEditor.getOriginalEditor().getModel();
+        const modifiedModel = this._diffEditor.getModifiedEditor().getModel();
+        const originalModelOpts = originalModel.getOptions();
+        const modifiedModelOpts = modifiedModel.getOptions();
         if (!this._isVisible || !originalModel || !modifiedModel) {
             dom.clearNode(this._content.domNode);
             this._currentDiff = null;
             this.scrollbar.scanDomNode();
             return;
         }
-        var diffIndex = this._findDiffIndex(this._diffEditor.getPosition());
+        this._diffEditor.updateOptions({ readOnly: true });
+        const diffIndex = this._findDiffIndex(this._diffEditor.getPosition());
         if (this._diffs[diffIndex] === this._currentDiff) {
             return;
         }
         this._currentDiff = this._diffs[diffIndex];
-        var diffs = this._diffs[diffIndex].entries;
-        var container = document.createElement('div');
+        const diffs = this._diffs[diffIndex].entries;
+        let container = document.createElement('div');
         container.className = 'diff-review-table';
         container.setAttribute('role', 'list');
-        Configuration.applyFontInfoSlow(container, modifiedOptions.get(34 /* fontInfo */));
-        var minOriginalLine = 0;
-        var maxOriginalLine = 0;
-        var minModifiedLine = 0;
-        var maxModifiedLine = 0;
-        for (var i = 0, len = diffs.length; i < len; i++) {
-            var diffEntry = diffs[i];
-            var originalLineStart = diffEntry.originalLineStart;
-            var originalLineEnd = diffEntry.originalLineEnd;
-            var modifiedLineStart = diffEntry.modifiedLineStart;
-            var modifiedLineEnd = diffEntry.modifiedLineEnd;
+        container.setAttribute('aria-label', 'Difference review. Use "Stage | Unstage | Revert Selected Ranges" commands');
+        Configuration.applyFontInfoSlow(container, modifiedOptions.get(43 /* fontInfo */));
+        let minOriginalLine = 0;
+        let maxOriginalLine = 0;
+        let minModifiedLine = 0;
+        let maxModifiedLine = 0;
+        for (let i = 0, len = diffs.length; i < len; i++) {
+            const diffEntry = diffs[i];
+            const originalLineStart = diffEntry.originalLineStart;
+            const originalLineEnd = diffEntry.originalLineEnd;
+            const modifiedLineStart = diffEntry.modifiedLineStart;
+            const modifiedLineEnd = diffEntry.modifiedLineEnd;
             if (originalLineStart !== 0 && ((minOriginalLine === 0 || originalLineStart < minOriginalLine))) {
                 minOriginalLine = originalLineStart;
             }
@@ -470,27 +474,27 @@ var DiffReview = /** @class */ (function (_super) {
                 maxModifiedLine = modifiedLineEnd;
             }
         }
-        var header = document.createElement('div');
+        let header = document.createElement('div');
         header.className = 'diff-review-row';
-        var cell = document.createElement('div');
+        let cell = document.createElement('div');
         cell.className = 'diff-review-cell diff-review-summary';
-        var originalChangedLinesCnt = maxOriginalLine - minOriginalLine + 1;
-        var modifiedChangedLinesCnt = maxModifiedLine - minModifiedLine + 1;
-        cell.appendChild(document.createTextNode(diffIndex + 1 + "/" + this._diffs.length + ": @@ -" + minOriginalLine + "," + originalChangedLinesCnt + " +" + minModifiedLine + "," + modifiedChangedLinesCnt + " @@"));
+        const originalChangedLinesCnt = maxOriginalLine - minOriginalLine + 1;
+        const modifiedChangedLinesCnt = maxModifiedLine - minModifiedLine + 1;
+        cell.appendChild(document.createTextNode(`${diffIndex + 1}/${this._diffs.length}: @@ -${minOriginalLine},${originalChangedLinesCnt} +${minModifiedLine},${modifiedChangedLinesCnt} @@`));
         header.setAttribute('data-line', String(minModifiedLine));
-        var getAriaLines = function (lines) {
+        const getAriaLines = (lines) => {
             if (lines === 0) {
-                return nls.localize('no_lines', "no lines");
+                return nls.localize('no_lines_changed', "no lines changed");
             }
             else if (lines === 1) {
-                return nls.localize('one_line', "1 line");
+                return nls.localize('one_line_changed', "1 line changed");
             }
             else {
-                return nls.localize('more_lines', "{0} lines", lines);
+                return nls.localize('more_lines_changed', "{0} lines changed", lines);
             }
         };
-        var originalChangedLinesCntAria = getAriaLines(originalChangedLinesCnt);
-        var modifiedChangedLinesCntAria = getAriaLines(modifiedChangedLinesCnt);
+        const originalChangedLinesCntAria = getAriaLines(originalChangedLinesCnt);
+        const modifiedChangedLinesCntAria = getAriaLines(modifiedChangedLinesCnt);
         header.setAttribute('aria-label', nls.localize({
             key: 'header',
             comment: [
@@ -499,17 +503,18 @@ var DiffReview = /** @class */ (function (_super) {
                 'That encodes that at original line 154 (which is now line 159), 12 lines were removed/changed with 39 lines.',
                 'Variables 0 and 1 refer to the diff index out of total number of diffs.',
                 'Variables 2 and 4 will be numbers (a line number).',
-                'Variables 3 and 5 will be "no lines", "1 line" or "X lines", localized separately.'
+                'Variables 3 and 5 will be "no lines changed", "1 line changed" or "X lines changed", localized separately.'
             ]
-        }, "Difference {0} of {1}: original {2}, {3}, modified {4}, {5}", (diffIndex + 1), this._diffs.length, minOriginalLine, originalChangedLinesCntAria, minModifiedLine, modifiedChangedLinesCntAria));
+        }, "Difference {0} of {1}: original line {2}, {3}, modified line {4}, {5}", (diffIndex + 1), this._diffs.length, minOriginalLine, originalChangedLinesCntAria, minModifiedLine, modifiedChangedLinesCntAria));
         header.appendChild(cell);
         // @@ -504,7 +517,7 @@
         header.setAttribute('role', 'listitem');
         container.appendChild(header);
-        var modLine = minModifiedLine;
-        for (var i = 0, len = diffs.length; i < len; i++) {
-            var diffEntry = diffs[i];
-            DiffReview._renderSection(container, diffEntry, modLine, this._width, originalOptions, originalModel, originalModelOpts, modifiedOptions, modifiedModel, modifiedModelOpts);
+        const lineHeight = modifiedOptions.get(58 /* lineHeight */);
+        let modLine = minModifiedLine;
+        for (let i = 0, len = diffs.length; i < len; i++) {
+            const diffEntry = diffs[i];
+            DiffReview._renderSection(container, diffEntry, modLine, lineHeight, this._width, originalOptions, originalModel, originalModelOpts, modifiedOptions, modifiedModel, modifiedModelOpts, this._modeService.languageIdCodec);
             if (diffEntry.modifiedLineStart !== 0) {
                 modLine = diffEntry.modifiedLineEnd;
             }
@@ -517,37 +522,38 @@ var DiffReview = /** @class */ (function (_super) {
         dom.clearNode(this._content.domNode);
         this._content.domNode.appendChild(container);
         this.scrollbar.scanDomNode();
-    };
-    DiffReview._renderSection = function (dest, diffEntry, modLine, width, originalOptions, originalModel, originalModelOpts, modifiedOptions, modifiedModel, modifiedModelOpts) {
-        var type = diffEntry.getType();
-        var rowClassName = 'diff-review-row';
-        var lineNumbersExtraClassName = '';
-        var spacerClassName = 'diff-review-spacer';
+    }
+    static _renderSection(dest, diffEntry, modLine, lineHeight, width, originalOptions, originalModel, originalModelOpts, modifiedOptions, modifiedModel, modifiedModelOpts, languageIdCodec) {
+        const type = diffEntry.getType();
+        let rowClassName = 'diff-review-row';
+        let lineNumbersExtraClassName = '';
+        const spacerClassName = 'diff-review-spacer';
+        let spacerIcon = null;
         switch (type) {
             case 1 /* Insert */:
                 rowClassName = 'diff-review-row line-insert';
                 lineNumbersExtraClassName = ' char-insert';
-                spacerClassName = 'diff-review-spacer insert-sign';
+                spacerIcon = diffReviewInsertIcon;
                 break;
             case 2 /* Delete */:
                 rowClassName = 'diff-review-row line-delete';
                 lineNumbersExtraClassName = ' char-delete';
-                spacerClassName = 'diff-review-spacer delete-sign';
+                spacerIcon = diffReviewRemoveIcon;
                 break;
         }
-        var originalLineStart = diffEntry.originalLineStart;
-        var originalLineEnd = diffEntry.originalLineEnd;
-        var modifiedLineStart = diffEntry.modifiedLineStart;
-        var modifiedLineEnd = diffEntry.modifiedLineEnd;
-        var cnt = Math.max(modifiedLineEnd - modifiedLineStart, originalLineEnd - originalLineStart);
-        var originalLayoutInfo = originalOptions.get(107 /* layoutInfo */);
-        var originalLineNumbersWidth = originalLayoutInfo.glyphMarginWidth + originalLayoutInfo.lineNumbersWidth;
-        var modifiedLayoutInfo = modifiedOptions.get(107 /* layoutInfo */);
-        var modifiedLineNumbersWidth = 10 + modifiedLayoutInfo.glyphMarginWidth + modifiedLayoutInfo.lineNumbersWidth;
-        for (var i = 0; i <= cnt; i++) {
-            var originalLine = (originalLineStart === 0 ? 0 : originalLineStart + i);
-            var modifiedLine = (modifiedLineStart === 0 ? 0 : modifiedLineStart + i);
-            var row = document.createElement('div');
+        const originalLineStart = diffEntry.originalLineStart;
+        const originalLineEnd = diffEntry.originalLineEnd;
+        const modifiedLineStart = diffEntry.modifiedLineStart;
+        const modifiedLineEnd = diffEntry.modifiedLineEnd;
+        const cnt = Math.max(modifiedLineEnd - modifiedLineStart, originalLineEnd - originalLineStart);
+        const originalLayoutInfo = originalOptions.get(130 /* layoutInfo */);
+        const originalLineNumbersWidth = originalLayoutInfo.glyphMarginWidth + originalLayoutInfo.lineNumbersWidth;
+        const modifiedLayoutInfo = modifiedOptions.get(130 /* layoutInfo */);
+        const modifiedLineNumbersWidth = 10 + modifiedLayoutInfo.glyphMarginWidth + modifiedLayoutInfo.lineNumbersWidth;
+        for (let i = 0; i <= cnt; i++) {
+            const originalLine = (originalLineStart === 0 ? 0 : originalLineStart + i);
+            const modifiedLine = (modifiedLineStart === 0 ? 0 : modifiedLineStart + i);
+            const row = document.createElement('div');
             row.style.minWidth = width + 'px';
             row.className = rowClassName;
             row.setAttribute('role', 'listitem');
@@ -555,10 +561,11 @@ var DiffReview = /** @class */ (function (_super) {
                 modLine = modifiedLine;
             }
             row.setAttribute('data-line', String(modLine));
-            var cell = document.createElement('div');
+            let cell = document.createElement('div');
             cell.className = 'diff-review-cell';
+            cell.style.height = `${lineHeight}px`;
             row.appendChild(cell);
-            var originalLineNumber = document.createElement('span');
+            const originalLineNumber = document.createElement('span');
             originalLineNumber.style.width = (originalLineNumbersWidth + 'px');
             originalLineNumber.style.minWidth = (originalLineNumbersWidth + 'px');
             originalLineNumber.className = 'diff-review-line-number' + lineNumbersExtraClassName;
@@ -566,10 +573,10 @@ var DiffReview = /** @class */ (function (_super) {
                 originalLineNumber.appendChild(document.createTextNode(String(originalLine)));
             }
             else {
-                originalLineNumber.innerHTML = '&#160;';
+                originalLineNumber.innerText = '\u00a0';
             }
             cell.appendChild(originalLineNumber);
-            var modifiedLineNumber = document.createElement('span');
+            const modifiedLineNumber = document.createElement('span');
             modifiedLineNumber.style.width = (modifiedLineNumbersWidth + 'px');
             modifiedLineNumber.style.minWidth = (modifiedLineNumbersWidth + 'px');
             modifiedLineNumber.style.paddingRight = '10px';
@@ -578,74 +585,91 @@ var DiffReview = /** @class */ (function (_super) {
                 modifiedLineNumber.appendChild(document.createTextNode(String(modifiedLine)));
             }
             else {
-                modifiedLineNumber.innerHTML = '&#160;';
+                modifiedLineNumber.innerText = '\u00a0';
             }
             cell.appendChild(modifiedLineNumber);
-            var spacer = document.createElement('span');
+            const spacer = document.createElement('span');
             spacer.className = spacerClassName;
-            spacer.innerHTML = '&#160;&#160;';
+            if (spacerIcon) {
+                const spacerCodicon = document.createElement('span');
+                spacerCodicon.className = ThemeIcon.asClassName(spacerIcon);
+                spacerCodicon.innerText = '\u00a0\u00a0';
+                spacer.appendChild(spacerCodicon);
+            }
+            else {
+                spacer.innerText = '\u00a0\u00a0';
+            }
             cell.appendChild(spacer);
-            var lineContent = void 0;
+            let lineContent;
             if (modifiedLine !== 0) {
-                cell.insertAdjacentHTML('beforeend', this._renderLine(modifiedModel, modifiedOptions, modifiedModelOpts.tabSize, modifiedLine));
+                let html = this._renderLine(modifiedModel, modifiedOptions, modifiedModelOpts.tabSize, modifiedLine, languageIdCodec);
+                if (DiffReview._ttPolicy) {
+                    html = DiffReview._ttPolicy.createHTML(html);
+                }
+                cell.insertAdjacentHTML('beforeend', html);
                 lineContent = modifiedModel.getLineContent(modifiedLine);
             }
             else {
-                cell.insertAdjacentHTML('beforeend', this._renderLine(originalModel, originalOptions, originalModelOpts.tabSize, originalLine));
+                let html = this._renderLine(originalModel, originalOptions, originalModelOpts.tabSize, originalLine, languageIdCodec);
+                if (DiffReview._ttPolicy) {
+                    html = DiffReview._ttPolicy.createHTML(html);
+                }
+                cell.insertAdjacentHTML('beforeend', html);
                 lineContent = originalModel.getLineContent(originalLine);
             }
             if (lineContent.length === 0) {
                 lineContent = nls.localize('blankLine', "blank");
             }
-            var ariaLabel = '';
+            let ariaLabel = '';
             switch (type) {
                 case 0 /* Equal */:
-                    ariaLabel = nls.localize('equalLine', "original {0}, modified {1}: {2}", originalLine, modifiedLine, lineContent);
+                    if (originalLine === modifiedLine) {
+                        ariaLabel = nls.localize({ key: 'unchangedLine', comment: ['The placeholders are contents of the line and should not be translated.'] }, "{0} unchanged line {1}", lineContent, originalLine);
+                    }
+                    else {
+                        ariaLabel = nls.localize('equalLine', "{0} original line {1} modified line {2}", lineContent, originalLine, modifiedLine);
+                    }
                     break;
                 case 1 /* Insert */:
-                    ariaLabel = nls.localize('insertLine', "+ modified {0}: {1}", modifiedLine, lineContent);
+                    ariaLabel = nls.localize('insertLine', "+ {0} modified line {1}", lineContent, modifiedLine);
                     break;
                 case 2 /* Delete */:
-                    ariaLabel = nls.localize('deleteLine', "- original {0}: {1}", originalLine, lineContent);
+                    ariaLabel = nls.localize('deleteLine', "- {0} original line {1}", lineContent, originalLine);
                     break;
             }
             row.setAttribute('aria-label', ariaLabel);
             dest.appendChild(row);
         }
-    };
-    DiffReview._renderLine = function (model, options, tabSize, lineNumber) {
-        var lineContent = model.getLineContent(lineNumber);
-        var fontInfo = options.get(34 /* fontInfo */);
-        var defaultMetadata = ((0 /* None */ << 11 /* FONT_STYLE_OFFSET */)
-            | (1 /* DefaultForeground */ << 14 /* FOREGROUND_OFFSET */)
-            | (2 /* DefaultBackground */ << 23 /* BACKGROUND_OFFSET */)) >>> 0;
-        var tokens = new Uint32Array(2);
-        tokens[0] = lineContent.length;
-        tokens[1] = defaultMetadata;
-        var lineTokens = new LineTokens(tokens, lineContent);
-        var isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, model.mightContainNonBasicASCII());
-        var containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
-        var r = renderViewLine(new RenderLineInput((fontInfo.isMonospace && !options.get(23 /* disableMonospaceOptimizations */)), fontInfo.canUseHalfwidthRightwardsArrow, lineContent, false, isBasicASCII, containsRTL, 0, lineTokens, [], tabSize, 0, fontInfo.spaceWidth, fontInfo.middotWidth, options.get(88 /* stopRenderingLineAfter */), options.get(74 /* renderWhitespace */), options.get(69 /* renderControlCharacters */), options.get(35 /* fontLigatures */) !== EditorFontLigatures.OFF, null));
+    }
+    static _renderLine(model, options, tabSize, lineNumber, languageIdCodec) {
+        const lineContent = model.getLineContent(lineNumber);
+        const fontInfo = options.get(43 /* fontInfo */);
+        const lineTokens = LineTokens.createEmpty(lineContent, languageIdCodec);
+        const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, model.mightContainNonBasicASCII());
+        const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
+        const r = renderViewLine(new RenderLineInput((fontInfo.isMonospace && !options.get(29 /* disableMonospaceOptimizations */)), fontInfo.canUseHalfwidthRightwardsArrow, lineContent, false, isBasicASCII, containsRTL, 0, lineTokens, [], tabSize, 0, fontInfo.spaceWidth, fontInfo.middotWidth, fontInfo.wsmiddotWidth, options.get(104 /* stopRenderingLineAfter */), options.get(87 /* renderWhitespace */), options.get(82 /* renderControlCharacters */), options.get(44 /* fontLigatures */) !== EditorFontLigatures.OFF, null));
         return r.html;
-    };
-    return DiffReview;
-}(Disposable));
+    }
+};
+DiffReview._ttPolicy = (_a = window.trustedTypes) === null || _a === void 0 ? void 0 : _a.createPolicy('diffReview', { createHTML: value => value });
+DiffReview = __decorate([
+    __param(1, IModeService)
+], DiffReview);
 export { DiffReview };
 // theming
-registerThemingParticipant(function (theme, collector) {
-    var lineNumbers = theme.getColor(editorLineNumbers);
+registerThemingParticipant((theme, collector) => {
+    const lineNumbers = theme.getColor(editorLineNumbers);
     if (lineNumbers) {
-        collector.addRule(".monaco-diff-editor .diff-review-line-number { color: " + lineNumbers + "; }");
+        collector.addRule(`.monaco-diff-editor .diff-review-line-number { color: ${lineNumbers}; }`);
     }
-    var shadow = theme.getColor(scrollbarShadow);
+    const shadow = theme.getColor(scrollbarShadow);
     if (shadow) {
-        collector.addRule(".monaco-diff-editor .diff-review-shadow { box-shadow: " + shadow + " 0 -6px 6px -6px inset; }");
+        collector.addRule(`.monaco-diff-editor .diff-review-shadow { box-shadow: ${shadow} 0 -6px 6px -6px inset; }`);
     }
 });
-var DiffReviewNext = /** @class */ (function (_super) {
-    __extends(DiffReviewNext, _super);
-    function DiffReviewNext() {
-        return _super.call(this, {
+class DiffReviewNext extends EditorAction {
+    constructor() {
+        super({
             id: 'editor.action.diffReview.next',
             label: nls.localize('editor.action.diffReview.next', "Go to Next Difference"),
             alias: 'Go to Next Difference',
@@ -655,20 +679,18 @@ var DiffReviewNext = /** @class */ (function (_super) {
                 primary: 65 /* F7 */,
                 weight: 100 /* EditorContrib */
             }
-        }) || this;
+        });
     }
-    DiffReviewNext.prototype.run = function (accessor, editor) {
-        var diffEditor = findFocusedDiffEditor(accessor);
+    run(accessor, editor) {
+        const diffEditor = findFocusedDiffEditor(accessor);
         if (diffEditor) {
             diffEditor.diffReviewNext();
         }
-    };
-    return DiffReviewNext;
-}(EditorAction));
-var DiffReviewPrev = /** @class */ (function (_super) {
-    __extends(DiffReviewPrev, _super);
-    function DiffReviewPrev() {
-        return _super.call(this, {
+    }
+}
+class DiffReviewPrev extends EditorAction {
+    constructor() {
+        super({
             id: 'editor.action.diffReview.prev',
             label: nls.localize('editor.action.diffReview.prev', "Go to Previous Difference"),
             alias: 'Go to Previous Difference',
@@ -678,22 +700,25 @@ var DiffReviewPrev = /** @class */ (function (_super) {
                 primary: 1024 /* Shift */ | 65 /* F7 */,
                 weight: 100 /* EditorContrib */
             }
-        }) || this;
+        });
     }
-    DiffReviewPrev.prototype.run = function (accessor, editor) {
-        var diffEditor = findFocusedDiffEditor(accessor);
+    run(accessor, editor) {
+        const diffEditor = findFocusedDiffEditor(accessor);
         if (diffEditor) {
             diffEditor.diffReviewPrev();
         }
-    };
-    return DiffReviewPrev;
-}(EditorAction));
+    }
+}
 function findFocusedDiffEditor(accessor) {
-    var codeEditorService = accessor.get(ICodeEditorService);
-    var diffEditors = codeEditorService.listDiffEditors();
-    for (var i = 0, len = diffEditors.length; i < len; i++) {
-        var diffEditor = diffEditors[i];
-        if (diffEditor.hasWidgetFocus()) {
+    const codeEditorService = accessor.get(ICodeEditorService);
+    const diffEditors = codeEditorService.listDiffEditors();
+    const activeCodeEditor = codeEditorService.getActiveCodeEditor();
+    if (!activeCodeEditor) {
+        return null;
+    }
+    for (let i = 0, len = diffEditors.length; i < len; i++) {
+        const diffEditor = diffEditors[i];
+        if (diffEditor.getModifiedEditor().getId() === activeCodeEditor.getId() || diffEditor.getOriginalEditor().getId() === activeCodeEditor.getId()) {
             return diffEditor;
         }
     }

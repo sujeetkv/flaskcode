@@ -6,14 +6,21 @@
  * A very VM friendly rgba datastructure.
  * Please don't touch unless you take a look at the IR.
  */
-var RGBA8 = /** @class */ (function () {
-    function RGBA8(r, g, b, a) {
+export class RGBA8 {
+    constructor(r, g, b, a) {
+        this._rgba8Brand = undefined;
         this.r = RGBA8._clamp(r);
         this.g = RGBA8._clamp(g);
         this.b = RGBA8._clamp(b);
         this.a = RGBA8._clamp(a);
     }
-    RGBA8._clamp = function (c) {
+    equals(other) {
+        return (this.r === other.r
+            && this.g === other.g
+            && this.b === other.b
+            && this.a === other.a);
+    }
+    static _clamp(c) {
         if (c < 0) {
             return 0;
         }
@@ -21,8 +28,6 @@ var RGBA8 = /** @class */ (function () {
             return 255;
         }
         return c | 0;
-    };
-    RGBA8.Empty = new RGBA8(0, 0, 0, 0);
-    return RGBA8;
-}());
-export { RGBA8 };
+    }
+}
+RGBA8.Empty = new RGBA8(0, 0, 0, 0);

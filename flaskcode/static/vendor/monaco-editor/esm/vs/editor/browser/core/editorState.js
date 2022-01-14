@@ -2,28 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 import * as strings from '../../../base/common/strings.js';
+import { Range } from '../../common/core/range.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { EditorKeybindingCancellationTokenSource } from './keybindingCancellation.js';
-var EditorState = /** @class */ (function () {
-    function EditorState(editor, flags) {
+export class EditorState {
+    constructor(editor, flags) {
         this.flags = flags;
         if ((this.flags & 1 /* Value */) !== 0) {
-            var model = editor.getModel();
+            const model = editor.getModel();
             this.modelVersionId = model ? strings.format('{0}#{1}', model.uri.toString(), model.getVersionId()) : null;
         }
         else {
@@ -50,11 +38,11 @@ var EditorState = /** @class */ (function () {
             this.scrollTop = -1;
         }
     }
-    EditorState.prototype._equals = function (other) {
+    _equals(other) {
         if (!(other instanceof EditorState)) {
             return false;
         }
-        var state = other;
+        const state = other;
         if (this.modelVersionId !== state.modelVersionId) {
             return false;
         }
@@ -68,86 +56,91 @@ var EditorState = /** @class */ (function () {
             return false;
         }
         return true;
-    };
-    EditorState.prototype.validate = function (editor) {
+    }
+    validate(editor) {
         return this._equals(new EditorState(editor, this.flags));
-    };
-    return EditorState;
-}());
-export { EditorState };
+    }
+}
 /**
  * A cancellation token source that cancels when the editor changes as expressed
  * by the provided flags
+ * @param range If provided, changes in position and selection within this range will not trigger cancellation
  */
-var EditorStateCancellationTokenSource = /** @class */ (function (_super) {
-    __extends(EditorStateCancellationTokenSource, _super);
-    function EditorStateCancellationTokenSource(editor, flags, parent) {
-        var _this = _super.call(this, editor, parent) || this;
-        _this.editor = editor;
-        _this._listener = new DisposableStore();
+export class EditorStateCancellationTokenSource extends EditorKeybindingCancellationTokenSource {
+    constructor(editor, flags, range, parent) {
+        super(editor, parent);
+        this._listener = new DisposableStore();
         if (flags & 4 /* Position */) {
-            _this._listener.add(editor.onDidChangeCursorPosition(function (_) { return _this.cancel(); }));
+            this._listener.add(editor.onDidChangeCursorPosition(e => {
+                if (!range || !Range.containsPosition(range, e.position)) {
+                    this.cancel();
+                }
+            }));
         }
         if (flags & 2 /* Selection */) {
-            _this._listener.add(editor.onDidChangeCursorSelection(function (_) { return _this.cancel(); }));
+            this._listener.add(editor.onDidChangeCursorSelection(e => {
+                if (!range || !Range.containsRange(range, e.selection)) {
+                    this.cancel();
+                }
+            }));
         }
         if (flags & 8 /* Scroll */) {
-            _this._listener.add(editor.onDidScrollChange(function (_) { return _this.cancel(); }));
+            this._listener.add(editor.onDidScrollChange(_ => this.cancel()));
         }
         if (flags & 1 /* Value */) {
-            _this._listener.add(editor.onDidChangeModel(function (_) { return _this.cancel(); }));
-            _this._listener.add(editor.onDidChangeModelContent(function (_) { return _this.cancel(); }));
+            this._listener.add(editor.onDidChangeModel(_ => this.cancel()));
+            this._listener.add(editor.onDidChangeModelContent(_ => this.cancel()));
         }
-        return _this;
     }
-    EditorStateCancellationTokenSource.prototype.dispose = function () {
+    dispose() {
         this._listener.dispose();
-        _super.prototype.dispose.call(this);
-    };
-    return EditorStateCancellationTokenSource;
-}(EditorKeybindingCancellationTokenSource));
-export { EditorStateCancellationTokenSource };
+        super.dispose();
+    }
+}
 /**
  * A cancellation token source that cancels when the provided model changes
  */
-var TextModelCancellationTokenSource = /** @class */ (function (_super) {
-    __extends(TextModelCancellationTokenSource, _super);
-    function TextModelCancellationTokenSource(model, parent) {
-        var _this = _super.call(this, parent) || this;
-        _this._listener = model.onDidChangeContent(function () { return _this.cancel(); });
-        return _this;
+export class TextModelCancellationTokenSource extends CancellationTokenSource {
+    constructor(model, parent) {
+        super(parent);
+        this._listener = model.onDidChangeContent(() => this.cancel());
     }
-    TextModelCancellationTokenSource.prototype.dispose = function () {
+    dispose() {
         this._listener.dispose();
-        _super.prototype.dispose.call(this);
-    };
-    return TextModelCancellationTokenSource;
-}(CancellationTokenSource));
-export { TextModelCancellationTokenSource };
-var StableEditorScrollState = /** @class */ (function () {
-    function StableEditorScrollState(_visiblePosition, _visiblePositionScrollDelta) {
+        super.dispose();
+    }
+}
+export class StableEditorScrollState {
+    constructor(_visiblePosition, _visiblePositionScrollDelta, _cursorPosition) {
         this._visiblePosition = _visiblePosition;
         this._visiblePositionScrollDelta = _visiblePositionScrollDelta;
+        this._cursorPosition = _cursorPosition;
     }
-    StableEditorScrollState.capture = function (editor) {
-        var visiblePosition = null;
-        var visiblePositionScrollDelta = 0;
+    static capture(editor) {
+        let visiblePosition = null;
+        let visiblePositionScrollDelta = 0;
         if (editor.getScrollTop() !== 0) {
-            var visibleRanges = editor.getVisibleRanges();
+            const visibleRanges = editor.getVisibleRanges();
             if (visibleRanges.length > 0) {
                 visiblePosition = visibleRanges[0].getStartPosition();
-                var visiblePositionScrollTop = editor.getTopForPosition(visiblePosition.lineNumber, visiblePosition.column);
+                const visiblePositionScrollTop = editor.getTopForPosition(visiblePosition.lineNumber, visiblePosition.column);
                 visiblePositionScrollDelta = editor.getScrollTop() - visiblePositionScrollTop;
             }
         }
-        return new StableEditorScrollState(visiblePosition, visiblePositionScrollDelta);
-    };
-    StableEditorScrollState.prototype.restore = function (editor) {
+        return new StableEditorScrollState(visiblePosition, visiblePositionScrollDelta, editor.getPosition());
+    }
+    restore(editor) {
         if (this._visiblePosition) {
-            var visiblePositionScrollTop = editor.getTopForPosition(this._visiblePosition.lineNumber, this._visiblePosition.column);
+            const visiblePositionScrollTop = editor.getTopForPosition(this._visiblePosition.lineNumber, this._visiblePosition.column);
             editor.setScrollTop(visiblePositionScrollTop + this._visiblePositionScrollDelta);
         }
-    };
-    return StableEditorScrollState;
-}());
-export { StableEditorScrollState };
+    }
+    restoreRelativeVerticalPositionOfCursor(editor) {
+        const currentCursorPosition = editor.getPosition();
+        if (!this._cursorPosition || !currentCursorPosition) {
+            return;
+        }
+        const offset = editor.getTopForLineNumber(currentCursorPosition.lineNumber) - editor.getTopForLineNumber(this._cursorPosition.lineNumber);
+        editor.setScrollTop(editor.getScrollTop() + offset);
+    }
+}

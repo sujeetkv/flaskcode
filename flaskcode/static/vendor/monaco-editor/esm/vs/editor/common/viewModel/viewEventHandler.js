@@ -2,104 +2,97 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 import { Disposable } from '../../../base/common/lifecycle.js';
-var ViewEventHandler = /** @class */ (function (_super) {
-    __extends(ViewEventHandler, _super);
-    function ViewEventHandler() {
-        var _this = _super.call(this) || this;
-        _this._shouldRender = true;
-        return _this;
+export class ViewEventHandler extends Disposable {
+    constructor() {
+        super();
+        this._shouldRender = true;
     }
-    ViewEventHandler.prototype.shouldRender = function () {
+    shouldRender() {
         return this._shouldRender;
-    };
-    ViewEventHandler.prototype.forceShouldRender = function () {
+    }
+    forceShouldRender() {
         this._shouldRender = true;
-    };
-    ViewEventHandler.prototype.setShouldRender = function () {
+    }
+    setShouldRender() {
         this._shouldRender = true;
-    };
-    ViewEventHandler.prototype.onDidRender = function () {
+    }
+    onDidRender() {
         this._shouldRender = false;
-    };
+    }
     // --- begin event handlers
-    ViewEventHandler.prototype.onConfigurationChanged = function (e) {
+    onCompositionStart(e) {
         return false;
-    };
-    ViewEventHandler.prototype.onContentSizeChanged = function (e) {
+    }
+    onCompositionEnd(e) {
         return false;
-    };
-    ViewEventHandler.prototype.onCursorStateChanged = function (e) {
+    }
+    onConfigurationChanged(e) {
         return false;
-    };
-    ViewEventHandler.prototype.onDecorationsChanged = function (e) {
+    }
+    onCursorStateChanged(e) {
         return false;
-    };
-    ViewEventHandler.prototype.onFlushed = function (e) {
+    }
+    onDecorationsChanged(e) {
         return false;
-    };
-    ViewEventHandler.prototype.onFocusChanged = function (e) {
+    }
+    onFlushed(e) {
         return false;
-    };
-    ViewEventHandler.prototype.onLanguageConfigurationChanged = function (e) {
+    }
+    onFocusChanged(e) {
         return false;
-    };
-    ViewEventHandler.prototype.onLineMappingChanged = function (e) {
+    }
+    onLanguageConfigurationChanged(e) {
         return false;
-    };
-    ViewEventHandler.prototype.onLinesChanged = function (e) {
+    }
+    onLineMappingChanged(e) {
         return false;
-    };
-    ViewEventHandler.prototype.onLinesDeleted = function (e) {
+    }
+    onLinesChanged(e) {
         return false;
-    };
-    ViewEventHandler.prototype.onLinesInserted = function (e) {
+    }
+    onLinesDeleted(e) {
         return false;
-    };
-    ViewEventHandler.prototype.onRevealRangeRequest = function (e) {
+    }
+    onLinesInserted(e) {
         return false;
-    };
-    ViewEventHandler.prototype.onScrollChanged = function (e) {
+    }
+    onRevealRangeRequest(e) {
         return false;
-    };
-    ViewEventHandler.prototype.onThemeChanged = function (e) {
+    }
+    onScrollChanged(e) {
         return false;
-    };
-    ViewEventHandler.prototype.onTokensChanged = function (e) {
+    }
+    onThemeChanged(e) {
         return false;
-    };
-    ViewEventHandler.prototype.onTokensColorsChanged = function (e) {
+    }
+    onTokensChanged(e) {
         return false;
-    };
-    ViewEventHandler.prototype.onZonesChanged = function (e) {
+    }
+    onTokensColorsChanged(e) {
         return false;
-    };
+    }
+    onZonesChanged(e) {
+        return false;
+    }
     // --- end event handlers
-    ViewEventHandler.prototype.handleEvents = function (events) {
-        var shouldRender = false;
-        for (var i = 0, len = events.length; i < len; i++) {
-            var e = events[i];
+    handleEvents(events) {
+        let shouldRender = false;
+        for (let i = 0, len = events.length; i < len; i++) {
+            let e = events[i];
             switch (e.type) {
-                case 1 /* ViewConfigurationChanged */:
-                    if (this.onConfigurationChanged(e)) {
+                case 0 /* ViewCompositionStart */:
+                    if (this.onCompositionStart(e)) {
                         shouldRender = true;
                     }
                     break;
-                case 2 /* ViewContentSizeChanged */:
-                    if (this.onContentSizeChanged(e)) {
+                case 1 /* ViewCompositionEnd */:
+                    if (this.onCompositionEnd(e)) {
+                        shouldRender = true;
+                    }
+                    break;
+                case 2 /* ViewConfigurationChanged */:
+                    if (this.onConfigurationChanged(e)) {
                         shouldRender = true;
                     }
                     break;
@@ -186,7 +179,5 @@ var ViewEventHandler = /** @class */ (function (_super) {
         if (shouldRender) {
             this._shouldRender = true;
         }
-    };
-    return ViewEventHandler;
-}(Disposable));
-export { ViewEventHandler };
+    }
+}

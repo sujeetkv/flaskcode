@@ -3,76 +3,85 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Range } from '../../common/core/range.js';
-import { OverviewRulerLane, MinimapPosition } from '../../common/model.js';
+import { MinimapPosition, OverviewRulerLane } from '../../common/model.js';
 import { ModelDecorationOptions } from '../../common/model/textModel.js';
-import { overviewRulerFindMatchForeground, minimapFindMatch } from '../../../platform/theme/common/colorRegistry.js';
+import { minimapFindMatch, overviewRulerFindMatchForeground } from '../../../platform/theme/common/colorRegistry.js';
 import { themeColorFromId } from '../../../platform/theme/common/themeService.js';
-var FindDecorations = /** @class */ (function () {
-    function FindDecorations(editor) {
+export class FindDecorations {
+    constructor(editor) {
         this._editor = editor;
         this._decorations = [];
         this._overviewRulerApproximateDecorations = [];
-        this._findScopeDecorationId = null;
+        this._findScopeDecorationIds = [];
         this._rangeHighlightDecorationId = null;
         this._highlightedDecorationId = null;
         this._startPosition = this._editor.getPosition();
     }
-    FindDecorations.prototype.dispose = function () {
+    dispose() {
         this._editor.deltaDecorations(this._allDecorations(), []);
         this._decorations = [];
         this._overviewRulerApproximateDecorations = [];
-        this._findScopeDecorationId = null;
+        this._findScopeDecorationIds = [];
         this._rangeHighlightDecorationId = null;
         this._highlightedDecorationId = null;
-    };
-    FindDecorations.prototype.reset = function () {
+    }
+    reset() {
         this._decorations = [];
         this._overviewRulerApproximateDecorations = [];
-        this._findScopeDecorationId = null;
+        this._findScopeDecorationIds = [];
         this._rangeHighlightDecorationId = null;
         this._highlightedDecorationId = null;
-    };
-    FindDecorations.prototype.getCount = function () {
+    }
+    getCount() {
         return this._decorations.length;
-    };
-    FindDecorations.prototype.getFindScope = function () {
-        if (this._findScopeDecorationId) {
-            return this._editor.getModel().getDecorationRange(this._findScopeDecorationId);
+    }
+    /** @deprecated use getFindScopes to support multiple selections */
+    getFindScope() {
+        if (this._findScopeDecorationIds[0]) {
+            return this._editor.getModel().getDecorationRange(this._findScopeDecorationIds[0]);
         }
         return null;
-    };
-    FindDecorations.prototype.getStartPosition = function () {
+    }
+    getFindScopes() {
+        if (this._findScopeDecorationIds.length) {
+            const scopes = this._findScopeDecorationIds.map(findScopeDecorationId => this._editor.getModel().getDecorationRange(findScopeDecorationId)).filter(element => !!element);
+            if (scopes.length) {
+                return scopes;
+            }
+        }
+        return null;
+    }
+    getStartPosition() {
         return this._startPosition;
-    };
-    FindDecorations.prototype.setStartPosition = function (newStartPosition) {
+    }
+    setStartPosition(newStartPosition) {
         this._startPosition = newStartPosition;
         this.setCurrentFindMatch(null);
-    };
-    FindDecorations.prototype._getDecorationIndex = function (decorationId) {
-        var index = this._decorations.indexOf(decorationId);
+    }
+    _getDecorationIndex(decorationId) {
+        const index = this._decorations.indexOf(decorationId);
         if (index >= 0) {
             return index + 1;
         }
         return 1;
-    };
-    FindDecorations.prototype.getCurrentMatchesPosition = function (desiredRange) {
-        var candidates = this._editor.getModel().getDecorationsInRange(desiredRange);
-        for (var _i = 0, candidates_1 = candidates; _i < candidates_1.length; _i++) {
-            var candidate = candidates_1[_i];
-            var candidateOpts = candidate.options;
+    }
+    getCurrentMatchesPosition(desiredRange) {
+        let candidates = this._editor.getModel().getDecorationsInRange(desiredRange);
+        for (const candidate of candidates) {
+            const candidateOpts = candidate.options;
             if (candidateOpts === FindDecorations._FIND_MATCH_DECORATION || candidateOpts === FindDecorations._CURRENT_FIND_MATCH_DECORATION) {
                 return this._getDecorationIndex(candidate.id);
             }
         }
-        return 1;
-    };
-    FindDecorations.prototype.setCurrentFindMatch = function (nextMatch) {
-        var _this = this;
-        var newCurrentDecorationId = null;
-        var matchPosition = 0;
+        // We don't know the current match position, so returns zero to show '?' in find widget
+        return 0;
+    }
+    setCurrentFindMatch(nextMatch) {
+        let newCurrentDecorationId = null;
+        let matchPosition = 0;
         if (nextMatch) {
-            for (var i = 0, len = this._decorations.length; i < len; i++) {
-                var range = this._editor.getModel().getDecorationRange(this._decorations[i]);
+            for (let i = 0, len = this._decorations.length; i < len; i++) {
+                let range = this._editor.getModel().getDecorationRange(this._decorations[i]);
                 if (nextMatch.equalsRange(range)) {
                     newCurrentDecorationId = this._decorations[i];
                     matchPosition = (i + 1);
@@ -81,51 +90,50 @@ var FindDecorations = /** @class */ (function () {
             }
         }
         if (this._highlightedDecorationId !== null || newCurrentDecorationId !== null) {
-            this._editor.changeDecorations(function (changeAccessor) {
-                if (_this._highlightedDecorationId !== null) {
-                    changeAccessor.changeDecorationOptions(_this._highlightedDecorationId, FindDecorations._FIND_MATCH_DECORATION);
-                    _this._highlightedDecorationId = null;
+            this._editor.changeDecorations((changeAccessor) => {
+                if (this._highlightedDecorationId !== null) {
+                    changeAccessor.changeDecorationOptions(this._highlightedDecorationId, FindDecorations._FIND_MATCH_DECORATION);
+                    this._highlightedDecorationId = null;
                 }
                 if (newCurrentDecorationId !== null) {
-                    _this._highlightedDecorationId = newCurrentDecorationId;
-                    changeAccessor.changeDecorationOptions(_this._highlightedDecorationId, FindDecorations._CURRENT_FIND_MATCH_DECORATION);
+                    this._highlightedDecorationId = newCurrentDecorationId;
+                    changeAccessor.changeDecorationOptions(this._highlightedDecorationId, FindDecorations._CURRENT_FIND_MATCH_DECORATION);
                 }
-                if (_this._rangeHighlightDecorationId !== null) {
-                    changeAccessor.removeDecoration(_this._rangeHighlightDecorationId);
-                    _this._rangeHighlightDecorationId = null;
+                if (this._rangeHighlightDecorationId !== null) {
+                    changeAccessor.removeDecoration(this._rangeHighlightDecorationId);
+                    this._rangeHighlightDecorationId = null;
                 }
                 if (newCurrentDecorationId !== null) {
-                    var rng = _this._editor.getModel().getDecorationRange(newCurrentDecorationId);
+                    let rng = this._editor.getModel().getDecorationRange(newCurrentDecorationId);
                     if (rng.startLineNumber !== rng.endLineNumber && rng.endColumn === 1) {
-                        var lineBeforeEnd = rng.endLineNumber - 1;
-                        var lineBeforeEndMaxColumn = _this._editor.getModel().getLineMaxColumn(lineBeforeEnd);
+                        let lineBeforeEnd = rng.endLineNumber - 1;
+                        let lineBeforeEndMaxColumn = this._editor.getModel().getLineMaxColumn(lineBeforeEnd);
                         rng = new Range(rng.startLineNumber, rng.startColumn, lineBeforeEnd, lineBeforeEndMaxColumn);
                     }
-                    _this._rangeHighlightDecorationId = changeAccessor.addDecoration(rng, FindDecorations._RANGE_HIGHLIGHT_DECORATION);
+                    this._rangeHighlightDecorationId = changeAccessor.addDecoration(rng, FindDecorations._RANGE_HIGHLIGHT_DECORATION);
                 }
             });
         }
         return matchPosition;
-    };
-    FindDecorations.prototype.set = function (findMatches, findScope) {
-        var _this = this;
-        this._editor.changeDecorations(function (accessor) {
-            var findMatchesOptions = FindDecorations._FIND_MATCH_DECORATION;
-            var newOverviewRulerApproximateDecorations = [];
+    }
+    set(findMatches, findScopes) {
+        this._editor.changeDecorations((accessor) => {
+            let findMatchesOptions = FindDecorations._FIND_MATCH_DECORATION;
+            let newOverviewRulerApproximateDecorations = [];
             if (findMatches.length > 1000) {
                 // we go into a mode where the overview ruler gets "approximate" decorations
                 // the reason is that the overview ruler paints all the decorations in the file and we don't want to cause freezes
                 findMatchesOptions = FindDecorations._FIND_MATCH_NO_OVERVIEW_DECORATION;
                 // approximate a distance in lines where matches should be merged
-                var lineCount = _this._editor.getModel().getLineCount();
-                var height = _this._editor.getLayoutInfo().height;
-                var approxPixelsPerLine = height / lineCount;
-                var mergeLinesDelta = Math.max(2, Math.ceil(3 / approxPixelsPerLine));
+                const lineCount = this._editor.getModel().getLineCount();
+                const height = this._editor.getLayoutInfo().height;
+                const approxPixelsPerLine = height / lineCount;
+                const mergeLinesDelta = Math.max(2, Math.ceil(3 / approxPixelsPerLine));
                 // merge decorations as much as possible
-                var prevStartLineNumber = findMatches[0].range.startLineNumber;
-                var prevEndLineNumber = findMatches[0].range.endLineNumber;
-                for (var i = 1, len = findMatches.length; i < len; i++) {
-                    var range = findMatches[i].range;
+                let prevStartLineNumber = findMatches[0].range.startLineNumber;
+                let prevEndLineNumber = findMatches[0].range.endLineNumber;
+                for (let i = 1, len = findMatches.length; i < len; i++) {
+                    const range = findMatches[i].range;
                     if (prevEndLineNumber + mergeLinesDelta >= range.startLineNumber) {
                         if (range.endLineNumber > prevEndLineNumber) {
                             prevEndLineNumber = range.endLineNumber;
@@ -146,38 +154,38 @@ var FindDecorations = /** @class */ (function () {
                 });
             }
             // Find matches
-            var newFindMatchesDecorations = new Array(findMatches.length);
-            for (var i = 0, len = findMatches.length; i < len; i++) {
+            let newFindMatchesDecorations = new Array(findMatches.length);
+            for (let i = 0, len = findMatches.length; i < len; i++) {
                 newFindMatchesDecorations[i] = {
                     range: findMatches[i].range,
                     options: findMatchesOptions
                 };
             }
-            _this._decorations = accessor.deltaDecorations(_this._decorations, newFindMatchesDecorations);
+            this._decorations = accessor.deltaDecorations(this._decorations, newFindMatchesDecorations);
             // Overview ruler approximate decorations
-            _this._overviewRulerApproximateDecorations = accessor.deltaDecorations(_this._overviewRulerApproximateDecorations, newOverviewRulerApproximateDecorations);
+            this._overviewRulerApproximateDecorations = accessor.deltaDecorations(this._overviewRulerApproximateDecorations, newOverviewRulerApproximateDecorations);
             // Range highlight
-            if (_this._rangeHighlightDecorationId) {
-                accessor.removeDecoration(_this._rangeHighlightDecorationId);
-                _this._rangeHighlightDecorationId = null;
+            if (this._rangeHighlightDecorationId) {
+                accessor.removeDecoration(this._rangeHighlightDecorationId);
+                this._rangeHighlightDecorationId = null;
             }
             // Find scope
-            if (_this._findScopeDecorationId) {
-                accessor.removeDecoration(_this._findScopeDecorationId);
-                _this._findScopeDecorationId = null;
+            if (this._findScopeDecorationIds.length) {
+                this._findScopeDecorationIds.forEach(findScopeDecorationId => accessor.removeDecoration(findScopeDecorationId));
+                this._findScopeDecorationIds = [];
             }
-            if (findScope) {
-                _this._findScopeDecorationId = accessor.addDecoration(findScope, FindDecorations._FIND_SCOPE_DECORATION);
+            if (findScopes === null || findScopes === void 0 ? void 0 : findScopes.length) {
+                this._findScopeDecorationIds = findScopes.map(findScope => accessor.addDecoration(findScope, FindDecorations._FIND_SCOPE_DECORATION));
             }
         });
-    };
-    FindDecorations.prototype.matchBeforePosition = function (position) {
+    }
+    matchBeforePosition(position) {
         if (this._decorations.length === 0) {
             return null;
         }
-        for (var i = this._decorations.length - 1; i >= 0; i--) {
-            var decorationId = this._decorations[i];
-            var r = this._editor.getModel().getDecorationRange(decorationId);
+        for (let i = this._decorations.length - 1; i >= 0; i--) {
+            let decorationId = this._decorations[i];
+            let r = this._editor.getModel().getDecorationRange(decorationId);
             if (!r || r.endLineNumber > position.lineNumber) {
                 continue;
             }
@@ -190,14 +198,14 @@ var FindDecorations = /** @class */ (function () {
             return r;
         }
         return this._editor.getModel().getDecorationRange(this._decorations[this._decorations.length - 1]);
-    };
-    FindDecorations.prototype.matchAfterPosition = function (position) {
+    }
+    matchAfterPosition(position) {
         if (this._decorations.length === 0) {
             return null;
         }
-        for (var i = 0, len = this._decorations.length; i < len; i++) {
-            var decorationId = this._decorations[i];
-            var r = this._editor.getModel().getDecorationRange(decorationId);
+        for (let i = 0, len = this._decorations.length; i < len; i++) {
+            let decorationId = this._decorations[i];
+            let r = this._editor.getModel().getDecorationRange(decorationId);
             if (!r || r.startLineNumber < position.lineNumber) {
                 continue;
             }
@@ -210,67 +218,72 @@ var FindDecorations = /** @class */ (function () {
             return r;
         }
         return this._editor.getModel().getDecorationRange(this._decorations[0]);
-    };
-    FindDecorations.prototype._allDecorations = function () {
-        var result = [];
+    }
+    _allDecorations() {
+        let result = [];
         result = result.concat(this._decorations);
         result = result.concat(this._overviewRulerApproximateDecorations);
-        if (this._findScopeDecorationId) {
-            result.push(this._findScopeDecorationId);
+        if (this._findScopeDecorationIds.length) {
+            result.push(...this._findScopeDecorationIds);
         }
         if (this._rangeHighlightDecorationId) {
             result.push(this._rangeHighlightDecorationId);
         }
         return result;
-    };
-    FindDecorations._CURRENT_FIND_MATCH_DECORATION = ModelDecorationOptions.register({
-        stickiness: 1 /* NeverGrowsWhenTypingAtEdges */,
-        zIndex: 13,
-        className: 'currentFindMatch',
-        showIfCollapsed: true,
-        overviewRuler: {
-            color: themeColorFromId(overviewRulerFindMatchForeground),
-            position: OverviewRulerLane.Center
-        },
-        minimap: {
-            color: themeColorFromId(minimapFindMatch),
-            position: MinimapPosition.Inline
-        }
-    });
-    FindDecorations._FIND_MATCH_DECORATION = ModelDecorationOptions.register({
-        stickiness: 1 /* NeverGrowsWhenTypingAtEdges */,
-        className: 'findMatch',
-        showIfCollapsed: true,
-        overviewRuler: {
-            color: themeColorFromId(overviewRulerFindMatchForeground),
-            position: OverviewRulerLane.Center
-        },
-        minimap: {
-            color: themeColorFromId(minimapFindMatch),
-            position: MinimapPosition.Inline
-        }
-    });
-    FindDecorations._FIND_MATCH_NO_OVERVIEW_DECORATION = ModelDecorationOptions.register({
-        stickiness: 1 /* NeverGrowsWhenTypingAtEdges */,
-        className: 'findMatch',
-        showIfCollapsed: true
-    });
-    FindDecorations._FIND_MATCH_ONLY_OVERVIEW_DECORATION = ModelDecorationOptions.register({
-        stickiness: 1 /* NeverGrowsWhenTypingAtEdges */,
-        overviewRuler: {
-            color: themeColorFromId(overviewRulerFindMatchForeground),
-            position: OverviewRulerLane.Center
-        }
-    });
-    FindDecorations._RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
-        stickiness: 1 /* NeverGrowsWhenTypingAtEdges */,
-        className: 'rangeHighlight',
-        isWholeLine: true
-    });
-    FindDecorations._FIND_SCOPE_DECORATION = ModelDecorationOptions.register({
-        className: 'findScope',
-        isWholeLine: true
-    });
-    return FindDecorations;
-}());
-export { FindDecorations };
+    }
+}
+FindDecorations._CURRENT_FIND_MATCH_DECORATION = ModelDecorationOptions.register({
+    description: 'current-find-match',
+    stickiness: 1 /* NeverGrowsWhenTypingAtEdges */,
+    zIndex: 13,
+    className: 'currentFindMatch',
+    showIfCollapsed: true,
+    overviewRuler: {
+        color: themeColorFromId(overviewRulerFindMatchForeground),
+        position: OverviewRulerLane.Center
+    },
+    minimap: {
+        color: themeColorFromId(minimapFindMatch),
+        position: MinimapPosition.Inline
+    }
+});
+FindDecorations._FIND_MATCH_DECORATION = ModelDecorationOptions.register({
+    description: 'find-match',
+    stickiness: 1 /* NeverGrowsWhenTypingAtEdges */,
+    zIndex: 10,
+    className: 'findMatch',
+    showIfCollapsed: true,
+    overviewRuler: {
+        color: themeColorFromId(overviewRulerFindMatchForeground),
+        position: OverviewRulerLane.Center
+    },
+    minimap: {
+        color: themeColorFromId(minimapFindMatch),
+        position: MinimapPosition.Inline
+    }
+});
+FindDecorations._FIND_MATCH_NO_OVERVIEW_DECORATION = ModelDecorationOptions.register({
+    description: 'find-match-no-overview',
+    stickiness: 1 /* NeverGrowsWhenTypingAtEdges */,
+    className: 'findMatch',
+    showIfCollapsed: true
+});
+FindDecorations._FIND_MATCH_ONLY_OVERVIEW_DECORATION = ModelDecorationOptions.register({
+    description: 'find-match-only-overview',
+    stickiness: 1 /* NeverGrowsWhenTypingAtEdges */,
+    overviewRuler: {
+        color: themeColorFromId(overviewRulerFindMatchForeground),
+        position: OverviewRulerLane.Center
+    }
+});
+FindDecorations._RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
+    description: 'find-range-highlight',
+    stickiness: 1 /* NeverGrowsWhenTypingAtEdges */,
+    className: 'rangeHighlight',
+    isWholeLine: true
+});
+FindDecorations._FIND_SCOPE_DECORATION = ModelDecorationOptions.register({
+    description: 'find-scope',
+    className: 'findScope',
+    isWholeLine: true
+});

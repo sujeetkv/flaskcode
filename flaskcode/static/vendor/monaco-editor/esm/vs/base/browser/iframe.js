@@ -2,17 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var hasDifferentOriginAncestorFlag = false;
-var sameOriginWindowChainCache = null;
+let hasDifferentOriginAncestorFlag = false;
+let sameOriginWindowChainCache = null;
 function getParentWindowIfSameOrigin(w) {
     if (!w.parent || w.parent === w) {
         return null;
     }
     // Cannot really tell if we have access to the parent window unless we try to access something in it
     try {
-        var location_1 = w.location;
-        var parentLocation = w.parent.location;
-        if (location_1.protocol !== parentLocation.protocol || location_1.hostname !== parentLocation.hostname || location_1.port !== parentLocation.port) {
+        let location = w.location;
+        let parentLocation = w.parent.location;
+        if (location.origin !== 'null' && parentLocation.origin !== 'null' && location.origin !== parentLocation.origin) {
             hasDifferentOriginAncestorFlag = true;
             return null;
         }
@@ -23,36 +23,23 @@ function getParentWindowIfSameOrigin(w) {
     }
     return w.parent;
 }
-function findIframeElementInParentWindow(parentWindow, childWindow) {
-    var parentWindowIframes = parentWindow.document.getElementsByTagName('iframe');
-    var iframe;
-    for (var i = 0, len = parentWindowIframes.length; i < len; i++) {
-        iframe = parentWindowIframes[i];
-        if (iframe.contentWindow === childWindow) {
-            return iframe;
-        }
-    }
-    return null;
-}
-var IframeUtils = /** @class */ (function () {
-    function IframeUtils() {
-    }
+export class IframeUtils {
     /**
      * Returns a chain of embedded windows with the same origin (which can be accessed programmatically).
      * Having a chain of length 1 might mean that the current execution environment is running outside of an iframe or inside an iframe embedded in a window with a different origin.
      * To distinguish if at one point the current execution environment is running inside a window with a different origin, see hasDifferentOriginAncestor()
      */
-    IframeUtils.getSameOriginWindowChain = function () {
+    static getSameOriginWindowChain() {
         if (!sameOriginWindowChainCache) {
             sameOriginWindowChainCache = [];
-            var w = window;
-            var parent_1;
+            let w = window;
+            let parent;
             do {
-                parent_1 = getParentWindowIfSameOrigin(w);
-                if (parent_1) {
+                parent = getParentWindowIfSameOrigin(w);
+                if (parent) {
                     sameOriginWindowChainCache.push({
                         window: w,
-                        iframeElement: findIframeElementInParentWindow(parent_1, w)
+                        iframeElement: w.frameElement || null
                     });
                 }
                 else {
@@ -61,42 +48,43 @@ var IframeUtils = /** @class */ (function () {
                         iframeElement: null
                     });
                 }
-                w = parent_1;
+                w = parent;
             } while (w);
         }
         return sameOriginWindowChainCache.slice(0);
-    };
+    }
     /**
      * Returns true if the current execution environment is chained in a list of iframes which at one point ends in a window with a different origin.
      * Returns false if the current execution environment is not running inside an iframe or if the entire chain of iframes have the same origin.
      */
-    IframeUtils.hasDifferentOriginAncestor = function () {
+    static hasDifferentOriginAncestor() {
         if (!sameOriginWindowChainCache) {
             this.getSameOriginWindowChain();
         }
         return hasDifferentOriginAncestorFlag;
-    };
+    }
     /**
      * Returns the position of `childWindow` relative to `ancestorWindow`
      */
-    IframeUtils.getPositionOfChildWindowRelativeToAncestorWindow = function (childWindow, ancestorWindow) {
+    static getPositionOfChildWindowRelativeToAncestorWindow(childWindow, ancestorWindow) {
         if (!ancestorWindow || childWindow === ancestorWindow) {
             return {
                 top: 0,
                 left: 0
             };
         }
-        var top = 0, left = 0;
-        var windowChain = this.getSameOriginWindowChain();
-        for (var _i = 0, windowChain_1 = windowChain; _i < windowChain_1.length; _i++) {
-            var windowChainEl = windowChain_1[_i];
+        let top = 0, left = 0;
+        let windowChain = this.getSameOriginWindowChain();
+        for (const windowChainEl of windowChain) {
+            top += windowChainEl.window.scrollY;
+            left += windowChainEl.window.scrollX;
             if (windowChainEl.window === ancestorWindow) {
                 break;
             }
             if (!windowChainEl.iframeElement) {
                 break;
             }
-            var boundingRect = windowChainEl.iframeElement.getBoundingClientRect();
+            let boundingRect = windowChainEl.iframeElement.getBoundingClientRect();
             top += boundingRect.top;
             left += boundingRect.left;
         }
@@ -104,7 +92,5 @@ var IframeUtils = /** @class */ (function () {
             top: top,
             left: left
         };
-    };
-    return IframeUtils;
-}());
-export { IframeUtils };
+    }
+}

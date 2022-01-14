@@ -8,59 +8,64 @@ import { PLAINTEXT_MODE_ID } from '../modes/modesRegistry.js';
 import { FileKind } from '../../../platform/files/common/files.js';
 export function getIconClasses(modelService, modeService, resource, fileKind) {
     // we always set these base classes even if we do not have a path
-    var classes = fileKind === FileKind.ROOT_FOLDER ? ['rootfolder-icon'] : fileKind === FileKind.FOLDER ? ['folder-icon'] : ['file-icon'];
+    const classes = fileKind === FileKind.ROOT_FOLDER ? ['rootfolder-icon'] : fileKind === FileKind.FOLDER ? ['folder-icon'] : ['file-icon'];
     if (resource) {
         // Get the path and name of the resource. For data-URIs, we need to parse specially
-        var name_1;
+        let name;
         if (resource.scheme === Schemas.data) {
-            var metadata = DataUri.parseMetaData(resource);
-            name_1 = metadata.get(DataUri.META_DATA_LABEL);
+            const metadata = DataUri.parseMetaData(resource);
+            name = metadata.get(DataUri.META_DATA_LABEL);
         }
         else {
-            name_1 = cssEscape(basenameOrAuthority(resource).toLowerCase());
+            name = cssEscape(basenameOrAuthority(resource).toLowerCase());
         }
         // Folders
         if (fileKind === FileKind.FOLDER) {
-            classes.push(name_1 + "-name-folder-icon");
+            classes.push(`${name}-name-folder-icon`);
         }
         // Files
         else {
             // Name & Extension(s)
-            if (name_1) {
-                classes.push(name_1 + "-name-file-icon");
-                var dotSegments = name_1.split('.');
-                for (var i = 1; i < dotSegments.length; i++) {
-                    classes.push(dotSegments.slice(i).join('.') + "-ext-file-icon"); // add each combination of all found extensions if more than one
+            if (name) {
+                classes.push(`${name}-name-file-icon`);
+                // Avoid doing an explosive combination of extensions for very long filenames
+                // (most file systems do not allow files > 255 length) with lots of `.` characters
+                // https://github.com/microsoft/vscode/issues/116199
+                if (name.length <= 255) {
+                    const dotSegments = name.split('.');
+                    for (let i = 1; i < dotSegments.length; i++) {
+                        classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
+                    }
                 }
-                classes.push("ext-file-icon"); // extra segment to increase file-ext score
+                classes.push(`ext-file-icon`); // extra segment to increase file-ext score
             }
             // Detected Mode
-            var detectedModeId = detectModeId(modelService, modeService, resource);
+            const detectedModeId = detectModeId(modelService, modeService, resource);
             if (detectedModeId) {
-                classes.push(cssEscape(detectedModeId) + "-lang-file-icon");
+                classes.push(`${cssEscape(detectedModeId)}-lang-file-icon`);
             }
         }
     }
     return classes;
 }
-export function detectModeId(modelService, modeService, resource) {
+function detectModeId(modelService, modeService, resource) {
     if (!resource) {
         return null; // we need a resource at least
     }
-    var modeId = null;
+    let modeId = null;
     // Data URI: check for encoded metadata
     if (resource.scheme === Schemas.data) {
-        var metadata = DataUri.parseMetaData(resource);
-        var mime = metadata.get(DataUri.META_DATA_MIME);
+        const metadata = DataUri.parseMetaData(resource);
+        const mime = metadata.get(DataUri.META_DATA_MIME);
         if (mime) {
             modeId = modeService.getModeId(mime);
         }
     }
     // Any other URI: check for model if existing
     else {
-        var model = modelService.getModel(resource);
+        const model = modelService.getModel(resource);
         if (model) {
-            modeId = model.getModeId();
+            modeId = model.getLanguageId();
         }
     }
     // only take if the mode is specific (aka no just plain text)
@@ -70,6 +75,6 @@ export function detectModeId(modelService, modeService, resource) {
     // otherwise fallback to path based detection
     return modeService.getModeIdByFilepathOrFirstLine(resource);
 }
-export function cssEscape(val) {
-    return val.replace(/\s/g, '\\$&'); // make sure to not introduce CSS classes from files that contain whitespace
+export function cssEscape(str) {
+    return str.replace(/[\11\12\14\15\40]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
 }

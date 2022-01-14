@@ -2,19 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -24,51 +11,47 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import './messageController.css';
-import * as nls from '../../../nls.js';
-import { TimeoutTimer } from '../../../base/common/async.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { alert } from '../../../base/browser/ui/aria/aria.js';
+import { TimeoutTimer } from '../../../base/common/async.js';
+import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
+import './messageController.css';
+import { EditorCommand, registerEditorCommand, registerEditorContribution } from '../../browser/editorExtensions.js';
 import { Range } from '../../common/core/range.js';
-import { registerEditorContribution, EditorCommand, registerEditorCommand } from '../../browser/editorExtensions.js';
+import * as nls from '../../../nls.js';
 import { IContextKeyService, RawContextKey } from '../../../platform/contextkey/common/contextkey.js';
-import { registerThemingParticipant, HIGH_CONTRAST } from '../../../platform/theme/common/themeService.js';
-import { inputValidationInfoBorder, inputValidationInfoBackground, inputValidationInfoForeground } from '../../../platform/theme/common/colorRegistry.js';
-var MessageController = /** @class */ (function (_super) {
-    __extends(MessageController, _super);
-    function MessageController(editor, contextKeyService) {
-        var _this = _super.call(this) || this;
-        _this.closeTimeout = 3000; // close after 3s
-        _this._messageWidget = _this._register(new MutableDisposable());
-        _this._messageListeners = _this._register(new DisposableStore());
-        _this._editor = editor;
-        _this._visible = MessageController.MESSAGE_VISIBLE.bindTo(contextKeyService);
-        _this._register(_this._editor.onDidAttemptReadOnlyEdit(function () { return _this._onDidAttemptReadOnlyEdit(); }));
-        return _this;
+let MessageController = class MessageController {
+    constructor(editor, contextKeyService) {
+        this._messageWidget = new MutableDisposable();
+        this._messageListeners = new DisposableStore();
+        this._editor = editor;
+        this._visible = MessageController.MESSAGE_VISIBLE.bindTo(contextKeyService);
+        this._editorListener = this._editor.onDidAttemptReadOnlyEdit(() => this._onDidAttemptReadOnlyEdit());
     }
-    MessageController.get = function (editor) {
+    static get(editor) {
         return editor.getContribution(MessageController.ID);
-    };
-    MessageController.prototype.dispose = function () {
-        _super.prototype.dispose.call(this);
+    }
+    dispose() {
+        this._editorListener.dispose();
+        this._messageListeners.dispose();
+        this._messageWidget.dispose();
         this._visible.reset();
-    };
-    MessageController.prototype.showMessage = function (message, position) {
-        var _this = this;
+    }
+    showMessage(message, position) {
         alert(message);
         this._visible.set(true);
         this._messageWidget.clear();
         this._messageListeners.clear();
         this._messageWidget.value = new MessageWidget(this._editor, position, message);
         // close on blur, cursor, model change, dispose
-        this._messageListeners.add(this._editor.onDidBlurEditorText(function () { return _this.closeMessage(); }));
-        this._messageListeners.add(this._editor.onDidChangeCursorPosition(function () { return _this.closeMessage(); }));
-        this._messageListeners.add(this._editor.onDidDispose(function () { return _this.closeMessage(); }));
-        this._messageListeners.add(this._editor.onDidChangeModel(function () { return _this.closeMessage(); }));
-        this._messageListeners.add(new TimeoutTimer(function () { return _this.closeMessage(); }, this.closeTimeout));
+        this._messageListeners.add(this._editor.onDidBlurEditorText(() => this.closeMessage()));
+        this._messageListeners.add(this._editor.onDidChangeCursorPosition(() => this.closeMessage()));
+        this._messageListeners.add(this._editor.onDidDispose(() => this.closeMessage()));
+        this._messageListeners.add(this._editor.onDidChangeModel(() => this.closeMessage()));
+        // 3sec
+        this._messageListeners.add(new TimeoutTimer(() => this.closeMessage(), 3000));
         // close on mouse move
-        var bounds;
-        this._messageListeners.add(this._editor.onMouseMove(function (e) {
+        let bounds;
+        this._messageListeners.add(this._editor.onMouseMove(e => {
             // outside the text area
             if (!e.target.position) {
                 return;
@@ -79,64 +62,65 @@ var MessageController = /** @class */ (function (_super) {
             }
             else if (!bounds.containsPosition(e.target.position)) {
                 // check if position is still in bounds
-                _this.closeMessage();
+                this.closeMessage();
             }
         }));
-    };
-    MessageController.prototype.closeMessage = function () {
+    }
+    closeMessage() {
         this._visible.reset();
         this._messageListeners.clear();
         if (this._messageWidget.value) {
             this._messageListeners.add(MessageWidget.fadeOut(this._messageWidget.value));
         }
-    };
-    MessageController.prototype._onDidAttemptReadOnlyEdit = function () {
+    }
+    _onDidAttemptReadOnlyEdit() {
         if (this._editor.hasModel()) {
             this.showMessage(nls.localize('editor.readonly', "Cannot edit in read-only editor"), this._editor.getPosition());
         }
-    };
-    MessageController.ID = 'editor.contrib.messageController';
-    MessageController.MESSAGE_VISIBLE = new RawContextKey('messageVisible', false);
-    MessageController = __decorate([
-        __param(1, IContextKeyService)
-    ], MessageController);
-    return MessageController;
-}(Disposable));
+    }
+};
+MessageController.ID = 'editor.contrib.messageController';
+MessageController.MESSAGE_VISIBLE = new RawContextKey('messageVisible', false, nls.localize('messageVisible', 'Whether the editor is currently showing an inline message'));
+MessageController = __decorate([
+    __param(1, IContextKeyService)
+], MessageController);
 export { MessageController };
-var MessageCommand = EditorCommand.bindToContribution(MessageController.get);
+const MessageCommand = EditorCommand.bindToContribution(MessageController.get);
 registerEditorCommand(new MessageCommand({
     id: 'leaveEditorMessage',
     precondition: MessageController.MESSAGE_VISIBLE,
-    handler: function (c) { return c.closeMessage(); },
+    handler: c => c.closeMessage(),
     kbOpts: {
         weight: 100 /* EditorContrib */ + 30,
         primary: 9 /* Escape */
     }
 }));
-var MessageWidget = /** @class */ (function () {
-    function MessageWidget(editor, _a, text) {
-        var lineNumber = _a.lineNumber, column = _a.column;
+class MessageWidget {
+    constructor(editor, { lineNumber, column }, text) {
         // Editor.IContentWidget.allowEditorOverflow
         this.allowEditorOverflow = true;
         this.suppressMouseDown = false;
         this._editor = editor;
         this._editor.revealLinesInCenterIfOutsideViewport(lineNumber, lineNumber, 0 /* Smooth */);
-        this._position = { lineNumber: lineNumber, column: column - 1 };
+        this._position = { lineNumber, column: column - 1 };
         this._domNode = document.createElement('div');
         this._domNode.classList.add('monaco-editor-overlaymessage');
-        var message = document.createElement('div');
+        const anchorTop = document.createElement('div');
+        anchorTop.classList.add('anchor', 'top');
+        this._domNode.appendChild(anchorTop);
+        const message = document.createElement('div');
         message.classList.add('message');
         message.textContent = text;
         this._domNode.appendChild(message);
-        var anchor = document.createElement('div');
-        anchor.classList.add('anchor');
-        this._domNode.appendChild(anchor);
+        const anchorBottom = document.createElement('div');
+        anchorBottom.classList.add('anchor', 'below');
+        this._domNode.appendChild(anchorBottom);
         this._editor.addContentWidget(this);
         this._domNode.classList.add('fadeIn');
     }
-    MessageWidget.fadeOut = function (messageWidget) {
-        var handle;
-        var dispose = function () {
+    static fadeOut(messageWidget) {
+        let handle;
+        const dispose = () => {
             messageWidget.dispose();
             clearTimeout(handle);
             messageWidget.getDomNode().removeEventListener('animationend', dispose);
@@ -144,36 +128,22 @@ var MessageWidget = /** @class */ (function () {
         handle = setTimeout(dispose, 110);
         messageWidget.getDomNode().addEventListener('animationend', dispose);
         messageWidget.getDomNode().classList.add('fadeOut');
-        return { dispose: dispose };
-    };
-    MessageWidget.prototype.dispose = function () {
+        return { dispose };
+    }
+    dispose() {
         this._editor.removeContentWidget(this);
-    };
-    MessageWidget.prototype.getId = function () {
+    }
+    getId() {
         return 'messageoverlay';
-    };
-    MessageWidget.prototype.getDomNode = function () {
+    }
+    getDomNode() {
         return this._domNode;
-    };
-    MessageWidget.prototype.getPosition = function () {
+    }
+    getPosition() {
         return { position: this._position, preference: [1 /* ABOVE */, 2 /* BELOW */] };
-    };
-    return MessageWidget;
-}());
+    }
+    afterRender(position) {
+        this._domNode.classList.toggle('below', position === 2 /* BELOW */);
+    }
+}
 registerEditorContribution(MessageController.ID, MessageController);
-registerThemingParticipant(function (theme, collector) {
-    var border = theme.getColor(inputValidationInfoBorder);
-    if (border) {
-        var borderWidth = theme.type === HIGH_CONTRAST ? 2 : 1;
-        collector.addRule(".monaco-editor .monaco-editor-overlaymessage .anchor { border-top-color: " + border + "; }");
-        collector.addRule(".monaco-editor .monaco-editor-overlaymessage .message { border: " + borderWidth + "px solid " + border + "; }");
-    }
-    var background = theme.getColor(inputValidationInfoBackground);
-    if (background) {
-        collector.addRule(".monaco-editor .monaco-editor-overlaymessage .message { background-color: " + background + "; }");
-    }
-    var foreground = theme.getColor(inputValidationInfoForeground);
-    if (foreground) {
-        collector.addRule(".monaco-editor .monaco-editor-overlaymessage .message { color: " + foreground + "; }");
-    }
-});

@@ -12,12 +12,12 @@ export var Range;
         if (one.start >= other.end || other.start >= one.end) {
             return { start: 0, end: 0 };
         }
-        var start = Math.max(one.start, other.start);
-        var end = Math.min(one.end, other.end);
+        const start = Math.max(one.start, other.start);
+        const end = Math.min(one.end, other.end);
         if (end - start <= 0) {
             return { start: 0, end: 0 };
         }
-        return { start: start, end: end };
+        return { start, end };
     }
     Range.intersect = intersect;
     function isEmpty(range) {
@@ -29,9 +29,9 @@ export var Range;
     }
     Range.intersects = intersects;
     function relativeComplement(one, other) {
-        var result = [];
-        var first = { start: one.start, end: Math.min(other.start, one.end) };
-        var second = { start: Math.max(other.end, one.start), end: one.end };
+        const result = [];
+        const first = { start: one.start, end: Math.min(other.start, one.end) };
+        const second = { start: Math.max(other.end, one.start), end: one.end };
         if (!isEmpty(first)) {
             result.push(first);
         }

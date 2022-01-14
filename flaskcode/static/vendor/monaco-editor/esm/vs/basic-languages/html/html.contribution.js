@@ -1,13 +1,24 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-'use strict';
-import { registerLanguage } from '../_.contribution.js';
+/*!-----------------------------------------------------------------------------
+ * Copyright (c) Microsoft Corporation. All rights reserved.
+ * Version: 0.31.1(337587859b1c171314b40503171188b6cea6a32a)
+ * Released under the MIT license
+ * https://github.com/microsoft/monaco-editor/blob/main/LICENSE.txt
+ *-----------------------------------------------------------------------------*/
+
+// src/basic-languages/html/html.contribution.ts
+import { registerLanguage } from "../_.contribution.js";
 registerLanguage({
-    id: 'html',
-    extensions: ['.html', '.htm', '.shtml', '.xhtml', '.mdoc', '.jsp', '.asp', '.aspx', '.jshtm'],
-    aliases: ['HTML', 'htm', 'html', 'xhtml'],
-    mimetypes: ['text/html', 'text/x-jshtm', 'text/template', 'text/ng-template'],
-    loader: function () { return import('./html.js'); }
+  id: "html",
+  extensions: [".html", ".htm", ".shtml", ".xhtml", ".mdoc", ".jsp", ".asp", ".aspx", ".jshtm"],
+  aliases: ["HTML", "htm", "html", "xhtml"],
+  mimetypes: ["text/html", "text/x-jshtm", "text/template", "text/ng-template"],
+  loader: () => {
+    if (false) {
+      return new Promise((resolve, reject) => {
+        __require(["vs/basic-languages/html/html"], resolve, reject);
+      });
+    } else {
+      return import("./html.js");
+    }
+  }
 });

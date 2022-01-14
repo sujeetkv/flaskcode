@@ -2,19 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -24,46 +11,42 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { RawContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
-import { dispose, Disposable } from '../../../base/common/lifecycle.js';
-var WordContextKey = /** @class */ (function (_super) {
-    __extends(WordContextKey, _super);
-    function WordContextKey(_editor, contextKeyService) {
-        var _this = _super.call(this) || this;
-        _this._editor = _editor;
-        _this._enabled = false;
-        _this._ckAtEnd = WordContextKey.AtEnd.bindTo(contextKeyService);
-        _this._register(_this._editor.onDidChangeConfiguration(function (e) { return e.hasChanged(94 /* tabCompletion */) && _this._update(); }));
-        _this._update();
-        return _this;
+import { IContextKeyService, RawContextKey } from '../../../platform/contextkey/common/contextkey.js';
+let WordContextKey = class WordContextKey {
+    constructor(_editor, contextKeyService) {
+        this._editor = _editor;
+        this._enabled = false;
+        this._ckAtEnd = WordContextKey.AtEnd.bindTo(contextKeyService);
+        this._configListener = this._editor.onDidChangeConfiguration(e => e.hasChanged(110 /* tabCompletion */) && this._update());
+        this._update();
     }
-    WordContextKey.prototype.dispose = function () {
-        _super.prototype.dispose.call(this);
-        dispose(this._selectionListener);
+    dispose() {
+        var _a;
+        this._configListener.dispose();
+        (_a = this._selectionListener) === null || _a === void 0 ? void 0 : _a.dispose();
         this._ckAtEnd.reset();
-    };
-    WordContextKey.prototype._update = function () {
-        var _this = this;
+    }
+    _update() {
         // only update this when tab completions are enabled
-        var enabled = this._editor.getOption(94 /* tabCompletion */) === 'on';
+        const enabled = this._editor.getOption(110 /* tabCompletion */) === 'on';
         if (this._enabled === enabled) {
             return;
         }
         this._enabled = enabled;
         if (this._enabled) {
-            var checkForWordEnd = function () {
-                if (!_this._editor.hasModel()) {
-                    _this._ckAtEnd.set(false);
+            const checkForWordEnd = () => {
+                if (!this._editor.hasModel()) {
+                    this._ckAtEnd.set(false);
                     return;
                 }
-                var model = _this._editor.getModel();
-                var selection = _this._editor.getSelection();
-                var word = model.getWordAtPosition(selection.getStartPosition());
+                const model = this._editor.getModel();
+                const selection = this._editor.getSelection();
+                const word = model.getWordAtPosition(selection.getStartPosition());
                 if (!word) {
-                    _this._ckAtEnd.set(false);
+                    this._ckAtEnd.set(false);
                     return;
                 }
-                _this._ckAtEnd.set(word.endColumn === selection.getStartPosition().column);
+                this._ckAtEnd.set(word.endColumn === selection.getStartPosition().column);
             };
             this._selectionListener = this._editor.onDidChangeCursorSelection(checkForWordEnd);
             checkForWordEnd();
@@ -73,11 +56,10 @@ var WordContextKey = /** @class */ (function (_super) {
             this._selectionListener.dispose();
             this._selectionListener = undefined;
         }
-    };
-    WordContextKey.AtEnd = new RawContextKey('atEndOfWord', false);
-    WordContextKey = __decorate([
-        __param(1, IContextKeyService)
-    ], WordContextKey);
-    return WordContextKey;
-}(Disposable));
+    }
+};
+WordContextKey.AtEnd = new RawContextKey('atEndOfWord', false);
+WordContextKey = __decorate([
+    __param(1, IContextKeyService)
+], WordContextKey);
 export { WordContextKey };

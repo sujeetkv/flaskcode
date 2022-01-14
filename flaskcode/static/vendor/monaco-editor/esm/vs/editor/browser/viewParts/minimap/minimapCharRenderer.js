@@ -3,81 +3,85 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { getCharIndex } from './minimapCharSheet.js';
-var MinimapCharRenderer = /** @class */ (function () {
-    function MinimapCharRenderer(charData, scale) {
+import { toUint8 } from '../../../../base/common/uint.js';
+export class MinimapCharRenderer {
+    constructor(charData, scale) {
         this.scale = scale;
+        this._minimapCharRendererBrand = undefined;
         this.charDataNormal = MinimapCharRenderer.soften(charData, 12 / 15);
         this.charDataLight = MinimapCharRenderer.soften(charData, 50 / 60);
     }
-    MinimapCharRenderer.soften = function (input, ratio) {
-        var result = new Uint8ClampedArray(input.length);
-        for (var i = 0, len = input.length; i < len; i++) {
-            result[i] = input[i] * ratio;
+    static soften(input, ratio) {
+        let result = new Uint8ClampedArray(input.length);
+        for (let i = 0, len = input.length; i < len; i++) {
+            result[i] = toUint8(input[i] * ratio);
         }
         return result;
-    };
-    MinimapCharRenderer.prototype.renderChar = function (target, dx, dy, chCode, color, backgroundColor, fontScale, useLighterFont) {
-        var charWidth = 1 /* BASE_CHAR_WIDTH */ * this.scale;
-        var charHeight = 2 /* BASE_CHAR_HEIGHT */ * this.scale;
-        if (dx + charWidth > target.width || dy + charHeight > target.height) {
+    }
+    renderChar(target, dx, dy, chCode, color, foregroundAlpha, backgroundColor, backgroundAlpha, fontScale, useLighterFont, force1pxHeight) {
+        const charWidth = 1 /* BASE_CHAR_WIDTH */ * this.scale;
+        const charHeight = 2 /* BASE_CHAR_HEIGHT */ * this.scale;
+        const renderHeight = (force1pxHeight ? 1 : charHeight);
+        if (dx + charWidth > target.width || dy + renderHeight > target.height) {
             console.warn('bad render request outside image data');
             return;
         }
-        var charData = useLighterFont ? this.charDataLight : this.charDataNormal;
-        var charIndex = getCharIndex(chCode, fontScale);
-        var destWidth = target.width * 4 /* RGBA_CHANNELS_CNT */;
-        var backgroundR = backgroundColor.r;
-        var backgroundG = backgroundColor.g;
-        var backgroundB = backgroundColor.b;
-        var deltaR = color.r - backgroundR;
-        var deltaG = color.g - backgroundG;
-        var deltaB = color.b - backgroundB;
-        var dest = target.data;
-        var sourceOffset = charIndex * charWidth * charHeight;
-        var row = dy * destWidth + dx * 4 /* RGBA_CHANNELS_CNT */;
-        for (var y = 0; y < charHeight; y++) {
-            var column = row;
-            for (var x = 0; x < charWidth; x++) {
-                var c = charData[sourceOffset++] / 255;
+        const charData = useLighterFont ? this.charDataLight : this.charDataNormal;
+        const charIndex = getCharIndex(chCode, fontScale);
+        const destWidth = target.width * 4 /* RGBA_CHANNELS_CNT */;
+        const backgroundR = backgroundColor.r;
+        const backgroundG = backgroundColor.g;
+        const backgroundB = backgroundColor.b;
+        const deltaR = color.r - backgroundR;
+        const deltaG = color.g - backgroundG;
+        const deltaB = color.b - backgroundB;
+        const destAlpha = Math.max(foregroundAlpha, backgroundAlpha);
+        const dest = target.data;
+        let sourceOffset = charIndex * charWidth * charHeight;
+        let row = dy * destWidth + dx * 4 /* RGBA_CHANNELS_CNT */;
+        for (let y = 0; y < renderHeight; y++) {
+            let column = row;
+            for (let x = 0; x < charWidth; x++) {
+                const c = (charData[sourceOffset++] / 255) * (foregroundAlpha / 255);
                 dest[column++] = backgroundR + deltaR * c;
                 dest[column++] = backgroundG + deltaG * c;
                 dest[column++] = backgroundB + deltaB * c;
-                column++;
+                dest[column++] = destAlpha;
             }
             row += destWidth;
         }
-    };
-    MinimapCharRenderer.prototype.blockRenderChar = function (target, dx, dy, color, backgroundColor, useLighterFont) {
-        var charWidth = 1 /* BASE_CHAR_WIDTH */ * this.scale;
-        var charHeight = 2 /* BASE_CHAR_HEIGHT */ * this.scale;
-        if (dx + charWidth > target.width || dy + charHeight > target.height) {
+    }
+    blockRenderChar(target, dx, dy, color, foregroundAlpha, backgroundColor, backgroundAlpha, force1pxHeight) {
+        const charWidth = 1 /* BASE_CHAR_WIDTH */ * this.scale;
+        const charHeight = 2 /* BASE_CHAR_HEIGHT */ * this.scale;
+        const renderHeight = (force1pxHeight ? 1 : charHeight);
+        if (dx + charWidth > target.width || dy + renderHeight > target.height) {
             console.warn('bad render request outside image data');
             return;
         }
-        var destWidth = target.width * 4 /* RGBA_CHANNELS_CNT */;
-        var c = 0.5;
-        var backgroundR = backgroundColor.r;
-        var backgroundG = backgroundColor.g;
-        var backgroundB = backgroundColor.b;
-        var deltaR = color.r - backgroundR;
-        var deltaG = color.g - backgroundG;
-        var deltaB = color.b - backgroundB;
-        var colorR = backgroundR + deltaR * c;
-        var colorG = backgroundG + deltaG * c;
-        var colorB = backgroundB + deltaB * c;
-        var dest = target.data;
-        var row = dy * destWidth + dx * 4 /* RGBA_CHANNELS_CNT */;
-        for (var y = 0; y < charHeight; y++) {
-            var column = row;
-            for (var x = 0; x < charWidth; x++) {
+        const destWidth = target.width * 4 /* RGBA_CHANNELS_CNT */;
+        const c = 0.5 * (foregroundAlpha / 255);
+        const backgroundR = backgroundColor.r;
+        const backgroundG = backgroundColor.g;
+        const backgroundB = backgroundColor.b;
+        const deltaR = color.r - backgroundR;
+        const deltaG = color.g - backgroundG;
+        const deltaB = color.b - backgroundB;
+        const colorR = backgroundR + deltaR * c;
+        const colorG = backgroundG + deltaG * c;
+        const colorB = backgroundB + deltaB * c;
+        const destAlpha = Math.max(foregroundAlpha, backgroundAlpha);
+        const dest = target.data;
+        let row = dy * destWidth + dx * 4 /* RGBA_CHANNELS_CNT */;
+        for (let y = 0; y < renderHeight; y++) {
+            let column = row;
+            for (let x = 0; x < charWidth; x++) {
                 dest[column++] = colorR;
                 dest[column++] = colorG;
                 dest[column++] = colorB;
-                column++;
+                dest[column++] = destAlpha;
             }
             row += destWidth;
         }
-    };
-    return MinimapCharRenderer;
-}());
-export { MinimapCharRenderer };
+    }
+}

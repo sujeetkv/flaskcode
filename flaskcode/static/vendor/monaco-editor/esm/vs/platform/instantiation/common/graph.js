@@ -2,65 +2,87 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { isEmptyObject } from '../../../base/common/types.js';
-import { forEach } from '../../../base/common/collections.js';
-function newNode(data) {
-    return {
-        data: data,
-        incoming: Object.create(null),
-        outgoing: Object.create(null)
-    };
+export class Node {
+    constructor(data) {
+        this.incoming = new Map();
+        this.outgoing = new Map();
+        this.data = data;
+    }
 }
-var Graph = /** @class */ (function () {
-    function Graph(_hashFn) {
+export class Graph {
+    constructor(_hashFn) {
         this._hashFn = _hashFn;
-        this._nodes = Object.create(null);
+        this._nodes = new Map();
         // empty
     }
-    Graph.prototype.roots = function () {
-        var ret = [];
-        forEach(this._nodes, function (entry) {
-            if (isEmptyObject(entry.value.outgoing)) {
-                ret.push(entry.value);
+    roots() {
+        const ret = [];
+        for (let node of this._nodes.values()) {
+            if (node.outgoing.size === 0) {
+                ret.push(node);
             }
-        });
+        }
         return ret;
-    };
-    Graph.prototype.insertEdge = function (from, to) {
-        var fromNode = this.lookupOrInsertNode(from), toNode = this.lookupOrInsertNode(to);
-        fromNode.outgoing[this._hashFn(to)] = toNode;
-        toNode.incoming[this._hashFn(from)] = fromNode;
-    };
-    Graph.prototype.removeNode = function (data) {
-        var key = this._hashFn(data);
-        delete this._nodes[key];
-        forEach(this._nodes, function (entry) {
-            delete entry.value.outgoing[key];
-            delete entry.value.incoming[key];
-        });
-    };
-    Graph.prototype.lookupOrInsertNode = function (data) {
-        var key = this._hashFn(data);
-        var node = this._nodes[key];
+    }
+    insertEdge(from, to) {
+        const fromNode = this.lookupOrInsertNode(from);
+        const toNode = this.lookupOrInsertNode(to);
+        fromNode.outgoing.set(this._hashFn(to), toNode);
+        toNode.incoming.set(this._hashFn(from), fromNode);
+    }
+    removeNode(data) {
+        const key = this._hashFn(data);
+        this._nodes.delete(key);
+        for (let node of this._nodes.values()) {
+            node.outgoing.delete(key);
+            node.incoming.delete(key);
+        }
+    }
+    lookupOrInsertNode(data) {
+        const key = this._hashFn(data);
+        let node = this._nodes.get(key);
         if (!node) {
-            node = newNode(data);
-            this._nodes[key] = node;
+            node = new Node(data);
+            this._nodes.set(key, node);
         }
         return node;
-    };
-    Graph.prototype.isEmpty = function () {
-        for (var _key in this._nodes) {
-            return false;
+    }
+    isEmpty() {
+        return this._nodes.size === 0;
+    }
+    toString() {
+        let data = [];
+        for (let [key, value] of this._nodes) {
+            data.push(`${key}, (incoming)[${[...value.incoming.keys()].join(', ')}], (outgoing)[${[...value.outgoing.keys()].join(',')}]`);
         }
-        return true;
-    };
-    Graph.prototype.toString = function () {
-        var data = [];
-        forEach(this._nodes, function (entry) {
-            data.push(entry.key + ", (incoming)[" + Object.keys(entry.value.incoming).join(', ') + "], (outgoing)[" + Object.keys(entry.value.outgoing).join(',') + "]");
-        });
         return data.join('\n');
-    };
-    return Graph;
-}());
-export { Graph };
+    }
+    /**
+     * This is brute force and slow and **only** be used
+     * to trouble shoot.
+     */
+    findCycleSlow() {
+        for (let [id, node] of this._nodes) {
+            const seen = new Set([id]);
+            const res = this._findCycle(node, seen);
+            if (res) {
+                return res;
+            }
+        }
+        return undefined;
+    }
+    _findCycle(node, seen) {
+        for (let [id, outgoing] of node.outgoing) {
+            if (seen.has(id)) {
+                return [...seen, id].join(' -> ');
+            }
+            seen.add(id);
+            const value = this._findCycle(outgoing, seen);
+            if (value) {
+                return value;
+            }
+            seen.delete(id);
+        }
+        return undefined;
+    }
+}

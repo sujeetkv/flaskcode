@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var TreeNode = /** @class */ (function () {
-    function TreeNode(piece, color) {
+export class TreeNode {
+    constructor(piece, color) {
         this.piece = piece;
         this.color = color;
         this.size_left = 0;
@@ -12,11 +12,11 @@ var TreeNode = /** @class */ (function () {
         this.left = this;
         this.right = this;
     }
-    TreeNode.prototype.next = function () {
+    next() {
         if (this.right !== SENTINEL) {
             return leftest(this.right);
         }
-        var node = this;
+        let node = this;
         while (node.parent !== SENTINEL) {
             if (node.parent.left === node) {
                 break;
@@ -29,12 +29,12 @@ var TreeNode = /** @class */ (function () {
         else {
             return node.parent;
         }
-    };
-    TreeNode.prototype.prev = function () {
+    }
+    prev() {
         if (this.left !== SENTINEL) {
             return righttest(this.left);
         }
-        var node = this;
+        let node = this;
         while (node.parent !== SENTINEL) {
             if (node.parent.right === node) {
                 break;
@@ -47,16 +47,14 @@ var TreeNode = /** @class */ (function () {
         else {
             return node.parent;
         }
-    };
-    TreeNode.prototype.detach = function () {
+    }
+    detach() {
         this.parent = null;
         this.left = null;
         this.right = null;
-    };
-    return TreeNode;
-}());
-export { TreeNode };
-export var SENTINEL = new TreeNode(null, 0 /* Black */);
+    }
+}
+export const SENTINEL = new TreeNode(null, 0 /* Black */);
 SENTINEL.parent = SENTINEL;
 SENTINEL.left = SENTINEL;
 SENTINEL.right = SENTINEL;
@@ -89,7 +87,7 @@ export function resetSentinel() {
     SENTINEL.parent = SENTINEL;
 }
 export function leftRotate(tree, x) {
-    var y = x.right;
+    let y = x.right;
     // fix size_left
     y.size_left += x.size_left + (x.piece ? x.piece.length : 0);
     y.lf_left += x.lf_left + (x.piece ? x.piece.lineFeedCnt : 0);
@@ -111,7 +109,7 @@ export function leftRotate(tree, x) {
     x.parent = y;
 }
 export function rightRotate(tree, y) {
-    var x = y.left;
+    let x = y.left;
     y.left = x.right;
     if (x.right !== SENTINEL) {
         x.right.parent = y;
@@ -133,8 +131,8 @@ export function rightRotate(tree, y) {
     y.parent = x;
 }
 export function rbDelete(tree, z) {
-    var x;
-    var y;
+    let x;
+    let y;
     if (z.left === SENTINEL) {
         y = z;
         x = y.right;
@@ -156,7 +154,7 @@ export function rbDelete(tree, z) {
         tree.root.parent = SENTINEL;
         return;
     }
-    var yWasRed = (y.color === 1 /* Red */);
+    let yWasRed = (y.color === 1 /* Red */);
     if (y === y.parent.left) {
         y.parent.left = x;
     }
@@ -205,11 +203,11 @@ export function rbDelete(tree, z) {
     }
     z.detach();
     if (x.parent.left === x) {
-        var newSizeLeft = calculateSize(x);
-        var newLFLeft = calculateLF(x);
+        let newSizeLeft = calculateSize(x);
+        let newLFLeft = calculateLF(x);
         if (newSizeLeft !== x.parent.size_left || newLFLeft !== x.parent.lf_left) {
-            var delta = newSizeLeft - x.parent.size_left;
-            var lf_delta = newLFLeft - x.parent.lf_left;
+            let delta = newSizeLeft - x.parent.size_left;
+            let lf_delta = newLFLeft - x.parent.lf_left;
             x.parent.size_left = newSizeLeft;
             x.parent.lf_left = newLFLeft;
             updateTreeMetadata(tree, x.parent, delta, lf_delta);
@@ -221,7 +219,7 @@ export function rbDelete(tree, z) {
         return;
     }
     // RB-DELETE-FIXUP
-    var w;
+    let w;
     while (x !== tree.root && x.color === 0 /* Black */) {
         if (x === x.parent.left) {
             w = x.parent.right;
@@ -283,7 +281,7 @@ export function fixInsert(tree, x) {
     recomputeTreeMetadata(tree, x);
     while (x !== tree.root && x.parent.color === 1 /* Red */) {
         if (x.parent === x.parent.parent.left) {
-            var y = x.parent.parent.right;
+            const y = x.parent.parent.right;
             if (y.color === 1 /* Red */) {
                 x.parent.color = 0 /* Black */;
                 y.color = 0 /* Black */;
@@ -301,7 +299,7 @@ export function fixInsert(tree, x) {
             }
         }
         else {
-            var y = x.parent.parent.left;
+            const y = x.parent.parent.left;
             if (y.color === 1 /* Red */) {
                 x.parent.color = 0 /* Black */;
                 y.color = 0 /* Black */;
@@ -332,27 +330,25 @@ export function updateTreeMetadata(tree, x, delta, lineFeedCntDelta) {
     }
 }
 export function recomputeTreeMetadata(tree, x) {
-    var delta = 0;
-    var lf_delta = 0;
+    let delta = 0;
+    let lf_delta = 0;
     if (x === tree.root) {
         return;
     }
-    if (delta === 0) {
-        // go upwards till the node whose left subtree is changed.
-        while (x !== tree.root && x === x.parent.right) {
-            x = x.parent;
-        }
-        if (x === tree.root) {
-            // well, it means we add a node to the end (inorder)
-            return;
-        }
-        // x is the node whose right subtree is changed.
+    // go upwards till the node whose left subtree is changed.
+    while (x !== tree.root && x === x.parent.right) {
         x = x.parent;
-        delta = calculateSize(x.left) - x.size_left;
-        lf_delta = calculateLF(x.left) - x.lf_left;
-        x.size_left += delta;
-        x.lf_left += lf_delta;
     }
+    if (x === tree.root) {
+        // well, it means we add a node to the end (inorder)
+        return;
+    }
+    // x is the node whose right subtree is changed.
+    x = x.parent;
+    delta = calculateSize(x.left) - x.size_left;
+    lf_delta = calculateLF(x.left) - x.lf_left;
+    x.size_left += delta;
+    x.lf_left += lf_delta;
     // go upwards till root. O(logN)
     while (x !== tree.root && (delta !== 0 || lf_delta !== 0)) {
         if (x.parent.left === x) {

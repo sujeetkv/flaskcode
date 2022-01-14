@@ -2,32 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
-var __spreadArrays = (this && this.__spreadArrays) || function () {
-    for (var s = 0, i = 0, il = arguments.length; i < il; i++) s += arguments[i].length;
-    for (var r = Array(s), k = 0, i = 0; i < il; i++)
-        for (var a = arguments[i], j = 0, jl = a.length; j < jl; j++, k++)
-            r[k] = a[j];
-    return r;
-};
-import { Iterator, getSequenceIterator } from '../../../common/iterator.js';
 import { IndexTreeModel } from './indexTreeModel.js';
 import { TreeError } from './tree.js';
-import { mergeSort } from '../../../common/arrays.js';
-var ObjectTreeModel = /** @class */ (function () {
-    function ObjectTreeModel(user, list, options) {
-        if (options === void 0) { options = {}; }
+import { Iterable } from '../../../common/iterator.js';
+export class ObjectTreeModel {
+    constructor(user, list, options = {}) {
         this.user = user;
+        this.rootRef = null;
         this.nodes = new Map();
         this.nodesByIdentity = new Map();
         this.model = new IndexTreeModel(user, list, null, options);
@@ -36,145 +17,149 @@ var ObjectTreeModel = /** @class */ (function () {
         this.onDidChangeRenderNodeCount = this.model.onDidChangeRenderNodeCount;
         if (options.sorter) {
             this.sorter = {
-                compare: function (a, b) {
+                compare(a, b) {
                     return options.sorter.compare(a.element, b.element);
                 }
             };
         }
         this.identityProvider = options.identityProvider;
     }
-    ObjectTreeModel.prototype.setChildren = function (element, children, onDidCreateNode, onDidDeleteNode) {
-        var location = this.getElementLocation(element);
-        this._setChildren(location, this.preserveCollapseState(children), onDidCreateNode, onDidDeleteNode);
-    };
-    ObjectTreeModel.prototype._setChildren = function (location, children, onDidCreateNode, onDidDeleteNode) {
-        var _this = this;
-        var insertedElements = new Set();
-        var insertedElementIds = new Set();
-        var _onDidCreateNode = function (node) {
-            insertedElements.add(node.element);
-            _this.nodes.set(node.element, node);
-            if (_this.identityProvider) {
-                var id = _this.identityProvider.getId(node.element).toString();
+    setChildren(element, children = Iterable.empty(), options = {}) {
+        const location = this.getElementLocation(element);
+        this._setChildren(location, this.preserveCollapseState(children), options);
+    }
+    _setChildren(location, children = Iterable.empty(), options) {
+        const insertedElements = new Set();
+        const insertedElementIds = new Set();
+        const onDidCreateNode = (node) => {
+            var _a;
+            if (node.element === null) {
+                return;
+            }
+            const tnode = node;
+            insertedElements.add(tnode.element);
+            this.nodes.set(tnode.element, tnode);
+            if (this.identityProvider) {
+                const id = this.identityProvider.getId(tnode.element).toString();
                 insertedElementIds.add(id);
-                _this.nodesByIdentity.set(id, node);
+                this.nodesByIdentity.set(id, tnode);
             }
-            if (onDidCreateNode) {
-                onDidCreateNode(node);
-            }
+            (_a = options.onDidCreateNode) === null || _a === void 0 ? void 0 : _a.call(options, tnode);
         };
-        var _onDidDeleteNode = function (node) {
-            if (!insertedElements.has(node.element)) {
-                _this.nodes.delete(node.element);
+        const onDidDeleteNode = (node) => {
+            var _a;
+            if (node.element === null) {
+                return;
             }
-            if (_this.identityProvider) {
-                var id = _this.identityProvider.getId(node.element).toString();
+            const tnode = node;
+            if (!insertedElements.has(tnode.element)) {
+                this.nodes.delete(tnode.element);
+            }
+            if (this.identityProvider) {
+                const id = this.identityProvider.getId(tnode.element).toString();
                 if (!insertedElementIds.has(id)) {
-                    _this.nodesByIdentity.delete(id);
+                    this.nodesByIdentity.delete(id);
                 }
             }
-            if (onDidDeleteNode) {
-                onDidDeleteNode(node);
-            }
+            (_a = options.onDidDeleteNode) === null || _a === void 0 ? void 0 : _a.call(options, tnode);
         };
-        this.model.splice(__spreadArrays(location, [0]), Number.MAX_VALUE, children, _onDidCreateNode, _onDidDeleteNode);
-    };
-    ObjectTreeModel.prototype.preserveCollapseState = function (elements) {
-        var _this = this;
-        var iterator = elements ? getSequenceIterator(elements) : Iterator.empty();
+        this.model.splice([...location, 0], Number.MAX_VALUE, children, Object.assign(Object.assign({}, options), { onDidCreateNode, onDidDeleteNode }));
+    }
+    preserveCollapseState(elements = Iterable.empty()) {
         if (this.sorter) {
-            iterator = Iterator.fromArray(mergeSort(Iterator.collect(iterator), this.sorter.compare.bind(this.sorter)));
+            elements = [...elements].sort(this.sorter.compare.bind(this.sorter));
         }
-        return Iterator.map(iterator, function (treeElement) {
-            var node = _this.nodes.get(treeElement.element);
-            if (!node && _this.identityProvider) {
-                var id = _this.identityProvider.getId(treeElement.element).toString();
-                node = _this.nodesByIdentity.get(id);
+        return Iterable.map(elements, treeElement => {
+            let node = this.nodes.get(treeElement.element);
+            if (!node && this.identityProvider) {
+                const id = this.identityProvider.getId(treeElement.element).toString();
+                node = this.nodesByIdentity.get(id);
             }
             if (!node) {
-                return __assign(__assign({}, treeElement), { children: _this.preserveCollapseState(treeElement.children) });
+                return Object.assign(Object.assign({}, treeElement), { children: this.preserveCollapseState(treeElement.children) });
             }
-            var collapsible = typeof treeElement.collapsible === 'boolean' ? treeElement.collapsible : node.collapsible;
-            var collapsed = typeof treeElement.collapsed !== 'undefined' ? treeElement.collapsed : node.collapsed;
-            return __assign(__assign({}, treeElement), { collapsible: collapsible,
-                collapsed: collapsed, children: _this.preserveCollapseState(treeElement.children) });
+            const collapsible = typeof treeElement.collapsible === 'boolean' ? treeElement.collapsible : node.collapsible;
+            const collapsed = typeof treeElement.collapsed !== 'undefined' ? treeElement.collapsed : node.collapsed;
+            return Object.assign(Object.assign({}, treeElement), { collapsible,
+                collapsed, children: this.preserveCollapseState(treeElement.children) });
         });
-    };
-    ObjectTreeModel.prototype.rerender = function (element) {
-        var location = this.getElementLocation(element);
+    }
+    rerender(element) {
+        const location = this.getElementLocation(element);
         this.model.rerender(location);
-    };
-    ObjectTreeModel.prototype.has = function (element) {
+    }
+    getFirstElementChild(ref = null) {
+        const location = this.getElementLocation(ref);
+        return this.model.getFirstElementChild(location);
+    }
+    has(element) {
         return this.nodes.has(element);
-    };
-    ObjectTreeModel.prototype.getListIndex = function (element) {
-        var location = this.getElementLocation(element);
+    }
+    getListIndex(element) {
+        const location = this.getElementLocation(element);
         return this.model.getListIndex(location);
-    };
-    ObjectTreeModel.prototype.getListRenderCount = function (element) {
-        var location = this.getElementLocation(element);
+    }
+    getListRenderCount(element) {
+        const location = this.getElementLocation(element);
         return this.model.getListRenderCount(location);
-    };
-    ObjectTreeModel.prototype.isCollapsible = function (element) {
-        var location = this.getElementLocation(element);
+    }
+    isCollapsible(element) {
+        const location = this.getElementLocation(element);
         return this.model.isCollapsible(location);
-    };
-    ObjectTreeModel.prototype.setCollapsible = function (element, collapsible) {
-        var location = this.getElementLocation(element);
+    }
+    setCollapsible(element, collapsible) {
+        const location = this.getElementLocation(element);
         return this.model.setCollapsible(location, collapsible);
-    };
-    ObjectTreeModel.prototype.isCollapsed = function (element) {
-        var location = this.getElementLocation(element);
+    }
+    isCollapsed(element) {
+        const location = this.getElementLocation(element);
         return this.model.isCollapsed(location);
-    };
-    ObjectTreeModel.prototype.setCollapsed = function (element, collapsed, recursive) {
-        var location = this.getElementLocation(element);
+    }
+    setCollapsed(element, collapsed, recursive) {
+        const location = this.getElementLocation(element);
         return this.model.setCollapsed(location, collapsed, recursive);
-    };
-    ObjectTreeModel.prototype.expandTo = function (element) {
-        var location = this.getElementLocation(element);
+    }
+    expandTo(element) {
+        const location = this.getElementLocation(element);
         this.model.expandTo(location);
-    };
-    ObjectTreeModel.prototype.refilter = function () {
+    }
+    refilter() {
         this.model.refilter();
-    };
-    ObjectTreeModel.prototype.getNode = function (element) {
-        if (element === void 0) { element = null; }
+    }
+    getNode(element = null) {
         if (element === null) {
             return this.model.getNode(this.model.rootRef);
         }
-        var node = this.nodes.get(element);
+        const node = this.nodes.get(element);
         if (!node) {
-            throw new TreeError(this.user, "Tree element not found: " + element);
+            throw new TreeError(this.user, `Tree element not found: ${element}`);
         }
         return node;
-    };
-    ObjectTreeModel.prototype.getNodeLocation = function (node) {
+    }
+    getNodeLocation(node) {
         return node.element;
-    };
-    ObjectTreeModel.prototype.getParentNodeLocation = function (element) {
+    }
+    getParentNodeLocation(element) {
         if (element === null) {
-            throw new TreeError(this.user, "Invalid getParentNodeLocation call");
+            throw new TreeError(this.user, `Invalid getParentNodeLocation call`);
         }
-        var node = this.nodes.get(element);
+        const node = this.nodes.get(element);
         if (!node) {
-            throw new TreeError(this.user, "Tree element not found: " + element);
+            throw new TreeError(this.user, `Tree element not found: ${element}`);
         }
-        var location = this.model.getNodeLocation(node);
-        var parentLocation = this.model.getParentNodeLocation(location);
-        var parent = this.model.getNode(parentLocation);
+        const location = this.model.getNodeLocation(node);
+        const parentLocation = this.model.getParentNodeLocation(location);
+        const parent = this.model.getNode(parentLocation);
         return parent.element;
-    };
-    ObjectTreeModel.prototype.getElementLocation = function (element) {
+    }
+    getElementLocation(element) {
         if (element === null) {
             return [];
         }
-        var node = this.nodes.get(element);
+        const node = this.nodes.get(element);
         if (!node) {
-            throw new TreeError(this.user, "Tree element not found: " + element);
+            throw new TreeError(this.user, `Tree element not found: ${element}`);
         }
         return this.model.getNodeLocation(node);
-    };
-    return ObjectTreeModel;
-}());
-export { ObjectTreeModel };
+    }
+}

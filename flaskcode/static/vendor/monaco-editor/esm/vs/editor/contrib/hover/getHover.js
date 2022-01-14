@@ -2,26 +2,52 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { coalesce } from '../../../base/common/arrays.js';
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+import { AsyncIterableObject } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../base/common/errors.js';
 import { registerModelAndPositionCommand } from '../../browser/editorExtensions.js';
 import { HoverProviderRegistry } from '../../common/modes.js';
-export function getHover(model, position, token) {
-    var supports = HoverProviderRegistry.ordered(model);
-    var promises = supports.map(function (support) {
-        return Promise.resolve(support.provideHover(model, position, token)).then(function (hover) {
-            return hover && isValid(hover) ? hover : undefined;
-        }, function (err) {
-            onUnexpectedExternalError(err);
-            return undefined;
-        });
-    });
-    return Promise.all(promises).then(coalesce);
+export class HoverProviderResult {
+    constructor(provider, hover, ordinal) {
+        this.provider = provider;
+        this.hover = hover;
+        this.ordinal = ordinal;
+    }
 }
-registerModelAndPositionCommand('_executeHoverProvider', function (model, position) { return getHover(model, position, CancellationToken.None); });
+function executeProvider(provider, ordinal, model, position, token) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const result = yield Promise.resolve(provider.provideHover(model, position, token));
+            if (result && isValid(result)) {
+                return new HoverProviderResult(provider, result, ordinal);
+            }
+        }
+        catch (err) {
+            onUnexpectedExternalError(err);
+        }
+        return undefined;
+    });
+}
+export function getHover(model, position, token) {
+    const providers = HoverProviderRegistry.ordered(model);
+    const promises = providers.map((provider, index) => executeProvider(provider, index, model, position, token));
+    return AsyncIterableObject.fromPromises(promises).coalesce();
+}
+export function getHoverPromise(model, position, token) {
+    return getHover(model, position, token).map(item => item.hover).toPromise();
+}
+registerModelAndPositionCommand('_executeHoverProvider', (model, position) => getHoverPromise(model, position, CancellationToken.None));
 function isValid(result) {
-    var hasRange = (typeof result.range !== 'undefined');
-    var hasHtmlContent = typeof result.contents !== 'undefined' && result.contents && result.contents.length > 0;
+    const hasRange = (typeof result.range !== 'undefined');
+    const hasHtmlContent = typeof result.contents !== 'undefined' && result.contents && result.contents.length > 0;
     return hasRange && hasHtmlContent;
 }

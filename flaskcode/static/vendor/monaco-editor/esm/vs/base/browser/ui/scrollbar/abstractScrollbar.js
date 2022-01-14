@@ -2,19 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 import * as dom from '../../dom.js';
 import { createFastDomNode } from '../../fastDomNode.js';
 import { GlobalMouseMoveMonitor, standardMouseMoveMerger } from '../../globalMouseMoveMonitor.js';
@@ -25,41 +12,39 @@ import * as platform from '../../../common/platform.js';
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
  */
-var MOUSE_DRAG_RESET_DISTANCE = 140;
-var AbstractScrollbar = /** @class */ (function (_super) {
-    __extends(AbstractScrollbar, _super);
-    function AbstractScrollbar(opts) {
-        var _this = _super.call(this) || this;
-        _this._lazyRender = opts.lazyRender;
-        _this._host = opts.host;
-        _this._scrollable = opts.scrollable;
-        _this._scrollbarState = opts.scrollbarState;
-        _this._visibilityController = _this._register(new ScrollbarVisibilityController(opts.visibility, 'visible scrollbar ' + opts.extraScrollbarClassName, 'invisible scrollbar ' + opts.extraScrollbarClassName));
-        _this._visibilityController.setIsNeeded(_this._scrollbarState.isNeeded());
-        _this._mouseMoveMonitor = _this._register(new GlobalMouseMoveMonitor());
-        _this._shouldRender = true;
-        _this.domNode = createFastDomNode(document.createElement('div'));
-        _this.domNode.setAttribute('role', 'presentation');
-        _this.domNode.setAttribute('aria-hidden', 'true');
-        _this._visibilityController.setDomNode(_this.domNode);
-        _this.domNode.setPosition('absolute');
-        _this.onmousedown(_this.domNode.domNode, function (e) { return _this._domNodeMouseDown(e); });
-        return _this;
+const MOUSE_DRAG_RESET_DISTANCE = 140;
+export class AbstractScrollbar extends Widget {
+    constructor(opts) {
+        super();
+        this._lazyRender = opts.lazyRender;
+        this._host = opts.host;
+        this._scrollable = opts.scrollable;
+        this._scrollByPage = opts.scrollByPage;
+        this._scrollbarState = opts.scrollbarState;
+        this._visibilityController = this._register(new ScrollbarVisibilityController(opts.visibility, 'visible scrollbar ' + opts.extraScrollbarClassName, 'invisible scrollbar ' + opts.extraScrollbarClassName));
+        this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
+        this._mouseMoveMonitor = this._register(new GlobalMouseMoveMonitor());
+        this._shouldRender = true;
+        this.domNode = createFastDomNode(document.createElement('div'));
+        this.domNode.setAttribute('role', 'presentation');
+        this.domNode.setAttribute('aria-hidden', 'true');
+        this._visibilityController.setDomNode(this.domNode);
+        this.domNode.setPosition('absolute');
+        this.onmousedown(this.domNode.domNode, (e) => this._domNodeMouseDown(e));
     }
     // ----------------- creation
     /**
      * Creates the dom node for an arrow & adds it to the container
      */
-    AbstractScrollbar.prototype._createArrow = function (opts) {
-        var arrow = this._register(new ScrollbarArrow(opts));
+    _createArrow(opts) {
+        const arrow = this._register(new ScrollbarArrow(opts));
         this.domNode.domNode.appendChild(arrow.bgDomNode);
         this.domNode.domNode.appendChild(arrow.domNode);
-    };
+    }
     /**
      * Creates the slider dom node, adds it to the container & hooks up the events
      */
-    AbstractScrollbar.prototype._createSlider = function (top, left, width, height) {
-        var _this = this;
+    _createSlider(top, left, width, height) {
         this.slider = createFastDomNode(document.createElement('div'));
         this.slider.setClassName('slider');
         this.slider.setPosition('absolute');
@@ -74,20 +59,20 @@ var AbstractScrollbar = /** @class */ (function (_super) {
         this.slider.setLayerHinting(true);
         this.slider.setContain('strict');
         this.domNode.domNode.appendChild(this.slider.domNode);
-        this.onmousedown(this.slider.domNode, function (e) {
+        this.onmousedown(this.slider.domNode, (e) => {
             if (e.leftButton) {
                 e.preventDefault();
-                _this._sliderMouseDown(e, function () { });
+                this._sliderMouseDown(e, () => { });
             }
         });
-        this.onclick(this.slider.domNode, function (e) {
+        this.onclick(this.slider.domNode, e => {
             if (e.leftButton) {
                 e.stopPropagation();
             }
         });
-    };
+    }
     // ----------------- Update state
-    AbstractScrollbar.prototype._onElementSize = function (visibleSize) {
+    _onElementSize(visibleSize) {
         if (this._scrollbarState.setVisibleSize(visibleSize)) {
             this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
             this._shouldRender = true;
@@ -96,8 +81,8 @@ var AbstractScrollbar = /** @class */ (function (_super) {
             }
         }
         return this._shouldRender;
-    };
-    AbstractScrollbar.prototype._onElementScrollSize = function (elementScrollSize) {
+    }
+    _onElementScrollSize(elementScrollSize) {
         if (this._scrollbarState.setScrollSize(elementScrollSize)) {
             this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
             this._shouldRender = true;
@@ -106,8 +91,8 @@ var AbstractScrollbar = /** @class */ (function (_super) {
             }
         }
         return this._shouldRender;
-    };
-    AbstractScrollbar.prototype._onElementScrollPosition = function (elementScrollPosition) {
+    }
+    _onElementScrollPosition(elementScrollPosition) {
         if (this._scrollbarState.setScrollPosition(elementScrollPosition)) {
             this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
             this._shouldRender = true;
@@ -116,93 +101,104 @@ var AbstractScrollbar = /** @class */ (function (_super) {
             }
         }
         return this._shouldRender;
-    };
+    }
     // ----------------- rendering
-    AbstractScrollbar.prototype.beginReveal = function () {
+    beginReveal() {
         this._visibilityController.setShouldBeVisible(true);
-    };
-    AbstractScrollbar.prototype.beginHide = function () {
+    }
+    beginHide() {
         this._visibilityController.setShouldBeVisible(false);
-    };
-    AbstractScrollbar.prototype.render = function () {
+    }
+    render() {
         if (!this._shouldRender) {
             return;
         }
         this._shouldRender = false;
         this._renderDomNode(this._scrollbarState.getRectangleLargeSize(), this._scrollbarState.getRectangleSmallSize());
         this._updateSlider(this._scrollbarState.getSliderSize(), this._scrollbarState.getArrowSize() + this._scrollbarState.getSliderPosition());
-    };
+    }
     // ----------------- DOM events
-    AbstractScrollbar.prototype._domNodeMouseDown = function (e) {
+    _domNodeMouseDown(e) {
         if (e.target !== this.domNode.domNode) {
             return;
         }
         this._onMouseDown(e);
-    };
-    AbstractScrollbar.prototype.delegateMouseDown = function (e) {
-        var domTop = this.domNode.domNode.getClientRects()[0].top;
-        var sliderStart = domTop + this._scrollbarState.getSliderPosition();
-        var sliderStop = domTop + this._scrollbarState.getSliderPosition() + this._scrollbarState.getSliderSize();
-        var mousePos = this._sliderMousePosition(e);
+    }
+    delegateMouseDown(e) {
+        const domTop = this.domNode.domNode.getClientRects()[0].top;
+        const sliderStart = domTop + this._scrollbarState.getSliderPosition();
+        const sliderStop = domTop + this._scrollbarState.getSliderPosition() + this._scrollbarState.getSliderSize();
+        const mousePos = this._sliderMousePosition(e);
         if (sliderStart <= mousePos && mousePos <= sliderStop) {
             // Act as if it was a mouse down on the slider
             if (e.leftButton) {
                 e.preventDefault();
-                this._sliderMouseDown(e, function () { });
+                this._sliderMouseDown(e, () => { });
             }
         }
         else {
             // Act as if it was a mouse down on the scrollbar
             this._onMouseDown(e);
         }
-    };
-    AbstractScrollbar.prototype._onMouseDown = function (e) {
-        var offsetX;
-        var offsetY;
+    }
+    _onMouseDown(e) {
+        let offsetX;
+        let offsetY;
         if (e.target === this.domNode.domNode && typeof e.browserEvent.offsetX === 'number' && typeof e.browserEvent.offsetY === 'number') {
             offsetX = e.browserEvent.offsetX;
             offsetY = e.browserEvent.offsetY;
         }
         else {
-            var domNodePosition = dom.getDomNodePagePosition(this.domNode.domNode);
+            const domNodePosition = dom.getDomNodePagePosition(this.domNode.domNode);
             offsetX = e.posx - domNodePosition.left;
             offsetY = e.posy - domNodePosition.top;
         }
-        this._setDesiredScrollPositionNow(this._scrollbarState.getDesiredScrollPositionFromOffset(this._mouseDownRelativePosition(offsetX, offsetY)));
+        const offset = this._mouseDownRelativePosition(offsetX, offsetY);
+        this._setDesiredScrollPositionNow(this._scrollByPage
+            ? this._scrollbarState.getDesiredScrollPositionFromOffsetPaged(offset)
+            : this._scrollbarState.getDesiredScrollPositionFromOffset(offset));
         if (e.leftButton) {
             e.preventDefault();
-            this._sliderMouseDown(e, function () { });
+            this._sliderMouseDown(e, () => { });
         }
-    };
-    AbstractScrollbar.prototype._sliderMouseDown = function (e, onDragFinished) {
-        var _this = this;
-        var initialMousePosition = this._sliderMousePosition(e);
-        var initialMouseOrthogonalPosition = this._sliderOrthogonalMousePosition(e);
-        var initialScrollbarState = this._scrollbarState.clone();
+    }
+    _sliderMouseDown(e, onDragFinished) {
+        const initialMousePosition = this._sliderMousePosition(e);
+        const initialMouseOrthogonalPosition = this._sliderOrthogonalMousePosition(e);
+        const initialScrollbarState = this._scrollbarState.clone();
         this.slider.toggleClassName('active', true);
-        this._mouseMoveMonitor.startMonitoring(e.target, e.buttons, standardMouseMoveMerger, function (mouseMoveData) {
-            var mouseOrthogonalPosition = _this._sliderOrthogonalMousePosition(mouseMoveData);
-            var mouseOrthogonalDelta = Math.abs(mouseOrthogonalPosition - initialMouseOrthogonalPosition);
+        this._mouseMoveMonitor.startMonitoring(e.target, e.buttons, standardMouseMoveMerger, (mouseMoveData) => {
+            const mouseOrthogonalPosition = this._sliderOrthogonalMousePosition(mouseMoveData);
+            const mouseOrthogonalDelta = Math.abs(mouseOrthogonalPosition - initialMouseOrthogonalPosition);
             if (platform.isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
                 // The mouse has wondered away from the scrollbar => reset dragging
-                _this._setDesiredScrollPositionNow(initialScrollbarState.getScrollPosition());
+                this._setDesiredScrollPositionNow(initialScrollbarState.getScrollPosition());
                 return;
             }
-            var mousePosition = _this._sliderMousePosition(mouseMoveData);
-            var mouseDelta = mousePosition - initialMousePosition;
-            _this._setDesiredScrollPositionNow(initialScrollbarState.getDesiredScrollPositionFromDelta(mouseDelta));
-        }, function () {
-            _this.slider.toggleClassName('active', false);
-            _this._host.onDragEnd();
+            const mousePosition = this._sliderMousePosition(mouseMoveData);
+            const mouseDelta = mousePosition - initialMousePosition;
+            this._setDesiredScrollPositionNow(initialScrollbarState.getDesiredScrollPositionFromDelta(mouseDelta));
+        }, () => {
+            this.slider.toggleClassName('active', false);
+            this._host.onDragEnd();
             onDragFinished();
         });
         this._host.onDragStart();
-    };
-    AbstractScrollbar.prototype._setDesiredScrollPositionNow = function (_desiredScrollPosition) {
-        var desiredScrollPosition = {};
+    }
+    _setDesiredScrollPositionNow(_desiredScrollPosition) {
+        const desiredScrollPosition = {};
         this.writeScrollPosition(desiredScrollPosition, _desiredScrollPosition);
         this._scrollable.setScrollPositionNow(desiredScrollPosition);
-    };
-    return AbstractScrollbar;
-}(Widget));
-export { AbstractScrollbar };
+    }
+    updateScrollbarSize(scrollbarSize) {
+        this._updateScrollbarSize(scrollbarSize);
+        this._scrollbarState.setScrollbarSize(scrollbarSize);
+        this._shouldRender = true;
+        if (!this._lazyRender) {
+            this.render();
+        }
+    }
+    isNeeded() {
+        return this._scrollbarState.isNeeded();
+    }
+}

@@ -3,8 +3,7 @@
  * @param array The array.
  * @param n Which element from the end (default is zero).
  */
-export function tail(array, n) {
-    if (n === void 0) { n = 0; }
+export function tail(array, n = 0) {
     return array[array.length - (1 + n)];
 }
 export function tail2(arr) {
@@ -13,8 +12,7 @@ export function tail2(arr) {
     }
     return [arr.slice(0, arr.length - 1), arr[arr.length - 1]];
 }
-export function equals(one, other, itemEquals) {
-    if (itemEquals === void 0) { itemEquals = function (a, b) { return a === b; }; }
+export function equals(one, other, itemEquals = (a, b) => a === b) {
     if (one === other) {
         return true;
     }
@@ -24,7 +22,7 @@ export function equals(one, other, itemEquals) {
     if (one.length !== other.length) {
         return false;
     }
-    for (var i = 0, len = one.length; i < len; i++) {
+    for (let i = 0, len = one.length; i < len; i++) {
         if (!itemEquals(one[i], other[i])) {
             return false;
         }
@@ -32,10 +30,10 @@ export function equals(one, other, itemEquals) {
     return true;
 }
 export function binarySearch(array, key, comparator) {
-    var low = 0, high = array.length - 1;
+    let low = 0, high = array.length - 1;
     while (low <= high) {
-        var mid = ((low + high) / 2) | 0;
-        var comp = comparator(array[mid], key);
+        const mid = ((low + high) / 2) | 0;
+        const comp = comparator(array[mid], key);
         if (comp < 0) {
             low = mid + 1;
         }
@@ -54,12 +52,12 @@ export function binarySearch(array, key, comparator) {
  * @returns the least x for which p(x) is true or array.length if no element fullfills the given function.
  */
 export function findFirstInSorted(array, p) {
-    var low = 0, high = array.length;
+    let low = 0, high = array.length;
     if (high === 0) {
         return 0; // no children
     }
     while (low < high) {
-        var mid = Math.floor((low + high) / 2);
+        const mid = Math.floor((low + high) / 2);
         if (p(array[mid])) {
             high = mid;
         }
@@ -69,58 +67,41 @@ export function findFirstInSorted(array, p) {
     }
     return low;
 }
-/**
- * Like `Array#sort` but always stable. Usually runs a little slower `than Array#sort`
- * so only use this when actually needing stable sort.
- */
-export function mergeSort(data, compare) {
-    _sort(data, compare, 0, data.length - 1, []);
-    return data;
-}
-function _merge(a, compare, lo, mid, hi, aux) {
-    var leftIdx = lo, rightIdx = mid + 1;
-    for (var i = lo; i <= hi; i++) {
-        aux[i] = a[i];
+export function quickSelect(nth, data, compare) {
+    nth = nth | 0;
+    if (nth >= data.length) {
+        throw new TypeError('invalid index');
     }
-    for (var i = lo; i <= hi; i++) {
-        if (leftIdx > mid) {
-            // left side consumed
-            a[i] = aux[rightIdx++];
+    let pivotValue = data[Math.floor(data.length * Math.random())];
+    let lower = [];
+    let higher = [];
+    let pivots = [];
+    for (let value of data) {
+        const val = compare(value, pivotValue);
+        if (val < 0) {
+            lower.push(value);
         }
-        else if (rightIdx > hi) {
-            // right side consumed
-            a[i] = aux[leftIdx++];
-        }
-        else if (compare(aux[rightIdx], aux[leftIdx]) < 0) {
-            // right element is less -> comes first
-            a[i] = aux[rightIdx++];
+        else if (val > 0) {
+            higher.push(value);
         }
         else {
-            // left element comes first (less or equal)
-            a[i] = aux[leftIdx++];
+            pivots.push(value);
         }
     }
-}
-function _sort(a, compare, lo, hi, aux) {
-    if (hi <= lo) {
-        return;
+    if (nth < lower.length) {
+        return quickSelect(nth, lower, compare);
     }
-    var mid = lo + ((hi - lo) / 2) | 0;
-    _sort(a, compare, lo, mid, aux);
-    _sort(a, compare, mid + 1, hi, aux);
-    if (compare(a[mid], a[mid + 1]) <= 0) {
-        // left and right are sorted and if the last-left element is less
-        // or equals than the first-right element there is nothing else
-        // to do
-        return;
+    else if (nth < lower.length + pivots.length) {
+        return pivots[0];
     }
-    _merge(a, compare, lo, mid, hi, aux);
+    else {
+        return quickSelect(nth - (lower.length + pivots.length), higher, compare);
+    }
 }
 export function groupBy(data, compare) {
-    var result = [];
-    var currentGroup = undefined;
-    for (var _i = 0, _a = mergeSort(data.slice(0), compare); _i < _a.length; _i++) {
-        var element = _a[_i];
+    const result = [];
+    let currentGroup = undefined;
+    for (const element of data.slice(0).sort(compare)) {
         if (!currentGroup || compare(currentGroup[0], element) !== 0) {
             currentGroup = [element];
             result.push(currentGroup);
@@ -135,7 +116,7 @@ export function groupBy(data, compare) {
  * @returns New array with all falsy values removed. The original array IS NOT modified.
  */
 export function coalesce(array) {
-    return array.filter(function (e) { return !!e; });
+    return array.filter(e => !!e);
 }
 /**
  * @returns false if the provided object is an array and not empty.
@@ -148,62 +129,43 @@ export function isNonEmptyArray(obj) {
 }
 /**
  * Removes duplicates from the given array. The optional keyFn allows to specify
- * how elements are checked for equalness by returning a unique string for each.
+ * how elements are checked for equality by returning an alternate value for each.
  */
-export function distinct(array, keyFn) {
-    if (!keyFn) {
-        return array.filter(function (element, position) {
-            return array.indexOf(element) === position;
-        });
+export function distinct(array, keyFn = value => value) {
+    const seen = new Set();
+    return array.filter(element => {
+        const key = keyFn(element);
+        if (seen.has(key)) {
+            return false;
+        }
+        seen.add(key);
+        return true;
+    });
+}
+export function findLast(arr, predicate) {
+    const idx = lastIndex(arr, predicate);
+    if (idx === -1) {
+        return undefined;
     }
-    var seen = Object.create(null);
-    return array.filter(function (elem) {
-        var key = keyFn(elem);
-        if (seen[key]) {
-            return false;
-        }
-        seen[key] = true;
-        return true;
-    });
+    return arr[idx];
 }
-export function distinctES6(array) {
-    var seen = new Set();
-    return array.filter(function (element) {
-        if (seen.has(element)) {
-            return false;
-        }
-        seen.add(element);
-        return true;
-    });
-}
-export function fromSet(set) {
-    var result = [];
-    set.forEach(function (o) { return result.push(o); });
-    return result;
-}
-export function firstIndex(array, fn) {
-    for (var i = 0; i < array.length; i++) {
-        var element = array[i];
+export function lastIndex(array, fn) {
+    for (let i = array.length - 1; i >= 0; i--) {
+        const element = array[i];
         if (fn(element)) {
             return i;
         }
     }
     return -1;
 }
-export function first(array, fn, notFoundValue) {
-    if (notFoundValue === void 0) { notFoundValue = undefined; }
-    var index = firstIndex(array, fn);
-    return index < 0 ? notFoundValue : array[index];
-}
 export function firstOrDefault(array, notFoundValue) {
     return array.length > 0 ? array[0] : notFoundValue;
 }
 export function flatten(arr) {
-    var _a;
-    return (_a = []).concat.apply(_a, arr);
+    return [].concat(...arr);
 }
 export function range(arg, to) {
-    var from = typeof to === 'number' ? arg : 0;
+    let from = typeof to === 'number' ? arg : 0;
     if (typeof to === 'number') {
         from = arg;
     }
@@ -211,14 +173,14 @@ export function range(arg, to) {
         from = 0;
         to = arg;
     }
-    var result = [];
+    const result = [];
     if (from <= to) {
-        for (var i = from; i < to; i++) {
+        for (let i = from; i < to; i++) {
             result.push(i);
         }
     }
     else {
-        for (var i = from; i > to; i--) {
+        for (let i = from; i > to; i--) {
             result.push(i);
         }
     }
@@ -229,15 +191,15 @@ export function range(arg, to) {
  * Please don't touch unless you understand https://jsperf.com/inserting-an-array-within-an-array
  */
 export function arrayInsert(target, insertIndex, insertArr) {
-    var before = target.slice(0, insertIndex);
-    var after = target.slice(insertIndex);
+    const before = target.slice(0, insertIndex);
+    const after = target.slice(insertIndex);
     return before.concat(insertArr, after);
 }
 /**
  * Pushes an element to the start of the array, if found.
  */
 export function pushToStart(arr, value) {
-    var index = arr.indexOf(value);
+    const index = arr.indexOf(value);
     if (index > -1) {
         arr.splice(index, 1);
         arr.unshift(value);
@@ -247,21 +209,109 @@ export function pushToStart(arr, value) {
  * Pushes an element to the end of the array, if found.
  */
 export function pushToEnd(arr, value) {
-    var index = arr.indexOf(value);
+    const index = arr.indexOf(value);
     if (index > -1) {
         arr.splice(index, 1);
         arr.push(value);
     }
 }
-export function find(arr, predicate) {
-    for (var i = 0; i < arr.length; i++) {
-        var element = arr[i];
-        if (predicate(element, i, arr)) {
-            return element;
-        }
-    }
-    return undefined;
-}
 export function asArray(x) {
     return Array.isArray(x) ? x : [x];
+}
+/**
+ * Insert the new items in the array.
+ * @param array The original array.
+ * @param start The zero-based location in the array from which to start inserting elements.
+ * @param newItems The items to be inserted
+ */
+export function insertInto(array, start, newItems) {
+    const startIdx = getActualStartIndex(array, start);
+    const originalLength = array.length;
+    const newItemsLength = newItems.length;
+    array.length = originalLength + newItemsLength;
+    // Move the items after the start index, start from the end so that we don't overwrite any value.
+    for (let i = originalLength - 1; i >= startIdx; i--) {
+        array[i + newItemsLength] = array[i];
+    }
+    for (let i = 0; i < newItemsLength; i++) {
+        array[i + startIdx] = newItems[i];
+    }
+}
+/**
+ * Removes elements from an array and inserts new elements in their place, returning the deleted elements. Alternative to the native Array.splice method, it
+ * can only support limited number of items due to the maximum call stack size limit.
+ * @param array The original array.
+ * @param start The zero-based location in the array from which to start removing elements.
+ * @param deleteCount The number of elements to remove.
+ * @returns An array containing the elements that were deleted.
+ */
+export function splice(array, start, deleteCount, newItems) {
+    const index = getActualStartIndex(array, start);
+    const result = array.splice(index, deleteCount);
+    insertInto(array, index, newItems);
+    return result;
+}
+/**
+ * Determine the actual start index (same logic as the native splice() or slice())
+ * If greater than the length of the array, start will be set to the length of the array. In this case, no element will be deleted but the method will behave as an adding function, adding as many element as item[n*] provided.
+ * If negative, it will begin that many elements from the end of the array. (In this case, the origin -1, meaning -n is the index of the nth last element, and is therefore equivalent to the index of array.length - n.) If array.length + start is less than 0, it will begin from index 0.
+ * @param array The target array.
+ * @param start The operation index.
+ */
+function getActualStartIndex(array, start) {
+    return start < 0 ? Math.max(start + array.length, 0) : Math.min(start, array.length);
+}
+export class ArrayQueue {
+    /**
+     * Constructs a queue that is backed by the given array. Runtime is O(1).
+    */
+    constructor(items) {
+        this.items = items;
+        this.firstIdx = 0;
+        this.lastIdx = this.items.length - 1;
+    }
+    /**
+     * Consumes elements from the beginning of the queue as long as the predicate returns true.
+     * If no elements were consumed, `null` is returned. Has a runtime of O(result.length).
+    */
+    takeWhile(predicate) {
+        // P(k) := k <= this.lastIdx && predicate(this.items[k])
+        // Find s := min { k | k >= this.firstIdx && !P(k) } and return this.data[this.firstIdx...s)
+        let startIdx = this.firstIdx;
+        while (startIdx < this.items.length && predicate(this.items[startIdx])) {
+            startIdx++;
+        }
+        const result = startIdx === this.firstIdx ? null : this.items.slice(this.firstIdx, startIdx);
+        this.firstIdx = startIdx;
+        return result;
+    }
+    /**
+     * Consumes elements from the end of the queue as long as the predicate returns true.
+     * If no elements were consumed, `null` is returned.
+     * The result has the same order as the underlying array!
+    */
+    takeFromEndWhile(predicate) {
+        // P(k) := this.firstIdx >= k && predicate(this.items[k])
+        // Find s := max { k | k <= this.lastIdx && !P(k) } and return this.data(s...this.lastIdx]
+        let endIdx = this.lastIdx;
+        while (endIdx >= 0 && predicate(this.items[endIdx])) {
+            endIdx--;
+        }
+        const result = endIdx === this.lastIdx ? null : this.items.slice(endIdx + 1, this.lastIdx + 1);
+        this.lastIdx = endIdx;
+        return result;
+    }
+    peek() {
+        return this.items[this.firstIdx];
+    }
+    dequeue() {
+        const result = this.items[this.firstIdx];
+        this.firstIdx++;
+        return result;
+    }
+    takeCount(count) {
+        const result = this.items.slice(this.firstIdx, this.firstIdx + count);
+        this.firstIdx += count;
+        return result;
+    }
 }

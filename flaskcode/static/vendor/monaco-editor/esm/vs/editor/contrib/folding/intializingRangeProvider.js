@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { sanitizeRanges } from './syntaxRangeProvider.js';
-export var ID_INIT_PROVIDER = 'init';
-var InitializingRangeProvider = /** @class */ (function () {
-    function InitializingRangeProvider(editorModel, initialRanges, onTimeout, timeoutTime) {
+export const ID_INIT_PROVIDER = 'init';
+export class InitializingRangeProvider {
+    constructor(editorModel, initialRanges, onTimeout, timeoutTime) {
         this.editorModel = editorModel;
         this.id = ID_INIT_PROVIDER;
         if (initialRanges.length) {
-            var toDecorationRange = function (range) {
+            let toDecorationRange = (range) => {
                 return {
                     range: {
                         startLineNumber: range.startLineNumber,
@@ -18,6 +18,7 @@ var InitializingRangeProvider = /** @class */ (function () {
                         endColumn: editorModel.getLineLength(range.endLineNumber)
                     },
                     options: {
+                        description: 'folding-initializing-range-provider',
                         stickiness: 1 /* NeverGrowsWhenTypingAtEdges */
                     }
                 };
@@ -26,7 +27,7 @@ var InitializingRangeProvider = /** @class */ (function () {
             this.timeout = setTimeout(onTimeout, timeoutTime);
         }
     }
-    InitializingRangeProvider.prototype.dispose = function () {
+    dispose() {
         if (this.decorationIds) {
             this.editorModel.deltaDecorations(this.decorationIds, []);
             this.decorationIds = undefined;
@@ -35,20 +36,17 @@ var InitializingRangeProvider = /** @class */ (function () {
             clearTimeout(this.timeout);
             this.timeout = undefined;
         }
-    };
-    InitializingRangeProvider.prototype.compute = function (cancelationToken) {
-        var foldingRangeData = [];
+    }
+    compute(cancelationToken) {
+        let foldingRangeData = [];
         if (this.decorationIds) {
-            for (var _i = 0, _a = this.decorationIds; _i < _a.length; _i++) {
-                var id = _a[_i];
-                var range = this.editorModel.getDecorationRange(id);
+            for (let id of this.decorationIds) {
+                let range = this.editorModel.getDecorationRange(id);
                 if (range) {
                     foldingRangeData.push({ start: range.startLineNumber, end: range.endLineNumber, rank: 1 });
                 }
             }
         }
         return Promise.resolve(sanitizeRanges(foldingRangeData, Number.MAX_VALUE));
-    };
-    return InitializingRangeProvider;
-}());
-export { InitializingRangeProvider };
+    }
+}

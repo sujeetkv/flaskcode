@@ -2,47 +2,34 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { isObject } from '../../base/common/types.js';
 import { URI } from '../../base/common/uri.js';
 import { Range } from './core/range.js';
 import { LanguageFeatureRegistry } from './modes/languageFeatureRegistry.js';
 import { TokenizationRegistryImpl } from './modes/tokenizationRegistry.js';
+import { iconRegistry, Codicon } from '../../base/common/codicons.js';
 /**
  * @internal
  */
-var LanguageIdentifier = /** @class */ (function () {
-    function LanguageIdentifier(language, id) {
-        this.language = language;
-        this.id = id;
-    }
-    return LanguageIdentifier;
-}());
-export { LanguageIdentifier };
-/**
- * @internal
- */
-var TokenMetadata = /** @class */ (function () {
-    function TokenMetadata() {
-    }
-    TokenMetadata.getLanguageId = function (metadata) {
+export class TokenMetadata {
+    static getLanguageId(metadata) {
         return (metadata & 255 /* LANGUAGEID_MASK */) >>> 0 /* LANGUAGEID_OFFSET */;
-    };
-    TokenMetadata.getTokenType = function (metadata) {
+    }
+    static getTokenType(metadata) {
         return (metadata & 1792 /* TOKEN_TYPE_MASK */) >>> 8 /* TOKEN_TYPE_OFFSET */;
-    };
-    TokenMetadata.getFontStyle = function (metadata) {
+    }
+    static getFontStyle(metadata) {
         return (metadata & 14336 /* FONT_STYLE_MASK */) >>> 11 /* FONT_STYLE_OFFSET */;
-    };
-    TokenMetadata.getForeground = function (metadata) {
+    }
+    static getForeground(metadata) {
         return (metadata & 8372224 /* FOREGROUND_MASK */) >>> 14 /* FOREGROUND_OFFSET */;
-    };
-    TokenMetadata.getBackground = function (metadata) {
+    }
+    static getBackground(metadata) {
         return (metadata & 4286578688 /* BACKGROUND_MASK */) >>> 23 /* BACKGROUND_OFFSET */;
-    };
-    TokenMetadata.getClassNameFromMetadata = function (metadata) {
-        var foreground = this.getForeground(metadata);
-        var className = 'mtk' + foreground;
-        var fontStyle = this.getFontStyle(metadata);
+    }
+    static getClassNameFromMetadata(metadata) {
+        let foreground = this.getForeground(metadata);
+        let className = 'mtk' + foreground;
+        let fontStyle = this.getFontStyle(metadata);
         if (fontStyle & 1 /* Italic */) {
             className += ' mtki';
         }
@@ -53,11 +40,11 @@ var TokenMetadata = /** @class */ (function () {
             className += ' mtku';
         }
         return className;
-    };
-    TokenMetadata.getInlineStyleFromMetadata = function (metadata, colorMap) {
-        var foreground = this.getForeground(metadata);
-        var fontStyle = this.getFontStyle(metadata);
-        var result = "color: " + colorMap[foreground] + ";";
+    }
+    static getInlineStyleFromMetadata(metadata, colorMap) {
+        const foreground = this.getForeground(metadata);
+        const fontStyle = this.getFontStyle(metadata);
+        let result = `color: ${colorMap[foreground]};`;
         if (fontStyle & 1 /* Italic */) {
             result += 'font-style: italic;';
         }
@@ -68,50 +55,56 @@ var TokenMetadata = /** @class */ (function () {
             result += 'text-decoration: underline;';
         }
         return result;
-    };
-    return TokenMetadata;
-}());
-export { TokenMetadata };
+    }
+}
 /**
  * @internal
  */
-export var completionKindToCssClass = (function () {
-    var data = Object.create(null);
-    data[0 /* Method */] = 'method';
-    data[1 /* Function */] = 'function';
-    data[2 /* Constructor */] = 'constructor';
-    data[3 /* Field */] = 'field';
-    data[4 /* Variable */] = 'variable';
-    data[5 /* Class */] = 'class';
-    data[6 /* Struct */] = 'struct';
-    data[7 /* Interface */] = 'interface';
-    data[8 /* Module */] = 'module';
-    data[9 /* Property */] = 'property';
-    data[10 /* Event */] = 'event';
-    data[11 /* Operator */] = 'operator';
-    data[12 /* Unit */] = 'unit';
-    data[13 /* Value */] = 'value';
-    data[14 /* Constant */] = 'constant';
-    data[15 /* Enum */] = 'enum';
-    data[16 /* EnumMember */] = 'enum-member';
-    data[17 /* Keyword */] = 'keyword';
-    data[25 /* Snippet */] = 'snippet';
-    data[18 /* Text */] = 'text';
-    data[19 /* Color */] = 'color';
-    data[20 /* File */] = 'file';
-    data[21 /* Reference */] = 'reference';
-    data[22 /* Customcolor */] = 'customcolor';
-    data[23 /* Folder */] = 'folder';
-    data[24 /* TypeParameter */] = 'type-parameter';
+export const completionKindToCssClass = (function () {
+    let data = Object.create(null);
+    data[0 /* Method */] = 'symbol-method';
+    data[1 /* Function */] = 'symbol-function';
+    data[2 /* Constructor */] = 'symbol-constructor';
+    data[3 /* Field */] = 'symbol-field';
+    data[4 /* Variable */] = 'symbol-variable';
+    data[5 /* Class */] = 'symbol-class';
+    data[6 /* Struct */] = 'symbol-struct';
+    data[7 /* Interface */] = 'symbol-interface';
+    data[8 /* Module */] = 'symbol-module';
+    data[9 /* Property */] = 'symbol-property';
+    data[10 /* Event */] = 'symbol-event';
+    data[11 /* Operator */] = 'symbol-operator';
+    data[12 /* Unit */] = 'symbol-unit';
+    data[13 /* Value */] = 'symbol-value';
+    data[14 /* Constant */] = 'symbol-constant';
+    data[15 /* Enum */] = 'symbol-enum';
+    data[16 /* EnumMember */] = 'symbol-enum-member';
+    data[17 /* Keyword */] = 'symbol-keyword';
+    data[27 /* Snippet */] = 'symbol-snippet';
+    data[18 /* Text */] = 'symbol-text';
+    data[19 /* Color */] = 'symbol-color';
+    data[20 /* File */] = 'symbol-file';
+    data[21 /* Reference */] = 'symbol-reference';
+    data[22 /* Customcolor */] = 'symbol-customcolor';
+    data[23 /* Folder */] = 'symbol-folder';
+    data[24 /* TypeParameter */] = 'symbol-type-parameter';
+    data[25 /* User */] = 'account';
+    data[26 /* Issue */] = 'issues';
     return function (kind) {
-        return data[kind] || 'property';
+        const name = data[kind];
+        let codicon = name && iconRegistry.get(name);
+        if (!codicon) {
+            console.info('No codicon found for CompletionItemKind ' + kind);
+            codicon = Codicon.symbolProperty;
+        }
+        return codicon.classNames;
     };
 })();
 /**
  * @internal
  */
-export var completionKindFromString = (function () {
-    var data = Object.create(null);
+export let completionKindFromString = (function () {
+    let data = Object.create(null);
     data['method'] = 0 /* Method */;
     data['function'] = 1 /* Function */;
     data['constructor'] = 2 /* Constructor */;
@@ -131,7 +124,7 @@ export var completionKindFromString = (function () {
     data['enum-member'] = 16 /* EnumMember */;
     data['enumMember'] = 16 /* EnumMember */;
     data['keyword'] = 17 /* Keyword */;
-    data['snippet'] = 25 /* Snippet */;
+    data['snippet'] = 27 /* Snippet */;
     data['text'] = 18 /* Text */;
     data['color'] = 19 /* Color */;
     data['file'] = 20 /* File */;
@@ -140,14 +133,32 @@ export var completionKindFromString = (function () {
     data['folder'] = 23 /* Folder */;
     data['type-parameter'] = 24 /* TypeParameter */;
     data['typeParameter'] = 24 /* TypeParameter */;
+    data['account'] = 25 /* User */;
+    data['issue'] = 26 /* Issue */;
     return function (value, strict) {
-        var res = data[value];
+        let res = data[value];
         if (typeof res === 'undefined' && !strict) {
             res = 9 /* Property */;
         }
         return res;
     };
 })();
+/**
+ * How an {@link InlineCompletionsProvider inline completion provider} was triggered.
+ */
+export var InlineCompletionTriggerKind;
+(function (InlineCompletionTriggerKind) {
+    /**
+     * Completion was triggered automatically while editing.
+     * It is sufficient to return a single completion item in this case.
+     */
+    InlineCompletionTriggerKind[InlineCompletionTriggerKind["Automatic"] = 0] = "Automatic";
+    /**
+     * Completion was triggered explicitly by a user gesture.
+     * Return multiple completion items to enable cycling through them.
+     */
+    InlineCompletionTriggerKind[InlineCompletionTriggerKind["Explicit"] = 1] = "Explicit";
+})(InlineCompletionTriggerKind || (InlineCompletionTriggerKind = {}));
 export var SignatureHelpTriggerKind;
 (function (SignatureHelpTriggerKind) {
     SignatureHelpTriggerKind[SignatureHelpTriggerKind["Invoke"] = 1] = "Invoke";
@@ -186,7 +197,7 @@ export function isLocationLink(thing) {
  */
 export var SymbolKinds;
 (function (SymbolKinds) {
-    var byName = new Map();
+    const byName = new Map();
     byName.set('file', 0 /* File */);
     byName.set('module', 1 /* Module */);
     byName.set('namespace', 2 /* Namespace */);
@@ -213,7 +224,7 @@ export var SymbolKinds;
     byName.set('event', 23 /* Event */);
     byName.set('operator', 24 /* Operator */);
     byName.set('type-parameter', 25 /* TypeParameter */);
-    var byKind = new Map();
+    const byKind = new Map();
     byKind.set(0 /* File */, 'file');
     byKind.set(1 /* Module */, 'module');
     byKind.set(2 /* Namespace */, 'namespace');
@@ -258,151 +269,147 @@ export var SymbolKinds;
      * @internal
      */
     function toCssClassName(kind, inline) {
-        return "codicon " + (inline ? 'inline' : 'block') + " codicon-symbol-" + (byKind.get(kind) || 'property');
+        const symbolName = byKind.get(kind);
+        let codicon = symbolName && iconRegistry.get('symbol-' + symbolName);
+        if (!codicon) {
+            console.info('No codicon found for SymbolKind ' + kind);
+            codicon = Codicon.symbolProperty;
+        }
+        return `${inline ? 'inline' : 'block'} ${codicon.classNames}`;
     }
     SymbolKinds.toCssClassName = toCssClassName;
 })(SymbolKinds || (SymbolKinds = {}));
-var FoldingRangeKind = /** @class */ (function () {
+export class FoldingRangeKind {
     /**
-     * Creates a new [FoldingRangeKind](#FoldingRangeKind).
+     * Creates a new {@link FoldingRangeKind}.
      *
      * @param value of the kind.
      */
-    function FoldingRangeKind(value) {
+    constructor(value) {
         this.value = value;
     }
-    /**
-     * Kind for folding range representing a comment. The value of the kind is 'comment'.
-     */
-    FoldingRangeKind.Comment = new FoldingRangeKind('comment');
-    /**
-     * Kind for folding range representing a import. The value of the kind is 'imports'.
-     */
-    FoldingRangeKind.Imports = new FoldingRangeKind('imports');
-    /**
-     * Kind for folding range representing regions (for example marked by `#region`, `#endregion`).
-     * The value of the kind is 'region'.
-     */
-    FoldingRangeKind.Region = new FoldingRangeKind('region');
-    return FoldingRangeKind;
-}());
-export { FoldingRangeKind };
+}
 /**
- * @internal
+ * Kind for folding range representing a comment. The value of the kind is 'comment'.
  */
-export var WorkspaceFileEdit;
-(function (WorkspaceFileEdit) {
-    /**
-     * @internal
-     */
-    function is(thing) {
-        return isObject(thing) && (Boolean(thing.newUri) || Boolean(thing.oldUri));
-    }
-    WorkspaceFileEdit.is = is;
-})(WorkspaceFileEdit || (WorkspaceFileEdit = {}));
+FoldingRangeKind.Comment = new FoldingRangeKind('comment');
 /**
- * @internal
+ * Kind for folding range representing a import. The value of the kind is 'imports'.
  */
-export var WorkspaceTextEdit;
-(function (WorkspaceTextEdit) {
-    /**
-     * @internal
-     */
-    function is(thing) {
-        return isObject(thing) && URI.isUri(thing.resource) && isObject(thing.edit);
-    }
-    WorkspaceTextEdit.is = is;
-})(WorkspaceTextEdit || (WorkspaceTextEdit = {}));
+FoldingRangeKind.Imports = new FoldingRangeKind('imports');
+/**
+ * Kind for folding range representing regions (for example marked by `#region`, `#endregion`).
+ * The value of the kind is 'region'.
+ */
+FoldingRangeKind.Region = new FoldingRangeKind('region');
+export var InlayHintKind;
+(function (InlayHintKind) {
+    InlayHintKind[InlayHintKind["Other"] = 0] = "Other";
+    InlayHintKind[InlayHintKind["Type"] = 1] = "Type";
+    InlayHintKind[InlayHintKind["Parameter"] = 2] = "Parameter";
+})(InlayHintKind || (InlayHintKind = {}));
 // --- feature registries ------
 /**
  * @internal
  */
-export var ReferenceProviderRegistry = new LanguageFeatureRegistry();
+export const ReferenceProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var RenameProviderRegistry = new LanguageFeatureRegistry();
+export const RenameProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var CompletionProviderRegistry = new LanguageFeatureRegistry();
+export const CompletionProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var SignatureHelpProviderRegistry = new LanguageFeatureRegistry();
+export const InlineCompletionsProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var HoverProviderRegistry = new LanguageFeatureRegistry();
+export const SignatureHelpProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var DocumentSymbolProviderRegistry = new LanguageFeatureRegistry();
+export const HoverProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var DocumentHighlightProviderRegistry = new LanguageFeatureRegistry();
+export const DocumentSymbolProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var DefinitionProviderRegistry = new LanguageFeatureRegistry();
+export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var DeclarationProviderRegistry = new LanguageFeatureRegistry();
+export const LinkedEditingRangeProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var ImplementationProviderRegistry = new LanguageFeatureRegistry();
+export const DefinitionProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var TypeDefinitionProviderRegistry = new LanguageFeatureRegistry();
+export const DeclarationProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var CodeLensProviderRegistry = new LanguageFeatureRegistry();
+export const ImplementationProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var CodeActionProviderRegistry = new LanguageFeatureRegistry();
+export const TypeDefinitionProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var DocumentFormattingEditProviderRegistry = new LanguageFeatureRegistry();
+export const CodeLensProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var DocumentRangeFormattingEditProviderRegistry = new LanguageFeatureRegistry();
+export const InlayHintsProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var OnTypeFormattingEditProviderRegistry = new LanguageFeatureRegistry();
+export const CodeActionProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var LinkProviderRegistry = new LanguageFeatureRegistry();
+export const DocumentFormattingEditProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var ColorProviderRegistry = new LanguageFeatureRegistry();
+export const DocumentRangeFormattingEditProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var SelectionRangeRegistry = new LanguageFeatureRegistry();
+export const OnTypeFormattingEditProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var FoldingRangeProviderRegistry = new LanguageFeatureRegistry();
+export const LinkProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var DocumentSemanticTokensProviderRegistry = new LanguageFeatureRegistry();
+export const ColorProviderRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var DocumentRangeSemanticTokensProviderRegistry = new LanguageFeatureRegistry();
+export const SelectionRangeRegistry = new LanguageFeatureRegistry();
 /**
  * @internal
  */
-export var TokenizationRegistry = new TokenizationRegistryImpl();
+export const FoldingRangeProviderRegistry = new LanguageFeatureRegistry();
+/**
+ * @internal
+ */
+export const DocumentSemanticTokensProviderRegistry = new LanguageFeatureRegistry();
+/**
+ * @internal
+ */
+export const DocumentRangeSemanticTokensProviderRegistry = new LanguageFeatureRegistry();
+/**
+ * @internal
+ */
+export const TokenizationRegistry = new TokenizationRegistryImpl();

@@ -2,106 +2,93 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 import './linesDecorations.css';
 import { DecorationToRender, DedupOverlay } from '../glyphMargin/glyphMargin.js';
-var LinesDecorationsOverlay = /** @class */ (function (_super) {
-    __extends(LinesDecorationsOverlay, _super);
-    function LinesDecorationsOverlay(context) {
-        var _this = _super.call(this) || this;
-        _this._context = context;
-        var options = _this._context.configuration.options;
-        var layoutInfo = options.get(107 /* layoutInfo */);
-        _this._decorationsLeft = layoutInfo.decorationsLeft;
-        _this._decorationsWidth = layoutInfo.decorationsWidth;
-        _this._renderResult = null;
-        _this._context.addEventHandler(_this);
-        return _this;
+export class LinesDecorationsOverlay extends DedupOverlay {
+    constructor(context) {
+        super();
+        this._context = context;
+        const options = this._context.configuration.options;
+        const layoutInfo = options.get(130 /* layoutInfo */);
+        this._decorationsLeft = layoutInfo.decorationsLeft;
+        this._decorationsWidth = layoutInfo.decorationsWidth;
+        this._renderResult = null;
+        this._context.addEventHandler(this);
     }
-    LinesDecorationsOverlay.prototype.dispose = function () {
+    dispose() {
         this._context.removeEventHandler(this);
         this._renderResult = null;
-        _super.prototype.dispose.call(this);
-    };
+        super.dispose();
+    }
     // --- begin event handlers
-    LinesDecorationsOverlay.prototype.onConfigurationChanged = function (e) {
-        var options = this._context.configuration.options;
-        var layoutInfo = options.get(107 /* layoutInfo */);
+    onConfigurationChanged(e) {
+        const options = this._context.configuration.options;
+        const layoutInfo = options.get(130 /* layoutInfo */);
         this._decorationsLeft = layoutInfo.decorationsLeft;
         this._decorationsWidth = layoutInfo.decorationsWidth;
         return true;
-    };
-    LinesDecorationsOverlay.prototype.onDecorationsChanged = function (e) {
+    }
+    onDecorationsChanged(e) {
         return true;
-    };
-    LinesDecorationsOverlay.prototype.onFlushed = function (e) {
+    }
+    onFlushed(e) {
         return true;
-    };
-    LinesDecorationsOverlay.prototype.onLinesChanged = function (e) {
+    }
+    onLinesChanged(e) {
         return true;
-    };
-    LinesDecorationsOverlay.prototype.onLinesDeleted = function (e) {
+    }
+    onLinesDeleted(e) {
         return true;
-    };
-    LinesDecorationsOverlay.prototype.onLinesInserted = function (e) {
+    }
+    onLinesInserted(e) {
         return true;
-    };
-    LinesDecorationsOverlay.prototype.onScrollChanged = function (e) {
+    }
+    onScrollChanged(e) {
         return e.scrollTopChanged;
-    };
-    LinesDecorationsOverlay.prototype.onZonesChanged = function (e) {
+    }
+    onZonesChanged(e) {
         return true;
-    };
+    }
     // --- end event handlers
-    LinesDecorationsOverlay.prototype._getDecorations = function (ctx) {
-        var decorations = ctx.getDecorationsInViewport();
-        var r = [], rLen = 0;
-        for (var i = 0, len = decorations.length; i < len; i++) {
-            var d = decorations[i];
-            var linesDecorationsClassName = d.options.linesDecorationsClassName;
+    _getDecorations(ctx) {
+        const decorations = ctx.getDecorationsInViewport();
+        let r = [], rLen = 0;
+        for (let i = 0, len = decorations.length; i < len; i++) {
+            const d = decorations[i];
+            const linesDecorationsClassName = d.options.linesDecorationsClassName;
             if (linesDecorationsClassName) {
                 r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, linesDecorationsClassName);
             }
+            const firstLineDecorationClassName = d.options.firstLineDecorationClassName;
+            if (firstLineDecorationClassName) {
+                r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.startLineNumber, firstLineDecorationClassName);
+            }
         }
         return r;
-    };
-    LinesDecorationsOverlay.prototype.prepareRender = function (ctx) {
-        var visibleStartLineNumber = ctx.visibleRange.startLineNumber;
-        var visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-        var toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, this._getDecorations(ctx));
-        var left = this._decorationsLeft.toString();
-        var width = this._decorationsWidth.toString();
-        var common = '" style="left:' + left + 'px;width:' + width + 'px;"></div>';
-        var output = [];
-        for (var lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
-            var lineIndex = lineNumber - visibleStartLineNumber;
-            var classNames = toRender[lineIndex];
-            var lineOutput = '';
-            for (var i = 0, len = classNames.length; i < len; i++) {
+    }
+    prepareRender(ctx) {
+        const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+        const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
+        const toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, this._getDecorations(ctx));
+        const left = this._decorationsLeft.toString();
+        const width = this._decorationsWidth.toString();
+        const common = '" style="left:' + left + 'px;width:' + width + 'px;"></div>';
+        const output = [];
+        for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
+            const lineIndex = lineNumber - visibleStartLineNumber;
+            const classNames = toRender[lineIndex];
+            let lineOutput = '';
+            for (let i = 0, len = classNames.length; i < len; i++) {
                 lineOutput += '<div class="cldr ' + classNames[i] + common;
             }
             output[lineIndex] = lineOutput;
         }
         this._renderResult = output;
-    };
-    LinesDecorationsOverlay.prototype.render = function (startLineNumber, lineNumber) {
+    }
+    render(startLineNumber, lineNumber) {
         if (!this._renderResult) {
             return '';
         }
         return this._renderResult[lineNumber - startLineNumber];
-    };
-    return LinesDecorationsOverlay;
-}(DedupOverlay));
-export { LinesDecorationsOverlay };
+    }
+}

@@ -2,21 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-import { EditorCommand, registerEditorCommand } from '../../browser/editorExtensions.js';
+import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand } from '../../browser/editorExtensions.js';
 import { ReplaceCommand } from '../../common/commands/replaceCommand.js';
+import { EditorOptions } from '../../common/config/editorOptions.js';
 import { CursorState } from '../../common/controller/cursorCommon.js';
 import { WordOperations } from '../../common/controller/cursorWordOperations.js';
 import { getMapForWordSeparators } from '../../common/controller/wordCharacterClassifier.js';
@@ -24,37 +12,37 @@ import { Position } from '../../common/core/position.js';
 import { Range } from '../../common/core/range.js';
 import { Selection } from '../../common/core/selection.js';
 import { EditorContextKeys } from '../../common/editorContextKeys.js';
+import { LanguageConfigurationRegistry } from '../../common/modes/languageConfigurationRegistry.js';
+import * as nls from '../../../nls.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../platform/accessibility/common/accessibility.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
-import { EditorOptions } from '../../common/config/editorOptions.js';
-var MoveWordCommand = /** @class */ (function (_super) {
-    __extends(MoveWordCommand, _super);
-    function MoveWordCommand(opts) {
-        var _this = _super.call(this, opts) || this;
-        _this._inSelectionMode = opts.inSelectionMode;
-        _this._wordNavigationType = opts.wordNavigationType;
-        return _this;
+import { IsWindowsContext } from '../../../platform/contextkey/common/contextkeys.js';
+export class MoveWordCommand extends EditorCommand {
+    constructor(opts) {
+        super(opts);
+        this._inSelectionMode = opts.inSelectionMode;
+        this._wordNavigationType = opts.wordNavigationType;
     }
-    MoveWordCommand.prototype.runEditorCommand = function (accessor, editor, args) {
-        var _this = this;
+    runEditorCommand(accessor, editor, args) {
         if (!editor.hasModel()) {
             return;
         }
-        var wordSeparators = getMapForWordSeparators(editor.getOption(96 /* wordSeparators */));
-        var model = editor.getModel();
-        var selections = editor.getSelections();
-        var result = selections.map(function (sel) {
-            var inPosition = new Position(sel.positionLineNumber, sel.positionColumn);
-            var outPosition = _this._move(wordSeparators, model, inPosition, _this._wordNavigationType);
-            return _this._moveTo(sel, outPosition, _this._inSelectionMode);
+        const wordSeparators = getMapForWordSeparators(editor.getOption(116 /* wordSeparators */));
+        const model = editor.getModel();
+        const selections = editor.getSelections();
+        const result = selections.map((sel) => {
+            const inPosition = new Position(sel.positionLineNumber, sel.positionColumn);
+            const outPosition = this._move(wordSeparators, model, inPosition, this._wordNavigationType);
+            return this._moveTo(sel, outPosition, this._inSelectionMode);
         });
-        editor._getCursors().setStates('moveWordCommand', 0 /* NotSet */, result.map(function (r) { return CursorState.fromModelSelection(r); }));
+        model.pushStackElement();
+        editor._getViewModel().setCursorStates('moveWordCommand', 3 /* Explicit */, result.map(r => CursorState.fromModelSelection(r)));
         if (result.length === 1) {
-            var pos = new Position(result[0].positionLineNumber, result[0].positionColumn);
+            const pos = new Position(result[0].positionLineNumber, result[0].positionColumn);
             editor.revealPosition(pos, 0 /* Smooth */);
         }
-    };
-    MoveWordCommand.prototype._moveTo = function (from, to, inSelectionMode) {
+    }
+    _moveTo(from, to, inSelectionMode) {
         if (inSelectionMode) {
             // move just position
             return new Selection(from.selectionStartLineNumber, from.selectionStartColumn, to.lineNumber, to.column);
@@ -63,386 +51,298 @@ var MoveWordCommand = /** @class */ (function (_super) {
             // move everything
             return new Selection(to.lineNumber, to.column, to.lineNumber, to.column);
         }
-    };
-    return MoveWordCommand;
-}(EditorCommand));
-export { MoveWordCommand };
-var WordLeftCommand = /** @class */ (function (_super) {
-    __extends(WordLeftCommand, _super);
-    function WordLeftCommand() {
-        return _super !== null && _super.apply(this, arguments) || this;
     }
-    WordLeftCommand.prototype._move = function (wordSeparators, model, position, wordNavigationType) {
+}
+export class WordLeftCommand extends MoveWordCommand {
+    _move(wordSeparators, model, position, wordNavigationType) {
         return WordOperations.moveWordLeft(wordSeparators, model, position, wordNavigationType);
-    };
-    return WordLeftCommand;
-}(MoveWordCommand));
-export { WordLeftCommand };
-var WordRightCommand = /** @class */ (function (_super) {
-    __extends(WordRightCommand, _super);
-    function WordRightCommand() {
-        return _super !== null && _super.apply(this, arguments) || this;
     }
-    WordRightCommand.prototype._move = function (wordSeparators, model, position, wordNavigationType) {
+}
+export class WordRightCommand extends MoveWordCommand {
+    _move(wordSeparators, model, position, wordNavigationType) {
         return WordOperations.moveWordRight(wordSeparators, model, position, wordNavigationType);
-    };
-    return WordRightCommand;
-}(MoveWordCommand));
-export { WordRightCommand };
-var CursorWordStartLeft = /** @class */ (function (_super) {
-    __extends(CursorWordStartLeft, _super);
-    function CursorWordStartLeft() {
-        return _super.call(this, {
+    }
+}
+export class CursorWordStartLeft extends WordLeftCommand {
+    constructor() {
+        super({
             inSelectionMode: false,
             wordNavigationType: 0 /* WordStart */,
             id: 'cursorWordStartLeft',
-            precondition: undefined,
-            kbOpts: {
-                kbExpr: EditorContextKeys.textInputFocus,
-                primary: 2048 /* CtrlCmd */ | 15 /* LeftArrow */,
-                mac: { primary: 512 /* Alt */ | 15 /* LeftArrow */ },
-                weight: 100 /* EditorContrib */
-            }
-        }) || this;
+            precondition: undefined
+        });
     }
-    return CursorWordStartLeft;
-}(WordLeftCommand));
-export { CursorWordStartLeft };
-var CursorWordEndLeft = /** @class */ (function (_super) {
-    __extends(CursorWordEndLeft, _super);
-    function CursorWordEndLeft() {
-        return _super.call(this, {
+}
+export class CursorWordEndLeft extends WordLeftCommand {
+    constructor() {
+        super({
             inSelectionMode: false,
             wordNavigationType: 2 /* WordEnd */,
             id: 'cursorWordEndLeft',
             precondition: undefined
-        }) || this;
+        });
     }
-    return CursorWordEndLeft;
-}(WordLeftCommand));
-export { CursorWordEndLeft };
-var CursorWordLeft = /** @class */ (function (_super) {
-    __extends(CursorWordLeft, _super);
-    function CursorWordLeft() {
-        return _super.call(this, {
+}
+export class CursorWordLeft extends WordLeftCommand {
+    constructor() {
+        var _a;
+        super({
             inSelectionMode: false,
             wordNavigationType: 1 /* WordStartFast */,
             id: 'cursorWordLeft',
-            precondition: undefined
-        }) || this;
+            precondition: undefined,
+            kbOpts: {
+                kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, (_a = ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext)) === null || _a === void 0 ? void 0 : _a.negate()),
+                primary: 2048 /* CtrlCmd */ | 15 /* LeftArrow */,
+                mac: { primary: 512 /* Alt */ | 15 /* LeftArrow */ },
+                weight: 100 /* EditorContrib */
+            }
+        });
     }
-    return CursorWordLeft;
-}(WordLeftCommand));
-export { CursorWordLeft };
-var CursorWordStartLeftSelect = /** @class */ (function (_super) {
-    __extends(CursorWordStartLeftSelect, _super);
-    function CursorWordStartLeftSelect() {
-        return _super.call(this, {
+}
+export class CursorWordStartLeftSelect extends WordLeftCommand {
+    constructor() {
+        super({
             inSelectionMode: true,
             wordNavigationType: 0 /* WordStart */,
             id: 'cursorWordStartLeftSelect',
-            precondition: undefined,
-            kbOpts: {
-                kbExpr: EditorContextKeys.textInputFocus,
-                primary: 2048 /* CtrlCmd */ | 1024 /* Shift */ | 15 /* LeftArrow */,
-                mac: { primary: 512 /* Alt */ | 1024 /* Shift */ | 15 /* LeftArrow */ },
-                weight: 100 /* EditorContrib */
-            }
-        }) || this;
+            precondition: undefined
+        });
     }
-    return CursorWordStartLeftSelect;
-}(WordLeftCommand));
-export { CursorWordStartLeftSelect };
-var CursorWordEndLeftSelect = /** @class */ (function (_super) {
-    __extends(CursorWordEndLeftSelect, _super);
-    function CursorWordEndLeftSelect() {
-        return _super.call(this, {
+}
+export class CursorWordEndLeftSelect extends WordLeftCommand {
+    constructor() {
+        super({
             inSelectionMode: true,
             wordNavigationType: 2 /* WordEnd */,
             id: 'cursorWordEndLeftSelect',
             precondition: undefined
-        }) || this;
+        });
     }
-    return CursorWordEndLeftSelect;
-}(WordLeftCommand));
-export { CursorWordEndLeftSelect };
-var CursorWordLeftSelect = /** @class */ (function (_super) {
-    __extends(CursorWordLeftSelect, _super);
-    function CursorWordLeftSelect() {
-        return _super.call(this, {
+}
+export class CursorWordLeftSelect extends WordLeftCommand {
+    constructor() {
+        var _a;
+        super({
             inSelectionMode: true,
             wordNavigationType: 1 /* WordStartFast */,
             id: 'cursorWordLeftSelect',
-            precondition: undefined
-        }) || this;
+            precondition: undefined,
+            kbOpts: {
+                kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, (_a = ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext)) === null || _a === void 0 ? void 0 : _a.negate()),
+                primary: 2048 /* CtrlCmd */ | 1024 /* Shift */ | 15 /* LeftArrow */,
+                mac: { primary: 512 /* Alt */ | 1024 /* Shift */ | 15 /* LeftArrow */ },
+                weight: 100 /* EditorContrib */
+            }
+        });
     }
-    return CursorWordLeftSelect;
-}(WordLeftCommand));
-export { CursorWordLeftSelect };
+}
 // Accessibility navigation commands should only be enabled on windows since they are tuned to what NVDA expects
-var CursorWordAccessibilityLeft = /** @class */ (function (_super) {
-    __extends(CursorWordAccessibilityLeft, _super);
-    function CursorWordAccessibilityLeft() {
-        return _super.call(this, {
+export class CursorWordAccessibilityLeft extends WordLeftCommand {
+    constructor() {
+        super({
             inSelectionMode: false,
             wordNavigationType: 3 /* WordAccessibility */,
             id: 'cursorWordAccessibilityLeft',
-            precondition: undefined,
-            kbOpts: {
-                kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
-                win: { primary: 2048 /* CtrlCmd */ | 15 /* LeftArrow */ },
-                weight: 100 /* EditorContrib */ + 1
-            }
-        }) || this;
+            precondition: undefined
+        });
     }
-    CursorWordAccessibilityLeft.prototype._move = function (_, model, position, wordNavigationType) {
-        return _super.prototype._move.call(this, getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType);
-    };
-    return CursorWordAccessibilityLeft;
-}(WordLeftCommand));
-export { CursorWordAccessibilityLeft };
-var CursorWordAccessibilityLeftSelect = /** @class */ (function (_super) {
-    __extends(CursorWordAccessibilityLeftSelect, _super);
-    function CursorWordAccessibilityLeftSelect() {
-        return _super.call(this, {
+    _move(_, model, position, wordNavigationType) {
+        return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType);
+    }
+}
+export class CursorWordAccessibilityLeftSelect extends WordLeftCommand {
+    constructor() {
+        super({
             inSelectionMode: true,
             wordNavigationType: 3 /* WordAccessibility */,
             id: 'cursorWordAccessibilityLeftSelect',
-            precondition: undefined,
-            kbOpts: {
-                kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
-                win: { primary: 2048 /* CtrlCmd */ | 1024 /* Shift */ | 15 /* LeftArrow */ },
-                weight: 100 /* EditorContrib */ + 1
-            }
-        }) || this;
+            precondition: undefined
+        });
     }
-    CursorWordAccessibilityLeftSelect.prototype._move = function (_, model, position, wordNavigationType) {
-        return _super.prototype._move.call(this, getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType);
-    };
-    return CursorWordAccessibilityLeftSelect;
-}(WordLeftCommand));
-export { CursorWordAccessibilityLeftSelect };
-var CursorWordStartRight = /** @class */ (function (_super) {
-    __extends(CursorWordStartRight, _super);
-    function CursorWordStartRight() {
-        return _super.call(this, {
+    _move(_, model, position, wordNavigationType) {
+        return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType);
+    }
+}
+export class CursorWordStartRight extends WordRightCommand {
+    constructor() {
+        super({
             inSelectionMode: false,
             wordNavigationType: 0 /* WordStart */,
             id: 'cursorWordStartRight',
             precondition: undefined
-        }) || this;
+        });
     }
-    return CursorWordStartRight;
-}(WordRightCommand));
-export { CursorWordStartRight };
-var CursorWordEndRight = /** @class */ (function (_super) {
-    __extends(CursorWordEndRight, _super);
-    function CursorWordEndRight() {
-        return _super.call(this, {
+}
+export class CursorWordEndRight extends WordRightCommand {
+    constructor() {
+        var _a;
+        super({
             inSelectionMode: false,
             wordNavigationType: 2 /* WordEnd */,
             id: 'cursorWordEndRight',
             precondition: undefined,
             kbOpts: {
-                kbExpr: EditorContextKeys.textInputFocus,
+                kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, (_a = ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext)) === null || _a === void 0 ? void 0 : _a.negate()),
                 primary: 2048 /* CtrlCmd */ | 17 /* RightArrow */,
                 mac: { primary: 512 /* Alt */ | 17 /* RightArrow */ },
                 weight: 100 /* EditorContrib */
             }
-        }) || this;
+        });
     }
-    return CursorWordEndRight;
-}(WordRightCommand));
-export { CursorWordEndRight };
-var CursorWordRight = /** @class */ (function (_super) {
-    __extends(CursorWordRight, _super);
-    function CursorWordRight() {
-        return _super.call(this, {
+}
+export class CursorWordRight extends WordRightCommand {
+    constructor() {
+        super({
             inSelectionMode: false,
             wordNavigationType: 2 /* WordEnd */,
             id: 'cursorWordRight',
             precondition: undefined
-        }) || this;
+        });
     }
-    return CursorWordRight;
-}(WordRightCommand));
-export { CursorWordRight };
-var CursorWordStartRightSelect = /** @class */ (function (_super) {
-    __extends(CursorWordStartRightSelect, _super);
-    function CursorWordStartRightSelect() {
-        return _super.call(this, {
+}
+export class CursorWordStartRightSelect extends WordRightCommand {
+    constructor() {
+        super({
             inSelectionMode: true,
             wordNavigationType: 0 /* WordStart */,
             id: 'cursorWordStartRightSelect',
             precondition: undefined
-        }) || this;
+        });
     }
-    return CursorWordStartRightSelect;
-}(WordRightCommand));
-export { CursorWordStartRightSelect };
-var CursorWordEndRightSelect = /** @class */ (function (_super) {
-    __extends(CursorWordEndRightSelect, _super);
-    function CursorWordEndRightSelect() {
-        return _super.call(this, {
+}
+export class CursorWordEndRightSelect extends WordRightCommand {
+    constructor() {
+        var _a;
+        super({
             inSelectionMode: true,
             wordNavigationType: 2 /* WordEnd */,
             id: 'cursorWordEndRightSelect',
             precondition: undefined,
             kbOpts: {
-                kbExpr: EditorContextKeys.textInputFocus,
+                kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, (_a = ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext)) === null || _a === void 0 ? void 0 : _a.negate()),
                 primary: 2048 /* CtrlCmd */ | 1024 /* Shift */ | 17 /* RightArrow */,
                 mac: { primary: 512 /* Alt */ | 1024 /* Shift */ | 17 /* RightArrow */ },
                 weight: 100 /* EditorContrib */
             }
-        }) || this;
+        });
     }
-    return CursorWordEndRightSelect;
-}(WordRightCommand));
-export { CursorWordEndRightSelect };
-var CursorWordRightSelect = /** @class */ (function (_super) {
-    __extends(CursorWordRightSelect, _super);
-    function CursorWordRightSelect() {
-        return _super.call(this, {
+}
+export class CursorWordRightSelect extends WordRightCommand {
+    constructor() {
+        super({
             inSelectionMode: true,
             wordNavigationType: 2 /* WordEnd */,
             id: 'cursorWordRightSelect',
             precondition: undefined
-        }) || this;
+        });
     }
-    return CursorWordRightSelect;
-}(WordRightCommand));
-export { CursorWordRightSelect };
-var CursorWordAccessibilityRight = /** @class */ (function (_super) {
-    __extends(CursorWordAccessibilityRight, _super);
-    function CursorWordAccessibilityRight() {
-        return _super.call(this, {
+}
+export class CursorWordAccessibilityRight extends WordRightCommand {
+    constructor() {
+        super({
             inSelectionMode: false,
             wordNavigationType: 3 /* WordAccessibility */,
             id: 'cursorWordAccessibilityRight',
-            precondition: undefined,
-            kbOpts: {
-                kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
-                win: { primary: 2048 /* CtrlCmd */ | 17 /* RightArrow */ },
-                weight: 100 /* EditorContrib */ + 1
-            }
-        }) || this;
+            precondition: undefined
+        });
     }
-    CursorWordAccessibilityRight.prototype._move = function (_, model, position, wordNavigationType) {
-        return _super.prototype._move.call(this, getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType);
-    };
-    return CursorWordAccessibilityRight;
-}(WordRightCommand));
-export { CursorWordAccessibilityRight };
-var CursorWordAccessibilityRightSelect = /** @class */ (function (_super) {
-    __extends(CursorWordAccessibilityRightSelect, _super);
-    function CursorWordAccessibilityRightSelect() {
-        return _super.call(this, {
+    _move(_, model, position, wordNavigationType) {
+        return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType);
+    }
+}
+export class CursorWordAccessibilityRightSelect extends WordRightCommand {
+    constructor() {
+        super({
             inSelectionMode: true,
             wordNavigationType: 3 /* WordAccessibility */,
             id: 'cursorWordAccessibilityRightSelect',
-            precondition: undefined,
-            kbOpts: {
-                kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
-                win: { primary: 2048 /* CtrlCmd */ | 1024 /* Shift */ | 17 /* RightArrow */ },
-                weight: 100 /* EditorContrib */ + 1
-            }
-        }) || this;
+            precondition: undefined
+        });
     }
-    CursorWordAccessibilityRightSelect.prototype._move = function (_, model, position, wordNavigationType) {
-        return _super.prototype._move.call(this, getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType);
-    };
-    return CursorWordAccessibilityRightSelect;
-}(WordRightCommand));
-export { CursorWordAccessibilityRightSelect };
-var DeleteWordCommand = /** @class */ (function (_super) {
-    __extends(DeleteWordCommand, _super);
-    function DeleteWordCommand(opts) {
-        var _this = _super.call(this, opts) || this;
-        _this._whitespaceHeuristics = opts.whitespaceHeuristics;
-        _this._wordNavigationType = opts.wordNavigationType;
-        return _this;
+    _move(_, model, position, wordNavigationType) {
+        return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue), model, position, wordNavigationType);
     }
-    DeleteWordCommand.prototype.runEditorCommand = function (accessor, editor, args) {
-        var _this = this;
+}
+export class DeleteWordCommand extends EditorCommand {
+    constructor(opts) {
+        super(opts);
+        this._whitespaceHeuristics = opts.whitespaceHeuristics;
+        this._wordNavigationType = opts.wordNavigationType;
+    }
+    runEditorCommand(accessor, editor, args) {
         if (!editor.hasModel()) {
             return;
         }
-        var wordSeparators = getMapForWordSeparators(editor.getOption(96 /* wordSeparators */));
-        var model = editor.getModel();
-        var selections = editor.getSelections();
-        var commands = selections.map(function (sel) {
-            var deleteRange = _this._delete(wordSeparators, model, sel, _this._whitespaceHeuristics, _this._wordNavigationType);
+        const wordSeparators = getMapForWordSeparators(editor.getOption(116 /* wordSeparators */));
+        const model = editor.getModel();
+        const selections = editor.getSelections();
+        const autoClosingBrackets = editor.getOption(5 /* autoClosingBrackets */);
+        const autoClosingQuotes = editor.getOption(8 /* autoClosingQuotes */);
+        const autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(model.getLanguageId());
+        const viewModel = editor._getViewModel();
+        const commands = selections.map((sel) => {
+            const deleteRange = this._delete({
+                wordSeparators,
+                model,
+                selection: sel,
+                whitespaceHeuristics: this._whitespaceHeuristics,
+                autoClosingDelete: editor.getOption(6 /* autoClosingDelete */),
+                autoClosingBrackets,
+                autoClosingQuotes,
+                autoClosingPairs,
+                autoClosedCharacters: viewModel.getCursorAutoClosedCharacters()
+            }, this._wordNavigationType);
             return new ReplaceCommand(deleteRange, '');
         });
         editor.pushUndoStop();
         editor.executeCommands(this.id, commands);
         editor.pushUndoStop();
-    };
-    return DeleteWordCommand;
-}(EditorCommand));
-export { DeleteWordCommand };
-var DeleteWordLeftCommand = /** @class */ (function (_super) {
-    __extends(DeleteWordLeftCommand, _super);
-    function DeleteWordLeftCommand() {
-        return _super !== null && _super.apply(this, arguments) || this;
     }
-    DeleteWordLeftCommand.prototype._delete = function (wordSeparators, model, selection, whitespaceHeuristics, wordNavigationType) {
-        var r = WordOperations.deleteWordLeft(wordSeparators, model, selection, whitespaceHeuristics, wordNavigationType);
+}
+export class DeleteWordLeftCommand extends DeleteWordCommand {
+    _delete(ctx, wordNavigationType) {
+        let r = WordOperations.deleteWordLeft(ctx, wordNavigationType);
         if (r) {
             return r;
         }
         return new Range(1, 1, 1, 1);
-    };
-    return DeleteWordLeftCommand;
-}(DeleteWordCommand));
-export { DeleteWordLeftCommand };
-var DeleteWordRightCommand = /** @class */ (function (_super) {
-    __extends(DeleteWordRightCommand, _super);
-    function DeleteWordRightCommand() {
-        return _super !== null && _super.apply(this, arguments) || this;
     }
-    DeleteWordRightCommand.prototype._delete = function (wordSeparators, model, selection, whitespaceHeuristics, wordNavigationType) {
-        var r = WordOperations.deleteWordRight(wordSeparators, model, selection, whitespaceHeuristics, wordNavigationType);
+}
+export class DeleteWordRightCommand extends DeleteWordCommand {
+    _delete(ctx, wordNavigationType) {
+        let r = WordOperations.deleteWordRight(ctx, wordNavigationType);
         if (r) {
             return r;
         }
-        var lineCount = model.getLineCount();
-        var maxColumn = model.getLineMaxColumn(lineCount);
+        const lineCount = ctx.model.getLineCount();
+        const maxColumn = ctx.model.getLineMaxColumn(lineCount);
         return new Range(lineCount, maxColumn, lineCount, maxColumn);
-    };
-    return DeleteWordRightCommand;
-}(DeleteWordCommand));
-export { DeleteWordRightCommand };
-var DeleteWordStartLeft = /** @class */ (function (_super) {
-    __extends(DeleteWordStartLeft, _super);
-    function DeleteWordStartLeft() {
-        return _super.call(this, {
+    }
+}
+export class DeleteWordStartLeft extends DeleteWordLeftCommand {
+    constructor() {
+        super({
             whitespaceHeuristics: false,
             wordNavigationType: 0 /* WordStart */,
             id: 'deleteWordStartLeft',
             precondition: EditorContextKeys.writable
-        }) || this;
+        });
     }
-    return DeleteWordStartLeft;
-}(DeleteWordLeftCommand));
-export { DeleteWordStartLeft };
-var DeleteWordEndLeft = /** @class */ (function (_super) {
-    __extends(DeleteWordEndLeft, _super);
-    function DeleteWordEndLeft() {
-        return _super.call(this, {
+}
+export class DeleteWordEndLeft extends DeleteWordLeftCommand {
+    constructor() {
+        super({
             whitespaceHeuristics: false,
             wordNavigationType: 2 /* WordEnd */,
             id: 'deleteWordEndLeft',
             precondition: EditorContextKeys.writable
-        }) || this;
+        });
     }
-    return DeleteWordEndLeft;
-}(DeleteWordLeftCommand));
-export { DeleteWordEndLeft };
-var DeleteWordLeft = /** @class */ (function (_super) {
-    __extends(DeleteWordLeft, _super);
-    function DeleteWordLeft() {
-        return _super.call(this, {
+}
+export class DeleteWordLeft extends DeleteWordLeftCommand {
+    constructor() {
+        super({
             whitespaceHeuristics: true,
             wordNavigationType: 0 /* WordStart */,
             id: 'deleteWordLeft',
@@ -453,41 +353,32 @@ var DeleteWordLeft = /** @class */ (function (_super) {
                 mac: { primary: 512 /* Alt */ | 1 /* Backspace */ },
                 weight: 100 /* EditorContrib */
             }
-        }) || this;
+        });
     }
-    return DeleteWordLeft;
-}(DeleteWordLeftCommand));
-export { DeleteWordLeft };
-var DeleteWordStartRight = /** @class */ (function (_super) {
-    __extends(DeleteWordStartRight, _super);
-    function DeleteWordStartRight() {
-        return _super.call(this, {
+}
+export class DeleteWordStartRight extends DeleteWordRightCommand {
+    constructor() {
+        super({
             whitespaceHeuristics: false,
             wordNavigationType: 0 /* WordStart */,
             id: 'deleteWordStartRight',
             precondition: EditorContextKeys.writable
-        }) || this;
+        });
     }
-    return DeleteWordStartRight;
-}(DeleteWordRightCommand));
-export { DeleteWordStartRight };
-var DeleteWordEndRight = /** @class */ (function (_super) {
-    __extends(DeleteWordEndRight, _super);
-    function DeleteWordEndRight() {
-        return _super.call(this, {
+}
+export class DeleteWordEndRight extends DeleteWordRightCommand {
+    constructor() {
+        super({
             whitespaceHeuristics: false,
             wordNavigationType: 2 /* WordEnd */,
             id: 'deleteWordEndRight',
             precondition: EditorContextKeys.writable
-        }) || this;
+        });
     }
-    return DeleteWordEndRight;
-}(DeleteWordRightCommand));
-export { DeleteWordEndRight };
-var DeleteWordRight = /** @class */ (function (_super) {
-    __extends(DeleteWordRight, _super);
-    function DeleteWordRight() {
-        return _super.call(this, {
+}
+export class DeleteWordRight extends DeleteWordRightCommand {
+    constructor() {
+        super({
             whitespaceHeuristics: true,
             wordNavigationType: 2 /* WordEnd */,
             id: 'deleteWordRight',
@@ -498,11 +389,34 @@ var DeleteWordRight = /** @class */ (function (_super) {
                 mac: { primary: 512 /* Alt */ | 20 /* Delete */ },
                 weight: 100 /* EditorContrib */
             }
-        }) || this;
+        });
     }
-    return DeleteWordRight;
-}(DeleteWordRightCommand));
-export { DeleteWordRight };
+}
+export class DeleteInsideWord extends EditorAction {
+    constructor() {
+        super({
+            id: 'deleteInsideWord',
+            precondition: EditorContextKeys.writable,
+            label: nls.localize('deleteInsideWord', "Delete Word"),
+            alias: 'Delete Word'
+        });
+    }
+    run(accessor, editor, args) {
+        if (!editor.hasModel()) {
+            return;
+        }
+        const wordSeparators = getMapForWordSeparators(editor.getOption(116 /* wordSeparators */));
+        const model = editor.getModel();
+        const selections = editor.getSelections();
+        const commands = selections.map((sel) => {
+            const deleteRange = WordOperations.deleteInsideWord(wordSeparators, model, sel);
+            return new ReplaceCommand(deleteRange, '');
+        });
+        editor.pushUndoStop();
+        editor.executeCommands(this.id, commands);
+        editor.pushUndoStop();
+    }
+}
 registerEditorCommand(new CursorWordStartLeft());
 registerEditorCommand(new CursorWordEndLeft());
 registerEditorCommand(new CursorWordLeft());
@@ -525,3 +439,4 @@ registerEditorCommand(new DeleteWordLeft());
 registerEditorCommand(new DeleteWordStartRight());
 registerEditorCommand(new DeleteWordEndRight());
 registerEditorCommand(new DeleteWordRight());
+registerEditorAction(DeleteInsideWord);

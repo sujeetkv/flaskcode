@@ -2,13 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var ColorZone = /** @class */ (function () {
-    function ColorZone(from, to, colorId) {
+export class ColorZone {
+    constructor(from, to, colorId) {
+        this._colorZoneBrand = undefined;
         this.from = from | 0;
         this.to = to | 0;
         this.colorId = colorId | 0;
     }
-    ColorZone.compare = function (a, b) {
+    static compare(a, b) {
         if (a.colorId === b.colorId) {
             if (a.from === b.from) {
                 return a.to - b.to;
@@ -16,21 +17,20 @@ var ColorZone = /** @class */ (function () {
             return a.from - b.from;
         }
         return a.colorId - b.colorId;
-    };
-    return ColorZone;
-}());
-export { ColorZone };
+    }
+}
 /**
  * A zone in the overview ruler
  */
-var OverviewRulerZone = /** @class */ (function () {
-    function OverviewRulerZone(startLineNumber, endLineNumber, color) {
+export class OverviewRulerZone {
+    constructor(startLineNumber, endLineNumber, color) {
+        this._overviewRulerZoneBrand = undefined;
         this.startLineNumber = startLineNumber;
         this.endLineNumber = endLineNumber;
         this.color = color;
         this._colorZone = null;
     }
-    OverviewRulerZone.compare = function (a, b) {
+    static compare(a, b) {
         if (a.color === b.color) {
             if (a.startLineNumber === b.startLineNumber) {
                 return a.endLineNumber - b.endLineNumber;
@@ -38,18 +38,16 @@ var OverviewRulerZone = /** @class */ (function () {
             return a.startLineNumber - b.startLineNumber;
         }
         return a.color < b.color ? -1 : 1;
-    };
-    OverviewRulerZone.prototype.setColorZone = function (colorZone) {
+    }
+    setColorZone(colorZone) {
         this._colorZone = colorZone;
-    };
-    OverviewRulerZone.prototype.getColorZones = function () {
+    }
+    getColorZones() {
         return this._colorZone;
-    };
-    return OverviewRulerZone;
-}());
-export { OverviewRulerZone };
-var OverviewZoneManager = /** @class */ (function () {
-    function OverviewZoneManager(getVerticalOffsetForLine) {
+    }
+}
+export class OverviewZoneManager {
+    constructor(getVerticalOffsetForLine) {
         this._getVerticalOffsetForLine = getVerticalOffsetForLine;
         this._zones = [];
         this._colorZonesInvalid = false;
@@ -62,85 +60,85 @@ var OverviewZoneManager = /** @class */ (function () {
         this._color2Id = Object.create(null);
         this._id2Color = [];
     }
-    OverviewZoneManager.prototype.getId2Color = function () {
+    getId2Color() {
         return this._id2Color;
-    };
-    OverviewZoneManager.prototype.setZones = function (newZones) {
+    }
+    setZones(newZones) {
         this._zones = newZones;
         this._zones.sort(OverviewRulerZone.compare);
-    };
-    OverviewZoneManager.prototype.setLineHeight = function (lineHeight) {
+    }
+    setLineHeight(lineHeight) {
         if (this._lineHeight === lineHeight) {
             return false;
         }
         this._lineHeight = lineHeight;
         this._colorZonesInvalid = true;
         return true;
-    };
-    OverviewZoneManager.prototype.setPixelRatio = function (pixelRatio) {
+    }
+    setPixelRatio(pixelRatio) {
         this._pixelRatio = pixelRatio;
         this._colorZonesInvalid = true;
-    };
-    OverviewZoneManager.prototype.getDOMWidth = function () {
+    }
+    getDOMWidth() {
         return this._domWidth;
-    };
-    OverviewZoneManager.prototype.getCanvasWidth = function () {
+    }
+    getCanvasWidth() {
         return this._domWidth * this._pixelRatio;
-    };
-    OverviewZoneManager.prototype.setDOMWidth = function (width) {
+    }
+    setDOMWidth(width) {
         if (this._domWidth === width) {
             return false;
         }
         this._domWidth = width;
         this._colorZonesInvalid = true;
         return true;
-    };
-    OverviewZoneManager.prototype.getDOMHeight = function () {
+    }
+    getDOMHeight() {
         return this._domHeight;
-    };
-    OverviewZoneManager.prototype.getCanvasHeight = function () {
+    }
+    getCanvasHeight() {
         return this._domHeight * this._pixelRatio;
-    };
-    OverviewZoneManager.prototype.setDOMHeight = function (height) {
+    }
+    setDOMHeight(height) {
         if (this._domHeight === height) {
             return false;
         }
         this._domHeight = height;
         this._colorZonesInvalid = true;
         return true;
-    };
-    OverviewZoneManager.prototype.getOuterHeight = function () {
+    }
+    getOuterHeight() {
         return this._outerHeight;
-    };
-    OverviewZoneManager.prototype.setOuterHeight = function (outerHeight) {
+    }
+    setOuterHeight(outerHeight) {
         if (this._outerHeight === outerHeight) {
             return false;
         }
         this._outerHeight = outerHeight;
         this._colorZonesInvalid = true;
         return true;
-    };
-    OverviewZoneManager.prototype.resolveColorZones = function () {
-        var colorZonesInvalid = this._colorZonesInvalid;
-        var lineHeight = Math.floor(this._lineHeight); // @perf
-        var totalHeight = Math.floor(this.getCanvasHeight()); // @perf
-        var outerHeight = Math.floor(this._outerHeight); // @perf
-        var heightRatio = totalHeight / outerHeight;
-        var halfMinimumHeight = Math.floor(4 /* MINIMUM_HEIGHT */ * this._pixelRatio / 2);
-        var allColorZones = [];
-        for (var i = 0, len = this._zones.length; i < len; i++) {
-            var zone = this._zones[i];
+    }
+    resolveColorZones() {
+        const colorZonesInvalid = this._colorZonesInvalid;
+        const lineHeight = Math.floor(this._lineHeight);
+        const totalHeight = Math.floor(this.getCanvasHeight());
+        const outerHeight = Math.floor(this._outerHeight);
+        const heightRatio = totalHeight / outerHeight;
+        const halfMinimumHeight = Math.floor(4 /* MINIMUM_HEIGHT */ * this._pixelRatio / 2);
+        let allColorZones = [];
+        for (let i = 0, len = this._zones.length; i < len; i++) {
+            const zone = this._zones[i];
             if (!colorZonesInvalid) {
-                var colorZone_1 = zone.getColorZones();
-                if (colorZone_1) {
-                    allColorZones.push(colorZone_1);
+                const colorZone = zone.getColorZones();
+                if (colorZone) {
+                    allColorZones.push(colorZone);
                     continue;
                 }
             }
-            var y1 = Math.floor(heightRatio * (this._getVerticalOffsetForLine(zone.startLineNumber)));
-            var y2 = Math.floor(heightRatio * (this._getVerticalOffsetForLine(zone.endLineNumber) + lineHeight));
-            var ycenter = Math.floor((y1 + y2) / 2);
-            var halfHeight = (y2 - ycenter);
+            const y1 = Math.floor(heightRatio * (this._getVerticalOffsetForLine(zone.startLineNumber)));
+            const y2 = Math.floor(heightRatio * (this._getVerticalOffsetForLine(zone.endLineNumber) + lineHeight));
+            let ycenter = Math.floor((y1 + y2) / 2);
+            let halfHeight = (y2 - ycenter);
             if (halfHeight < halfMinimumHeight) {
                 halfHeight = halfMinimumHeight;
             }
@@ -150,21 +148,19 @@ var OverviewZoneManager = /** @class */ (function () {
             if (ycenter + halfHeight > totalHeight) {
                 ycenter = totalHeight - halfHeight;
             }
-            var color = zone.color;
-            var colorId = this._color2Id[color];
+            const color = zone.color;
+            let colorId = this._color2Id[color];
             if (!colorId) {
                 colorId = (++this._lastAssignedId);
                 this._color2Id[color] = colorId;
                 this._id2Color[colorId] = color;
             }
-            var colorZone = new ColorZone(ycenter - halfHeight, ycenter + halfHeight, colorId);
+            const colorZone = new ColorZone(ycenter - halfHeight, ycenter + halfHeight, colorId);
             zone.setColorZone(colorZone);
             allColorZones.push(colorZone);
         }
         this._colorZonesInvalid = false;
         allColorZones.sort(ColorZone.compare);
         return allColorZones;
-    };
-    return OverviewZoneManager;
-}());
-export { OverviewZoneManager };
+    }
+}

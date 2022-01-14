@@ -11,34 +11,32 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { dispose } from '../../../base/common/lifecycle.js';
 import { IContextKeyService, RawContextKey } from '../../../platform/contextkey/common/contextkey.js';
-var SuggestAlternatives = /** @class */ (function () {
-    function SuggestAlternatives(_editor, contextKeyService) {
+let SuggestAlternatives = class SuggestAlternatives {
+    constructor(_editor, contextKeyService) {
         this._editor = _editor;
         this._index = 0;
         this._ckOtherSuggestions = SuggestAlternatives.OtherSuggestions.bindTo(contextKeyService);
     }
-    SuggestAlternatives.prototype.dispose = function () {
+    dispose() {
         this.reset();
-    };
-    SuggestAlternatives.prototype.reset = function () {
+    }
+    reset() {
+        var _a;
         this._ckOtherSuggestions.reset();
-        dispose(this._listener);
+        (_a = this._listener) === null || _a === void 0 ? void 0 : _a.dispose();
         this._model = undefined;
         this._acceptNext = undefined;
         this._ignore = false;
-    };
-    SuggestAlternatives.prototype.set = function (_a, acceptNext) {
-        var _this = this;
-        var model = _a.model, index = _a.index;
+    }
+    set({ model, index }, acceptNext) {
         // no suggestions -> nothing to do
         if (model.items.length === 0) {
             this.reset();
             return;
         }
         // no alternative suggestions -> nothing to do
-        var nextIndex = SuggestAlternatives._moveIndex(true, model, index);
+        let nextIndex = SuggestAlternatives._moveIndex(true, model, index);
         if (nextIndex === index) {
             this.reset();
             return;
@@ -46,15 +44,15 @@ var SuggestAlternatives = /** @class */ (function () {
         this._acceptNext = acceptNext;
         this._model = model;
         this._index = index;
-        this._listener = this._editor.onDidChangeCursorPosition(function () {
-            if (!_this._ignore) {
-                _this.reset();
+        this._listener = this._editor.onDidChangeCursorPosition(() => {
+            if (!this._ignore) {
+                this.reset();
             }
         });
         this._ckOtherSuggestions.set(true);
-    };
-    SuggestAlternatives._moveIndex = function (fwd, model, index) {
-        var newIndex = index;
+    }
+    static _moveIndex(fwd, model, index) {
+        let newIndex = index;
         while (true) {
             newIndex = (newIndex + model.items.length + (fwd ? +1 : -1)) % model.items.length;
             if (newIndex === index) {
@@ -65,14 +63,14 @@ var SuggestAlternatives = /** @class */ (function () {
             }
         }
         return newIndex;
-    };
-    SuggestAlternatives.prototype.next = function () {
+    }
+    next() {
         this._move(true);
-    };
-    SuggestAlternatives.prototype.prev = function () {
+    }
+    prev() {
         this._move(false);
-    };
-    SuggestAlternatives.prototype._move = function (fwd) {
+    }
+    _move(fwd) {
         if (!this._model) {
             // nothing to reason about
             return;
@@ -85,11 +83,10 @@ var SuggestAlternatives = /** @class */ (function () {
         finally {
             this._ignore = false;
         }
-    };
-    SuggestAlternatives.OtherSuggestions = new RawContextKey('hasOtherSuggestions', false);
-    SuggestAlternatives = __decorate([
-        __param(1, IContextKeyService)
-    ], SuggestAlternatives);
-    return SuggestAlternatives;
-}());
+    }
+};
+SuggestAlternatives.OtherSuggestions = new RawContextKey('hasOtherSuggestions', false);
+SuggestAlternatives = __decorate([
+    __param(1, IContextKeyService)
+], SuggestAlternatives);
 export { SuggestAlternatives };

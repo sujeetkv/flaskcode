@@ -2,22 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Range } from '../../common/core/range.js';
+import { MATCHES_LIMIT } from './findModel.js';
 function effectiveOptionValue(override, value) {
     if (override === 1 /* True */) {
         return true;
@@ -27,112 +15,47 @@ function effectiveOptionValue(override, value) {
     }
     return value;
 }
-var FindReplaceState = /** @class */ (function (_super) {
-    __extends(FindReplaceState, _super);
-    function FindReplaceState() {
-        var _this = _super.call(this) || this;
-        _this._onFindReplaceStateChange = _this._register(new Emitter());
-        _this.onFindReplaceStateChange = _this._onFindReplaceStateChange.event;
-        _this._searchString = '';
-        _this._replaceString = '';
-        _this._isRevealed = false;
-        _this._isReplaceRevealed = false;
-        _this._isRegex = false;
-        _this._isRegexOverride = 0 /* NotSet */;
-        _this._wholeWord = false;
-        _this._wholeWordOverride = 0 /* NotSet */;
-        _this._matchCase = false;
-        _this._matchCaseOverride = 0 /* NotSet */;
-        _this._preserveCase = false;
-        _this._preserveCaseOverride = 0 /* NotSet */;
-        _this._searchScope = null;
-        _this._matchesPosition = 0;
-        _this._matchesCount = 0;
-        _this._currentMatch = null;
-        return _this;
+export class FindReplaceState extends Disposable {
+    constructor() {
+        super();
+        this._onFindReplaceStateChange = this._register(new Emitter());
+        this.onFindReplaceStateChange = this._onFindReplaceStateChange.event;
+        this._searchString = '';
+        this._replaceString = '';
+        this._isRevealed = false;
+        this._isReplaceRevealed = false;
+        this._isRegex = false;
+        this._isRegexOverride = 0 /* NotSet */;
+        this._wholeWord = false;
+        this._wholeWordOverride = 0 /* NotSet */;
+        this._matchCase = false;
+        this._matchCaseOverride = 0 /* NotSet */;
+        this._preserveCase = false;
+        this._preserveCaseOverride = 0 /* NotSet */;
+        this._searchScope = null;
+        this._matchesPosition = 0;
+        this._matchesCount = 0;
+        this._currentMatch = null;
+        this._loop = true;
     }
-    Object.defineProperty(FindReplaceState.prototype, "searchString", {
-        get: function () { return this._searchString; },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(FindReplaceState.prototype, "replaceString", {
-        get: function () { return this._replaceString; },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(FindReplaceState.prototype, "isRevealed", {
-        get: function () { return this._isRevealed; },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(FindReplaceState.prototype, "isReplaceRevealed", {
-        get: function () { return this._isReplaceRevealed; },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(FindReplaceState.prototype, "isRegex", {
-        get: function () { return effectiveOptionValue(this._isRegexOverride, this._isRegex); },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(FindReplaceState.prototype, "wholeWord", {
-        get: function () { return effectiveOptionValue(this._wholeWordOverride, this._wholeWord); },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(FindReplaceState.prototype, "matchCase", {
-        get: function () { return effectiveOptionValue(this._matchCaseOverride, this._matchCase); },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(FindReplaceState.prototype, "preserveCase", {
-        get: function () { return effectiveOptionValue(this._preserveCaseOverride, this._preserveCase); },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(FindReplaceState.prototype, "actualIsRegex", {
-        get: function () { return this._isRegex; },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(FindReplaceState.prototype, "actualWholeWord", {
-        get: function () { return this._wholeWord; },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(FindReplaceState.prototype, "actualMatchCase", {
-        get: function () { return this._matchCase; },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(FindReplaceState.prototype, "actualPreserveCase", {
-        get: function () { return this._preserveCase; },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(FindReplaceState.prototype, "searchScope", {
-        get: function () { return this._searchScope; },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(FindReplaceState.prototype, "matchesPosition", {
-        get: function () { return this._matchesPosition; },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(FindReplaceState.prototype, "matchesCount", {
-        get: function () { return this._matchesCount; },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(FindReplaceState.prototype, "currentMatch", {
-        get: function () { return this._currentMatch; },
-        enumerable: true,
-        configurable: true
-    });
-    FindReplaceState.prototype.changeMatchInfo = function (matchesPosition, matchesCount, currentMatch) {
-        var changeEvent = {
+    get searchString() { return this._searchString; }
+    get replaceString() { return this._replaceString; }
+    get isRevealed() { return this._isRevealed; }
+    get isReplaceRevealed() { return this._isReplaceRevealed; }
+    get isRegex() { return effectiveOptionValue(this._isRegexOverride, this._isRegex); }
+    get wholeWord() { return effectiveOptionValue(this._wholeWordOverride, this._wholeWord); }
+    get matchCase() { return effectiveOptionValue(this._matchCaseOverride, this._matchCase); }
+    get preserveCase() { return effectiveOptionValue(this._preserveCaseOverride, this._preserveCase); }
+    get actualIsRegex() { return this._isRegex; }
+    get actualWholeWord() { return this._wholeWord; }
+    get actualMatchCase() { return this._matchCase; }
+    get actualPreserveCase() { return this._preserveCase; }
+    get searchScope() { return this._searchScope; }
+    get matchesPosition() { return this._matchesPosition; }
+    get matchesCount() { return this._matchesCount; }
+    get currentMatch() { return this._currentMatch; }
+    changeMatchInfo(matchesPosition, matchesCount, currentMatch) {
+        let changeEvent = {
             moveCursor: false,
             updateHistory: false,
             searchString: false,
@@ -146,9 +69,10 @@ var FindReplaceState = /** @class */ (function (_super) {
             searchScope: false,
             matchesPosition: false,
             matchesCount: false,
-            currentMatch: false
+            currentMatch: false,
+            loop: false
         };
-        var somethingChanged = false;
+        let somethingChanged = false;
         if (matchesCount === 0) {
             matchesPosition = 0;
         }
@@ -175,10 +99,10 @@ var FindReplaceState = /** @class */ (function (_super) {
         if (somethingChanged) {
             this._onFindReplaceStateChange.fire(changeEvent);
         }
-    };
-    FindReplaceState.prototype.change = function (newState, moveCursor, updateHistory) {
-        if (updateHistory === void 0) { updateHistory = true; }
-        var changeEvent = {
+    }
+    change(newState, moveCursor, updateHistory = true) {
+        var _a;
+        let changeEvent = {
             moveCursor: moveCursor,
             updateHistory: updateHistory,
             searchString: false,
@@ -192,13 +116,14 @@ var FindReplaceState = /** @class */ (function (_super) {
             searchScope: false,
             matchesPosition: false,
             matchesCount: false,
-            currentMatch: false
+            currentMatch: false,
+            loop: false
         };
-        var somethingChanged = false;
-        var oldEffectiveIsRegex = this.isRegex;
-        var oldEffectiveWholeWords = this.wholeWord;
-        var oldEffectiveMatchCase = this.matchCase;
-        var oldEffectivePreserveCase = this.preserveCase;
+        let somethingChanged = false;
+        const oldEffectiveIsRegex = this.isRegex;
+        const oldEffectiveWholeWords = this.wholeWord;
+        const oldEffectiveMatchCase = this.matchCase;
+        const oldEffectivePreserveCase = this.preserveCase;
         if (typeof newState.searchString !== 'undefined') {
             if (this._searchString !== newState.searchString) {
                 this._searchString = newState.searchString;
@@ -240,9 +165,21 @@ var FindReplaceState = /** @class */ (function (_super) {
             this._preserveCase = newState.preserveCase;
         }
         if (typeof newState.searchScope !== 'undefined') {
-            if (!Range.equalsRange(this._searchScope, newState.searchScope)) {
+            if (!((_a = newState.searchScope) === null || _a === void 0 ? void 0 : _a.every((newSearchScope) => {
+                var _a;
+                return (_a = this._searchScope) === null || _a === void 0 ? void 0 : _a.some(existingSearchScope => {
+                    return !Range.equalsRange(existingSearchScope, newSearchScope);
+                });
+            }))) {
                 this._searchScope = newState.searchScope;
                 changeEvent.searchScope = true;
+                somethingChanged = true;
+            }
+        }
+        if (typeof newState.loop !== 'undefined') {
+            if (this._loop !== newState.loop) {
+                this._loop = newState.loop;
+                changeEvent.loop = true;
                 somethingChanged = true;
             }
         }
@@ -270,7 +207,14 @@ var FindReplaceState = /** @class */ (function (_super) {
         if (somethingChanged) {
             this._onFindReplaceStateChange.fire(changeEvent);
         }
-    };
-    return FindReplaceState;
-}(Disposable));
-export { FindReplaceState };
+    }
+    canNavigateBack() {
+        return this.canNavigateInLoop() || (this.matchesPosition !== 1);
+    }
+    canNavigateForward() {
+        return this.canNavigateInLoop() || (this.matchesPosition < this.matchesCount);
+    }
+    canNavigateInLoop() {
+        return this._loop || (this.matchesCount >= MATCHES_LIMIT);
+    }
+}

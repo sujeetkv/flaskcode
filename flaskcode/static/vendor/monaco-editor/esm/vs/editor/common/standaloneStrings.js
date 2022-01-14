@@ -35,42 +35,25 @@ export var InspectTokensNLS;
 })(InspectTokensNLS || (InspectTokensNLS = {}));
 export var GoToLineNLS;
 (function (GoToLineNLS) {
-    GoToLineNLS.gotoLineLabelValidLineAndColumn = nls.localize('gotoLineLabelValidLineAndColumn', "Go to line {0} and character {1}");
-    GoToLineNLS.gotoLineLabelValidLine = nls.localize('gotoLineLabelValidLine', "Go to line {0}");
-    GoToLineNLS.gotoLineLabelEmptyWithLineLimit = nls.localize('gotoLineLabelEmptyWithLineLimit', "Type a line number between 1 and {0} to navigate to");
-    GoToLineNLS.gotoLineLabelEmptyWithLineAndColumnLimit = nls.localize('gotoLineLabelEmptyWithLineAndColumnLimit', "Type a character between 1 and {0} to navigate to");
-    GoToLineNLS.gotoLineAriaLabel = nls.localize('gotoLineAriaLabel', "Current Line: {0}. Go to line {1}.");
-    GoToLineNLS.gotoLineActionInput = nls.localize('gotoLineActionInput', "Type a line number, followed by an optional colon and a character number to navigate to");
-    GoToLineNLS.gotoLineActionLabel = nls.localize('gotoLineActionLabel', "Go to Line...");
+    GoToLineNLS.gotoLineActionLabel = nls.localize('gotoLineActionLabel', "Go to Line/Column...");
 })(GoToLineNLS || (GoToLineNLS = {}));
+export var QuickHelpNLS;
+(function (QuickHelpNLS) {
+    QuickHelpNLS.helpQuickAccessActionLabel = nls.localize('helpQuickAccess', "Show all Quick Access Providers");
+})(QuickHelpNLS || (QuickHelpNLS = {}));
 export var QuickCommandNLS;
 (function (QuickCommandNLS) {
-    QuickCommandNLS.ariaLabelEntryWithKey = nls.localize('ariaLabelEntryWithKey', "{0}, {1}, commands");
-    QuickCommandNLS.ariaLabelEntry = nls.localize('ariaLabelEntry', "{0}, commands");
-    QuickCommandNLS.quickCommandActionInput = nls.localize('quickCommandActionInput', "Type the name of an action you want to execute");
     QuickCommandNLS.quickCommandActionLabel = nls.localize('quickCommandActionLabel', "Command Palette");
+    QuickCommandNLS.quickCommandHelp = nls.localize('quickCommandActionHelp', "Show And Run Commands");
 })(QuickCommandNLS || (QuickCommandNLS = {}));
 export var QuickOutlineNLS;
 (function (QuickOutlineNLS) {
-    QuickOutlineNLS.entryAriaLabel = nls.localize('entryAriaLabel', "{0}, symbols");
-    QuickOutlineNLS.quickOutlineActionInput = nls.localize('quickOutlineActionInput', "Type the name of an identifier you wish to navigate to");
     QuickOutlineNLS.quickOutlineActionLabel = nls.localize('quickOutlineActionLabel', "Go to Symbol...");
-    QuickOutlineNLS._symbols_ = nls.localize('symbols', "symbols ({0})");
-    QuickOutlineNLS._modules_ = nls.localize('modules', "modules ({0})");
-    QuickOutlineNLS._class_ = nls.localize('class', "classes ({0})");
-    QuickOutlineNLS._interface_ = nls.localize('interface', "interfaces ({0})");
-    QuickOutlineNLS._method_ = nls.localize('method', "methods ({0})");
-    QuickOutlineNLS._function_ = nls.localize('function', "functions ({0})");
-    QuickOutlineNLS._property_ = nls.localize('property', "properties ({0})");
-    QuickOutlineNLS._variable_ = nls.localize('variable', "variables ({0})");
-    QuickOutlineNLS._variable2_ = nls.localize('variable2', "variables ({0})");
-    QuickOutlineNLS._constructor_ = nls.localize('_constructor', "constructors ({0})");
-    QuickOutlineNLS._call_ = nls.localize('call', "calls ({0})");
+    QuickOutlineNLS.quickOutlineByCategoryActionLabel = nls.localize('quickOutlineByCategoryActionLabel', "Go to Symbol by Category...");
 })(QuickOutlineNLS || (QuickOutlineNLS = {}));
 export var StandaloneCodeEditorNLS;
 (function (StandaloneCodeEditorNLS) {
     StandaloneCodeEditorNLS.editorViewAccessibleLabel = nls.localize('editorViewAccessibleLabel', "Editor content");
-    StandaloneCodeEditorNLS.accessibilityHelpMessageIE = nls.localize('accessibilityHelpMessageIE', "Press Ctrl+F1 for Accessibility Options.");
     StandaloneCodeEditorNLS.accessibilityHelpMessage = nls.localize('accessibilityHelpMessage', "Press Alt+F1 for Accessibility Options.");
 })(StandaloneCodeEditorNLS || (StandaloneCodeEditorNLS = {}));
 export var ToggleHighContrastNLS;

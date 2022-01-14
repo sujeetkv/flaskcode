@@ -1,132 +1,158 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-define(["require", "exports"], function (require, exports) {
-    'use strict';
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.conf = {
-        comments: {
-            lineComment: '#'
-        },
-        brackets: [
-            ['{', '}'],
-            ['[', ']'],
-            ['(', ')']
+/*!-----------------------------------------------------------------------------
+ * Copyright (c) Microsoft Corporation. All rights reserved.
+ * Version: 0.31.1(337587859b1c171314b40503171188b6cea6a32a)
+ * Released under the MIT license
+ * https://github.com/microsoft/monaco-editor/blob/main/LICENSE.txt
+ *-----------------------------------------------------------------------------*/
+define("vs/basic-languages/graphql/graphql",[],()=>{
+var moduleExports = (() => {
+  var __defProp = Object.defineProperty;
+  var __markAsModule = (target) => __defProp(target, "__esModule", { value: true });
+  var __export = (target, all) => {
+    __markAsModule(target);
+    for (var name in all)
+      __defProp(target, name, { get: all[name], enumerable: true });
+  };
+
+  // src/basic-languages/graphql/graphql.ts
+  var graphql_exports = {};
+  __export(graphql_exports, {
+    conf: () => conf,
+    language: () => language
+  });
+  var conf = {
+    comments: {
+      lineComment: "#"
+    },
+    brackets: [
+      ["{", "}"],
+      ["[", "]"],
+      ["(", ")"]
+    ],
+    autoClosingPairs: [
+      { open: "{", close: "}" },
+      { open: "[", close: "]" },
+      { open: "(", close: ")" },
+      { open: '"""', close: '"""', notIn: ["string", "comment"] },
+      { open: '"', close: '"', notIn: ["string", "comment"] }
+    ],
+    surroundingPairs: [
+      { open: "{", close: "}" },
+      { open: "[", close: "]" },
+      { open: "(", close: ")" },
+      { open: '"""', close: '"""' },
+      { open: '"', close: '"' }
+    ],
+    folding: {
+      offSide: true
+    }
+  };
+  var language = {
+    defaultToken: "invalid",
+    tokenPostfix: ".gql",
+    keywords: [
+      "null",
+      "true",
+      "false",
+      "query",
+      "mutation",
+      "subscription",
+      "extend",
+      "schema",
+      "directive",
+      "scalar",
+      "type",
+      "interface",
+      "union",
+      "enum",
+      "input",
+      "implements",
+      "fragment",
+      "on"
+    ],
+    typeKeywords: ["Int", "Float", "String", "Boolean", "ID"],
+    directiveLocations: [
+      "SCHEMA",
+      "SCALAR",
+      "OBJECT",
+      "FIELD_DEFINITION",
+      "ARGUMENT_DEFINITION",
+      "INTERFACE",
+      "UNION",
+      "ENUM",
+      "ENUM_VALUE",
+      "INPUT_OBJECT",
+      "INPUT_FIELD_DEFINITION",
+      "QUERY",
+      "MUTATION",
+      "SUBSCRIPTION",
+      "FIELD",
+      "FRAGMENT_DEFINITION",
+      "FRAGMENT_SPREAD",
+      "INLINE_FRAGMENT",
+      "VARIABLE_DEFINITION"
+    ],
+    operators: ["=", "!", "?", ":", "&", "|"],
+    symbols: /[=!?:&|]+/,
+    escapes: /\\(?:["\\\/bfnrt]|u[0-9A-Fa-f]{4})/,
+    tokenizer: {
+      root: [
+        [
+          /[a-z_][\w$]*/,
+          {
+            cases: {
+              "@keywords": "keyword",
+              "@default": "key.identifier"
+            }
+          }
         ],
-        autoClosingPairs: [
-            { open: '{', close: '}' },
-            { open: '[', close: ']' },
-            { open: '(', close: ')' },
-            { open: '"""', close: '"""', notIn: ['string', 'comment'] },
-            { open: '"', close: '"', notIn: ['string', 'comment'] },
+        [
+          /[$][\w$]*/,
+          {
+            cases: {
+              "@keywords": "keyword",
+              "@default": "argument.identifier"
+            }
+          }
         ],
-        surroundingPairs: [
-            { open: '{', close: '}' },
-            { open: '[', close: ']' },
-            { open: '(', close: ')' },
-            { open: '"""', close: '"""' },
-            { open: '"', close: '"' },
+        [
+          /[A-Z][\w\$]*/,
+          {
+            cases: {
+              "@typeKeywords": "keyword",
+              "@default": "type.identifier"
+            }
+          }
         ],
-        folding: {
-            offSide: true
-        }
-    };
-    exports.language = {
-        // Set defaultToken to invalid to see what you do not tokenize yet
-        defaultToken: 'invalid',
-        tokenPostfix: '.gql',
-        keywords: [
-            'null', 'true', 'false',
-            'query', 'mutation', 'subscription',
-            'extend', 'schema', 'directive',
-            'scalar', 'type', 'interface', 'union', 'enum', 'input', 'implements',
-            'fragment', 'on',
-        ],
-        typeKeywords: ['Int', 'Float', 'String', 'Boolean', 'ID'],
-        directiveLocations: [
-            'SCHEMA', 'SCALAR', 'OBJECT', 'FIELD_DEFINITION', 'ARGUMENT_DEFINITION',
-            'INTERFACE', 'UNION', 'ENUM', 'ENUM_VALUE', 'INPUT_OBJECT', 'INPUT_FIELD_DEFINITION',
-            'QUERY', 'MUTATION', 'SUBSCRIPTION', 'FIELD', 'FRAGMENT_DEFINITION',
-            'FRAGMENT_SPREAD', 'INLINE_FRAGMENT', 'VARIABLE_DEFINITION',
-        ],
-        operators: ['=', '!', '?', ':', '&', '|'],
-        // we include these common regular expressions
-        symbols: /[=!?:&|]+/,
-        // https://facebook.github.io/graphql/draft/#sec-String-Value
-        escapes: /\\(?:["\\\/bfnrt]|u[0-9A-Fa-f]{4})/,
-        // The main tokenizer for our languages
-        tokenizer: {
-            root: [
-                // fields and argument names
-                [
-                    /[a-z_][\w$]*/,
-                    {
-                        cases: {
-                            '@keywords': 'keyword',
-                            '@default': 'key.identifier',
-                        },
-                    },
-                ],
-                // identify typed input variables
-                [
-                    /[$][\w$]*/,
-                    {
-                        cases: {
-                            '@keywords': 'keyword',
-                            '@default': 'argument.identifier',
-                        },
-                    },
-                ],
-                // to show class names nicely
-                [
-                    /[A-Z][\w\$]*/,
-                    {
-                        cases: {
-                            '@typeKeywords': 'keyword',
-                            '@default': 'type.identifier',
-                        },
-                    },
-                ],
-                // whitespace
-                { include: '@whitespace' },
-                // delimiters and operators
-                [/[{}()\[\]]/, '@brackets'],
-                [
-                    /@symbols/,
-                    { cases: { '@operators': 'operator', '@default': '' } },
-                ],
-                // @ annotations.
-                // As an example, we emit a debugging log message on these tokens.
-                // Note: message are supressed during the first load -- change some lines to see them.
-                [
-                    /@\s*[a-zA-Z_\$][\w\$]*/,
-                    { token: 'annotation', log: 'annotation token: $0' },
-                ],
-                // numbers
-                [/\d*\.\d+([eE][\-+]?\d+)?/, 'number.float'],
-                [/0[xX][0-9a-fA-F]+/, 'number.hex'],
-                [/\d+/, 'number'],
-                // delimiter: after number because of .\d floats
-                [/[;,.]/, 'delimiter'],
-                [/"""/,
-                    { token: 'string', next: '@mlstring', nextEmbedded: 'markdown' }
-                ],
-                // strings
-                [/"([^"\\]|\\.)*$/, 'string.invalid'],
-                [/"/, { token: 'string.quote', bracket: '@open', next: '@string' }],
-            ],
-            mlstring: [
-                [/[^"]+/, 'string'],
-                ['"""', { token: 'string', next: '@pop', nextEmbedded: '@pop' }]
-            ],
-            string: [
-                [/[^\\"]+/, 'string'],
-                [/@escapes/, 'string.escape'],
-                [/\\./, 'string.escape.invalid'],
-                [/"/, { token: 'string.quote', bracket: '@close', next: '@pop' }],
-            ],
-            whitespace: [[/[ \t\r\n]+/, ''], [/#.*$/, 'comment']],
-        },
-    };
+        { include: "@whitespace" },
+        [/[{}()\[\]]/, "@brackets"],
+        [/@symbols/, { cases: { "@operators": "operator", "@default": "" } }],
+        [/@\s*[a-zA-Z_\$][\w\$]*/, { token: "annotation", log: "annotation token: $0" }],
+        [/\d*\.\d+([eE][\-+]?\d+)?/, "number.float"],
+        [/0[xX][0-9a-fA-F]+/, "number.hex"],
+        [/\d+/, "number"],
+        [/[;,.]/, "delimiter"],
+        [/"""/, { token: "string", next: "@mlstring", nextEmbedded: "markdown" }],
+        [/"([^"\\]|\\.)*$/, "string.invalid"],
+        [/"/, { token: "string.quote", bracket: "@open", next: "@string" }]
+      ],
+      mlstring: [
+        [/[^"]+/, "string"],
+        ['"""', { token: "string", next: "@pop", nextEmbedded: "@pop" }]
+      ],
+      string: [
+        [/[^\\"]+/, "string"],
+        [/@escapes/, "string.escape"],
+        [/\\./, "string.escape.invalid"],
+        [/"/, { token: "string.quote", bracket: "@close", next: "@pop" }]
+      ],
+      whitespace: [
+        [/[ \t\r\n]+/, ""],
+        [/#.*$/, "comment"]
+      ]
+    }
+  };
+  return graphql_exports;
+})();
+return moduleExports;
 });

@@ -2,20 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-import './colorPicker.css';
 import { onDidChangeZoomLevel } from '../../../base/browser/browser.js';
 import * as dom from '../../../base/browser/dom.js';
 import { GlobalMouseMoveMonitor, standardMouseMoveMerger } from '../../../base/browser/globalMouseMoveMonitor.js';
@@ -23,158 +9,152 @@ import { Widget } from '../../../base/browser/ui/widget.js';
 import { Color, HSVA, RGBA } from '../../../base/common/color.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import './colorPicker.css';
+import { localize } from '../../../nls.js';
 import { editorHoverBackground } from '../../../platform/theme/common/colorRegistry.js';
 import { registerThemingParticipant } from '../../../platform/theme/common/themeService.js';
-var $ = dom.$;
-var ColorPickerHeader = /** @class */ (function (_super) {
-    __extends(ColorPickerHeader, _super);
-    function ColorPickerHeader(container, model, themeService) {
-        var _this = _super.call(this) || this;
-        _this.model = model;
-        _this.domNode = $('.colorpicker-header');
-        dom.append(container, _this.domNode);
-        _this.pickedColorNode = dom.append(_this.domNode, $('.picked-color'));
-        var colorBox = dom.append(_this.domNode, $('.original-color'));
-        colorBox.style.backgroundColor = Color.Format.CSS.format(_this.model.originalColor) || '';
-        _this.backgroundColor = themeService.getTheme().getColor(editorHoverBackground) || Color.white;
-        _this._register(registerThemingParticipant(function (theme, collector) {
-            _this.backgroundColor = theme.getColor(editorHoverBackground) || Color.white;
+const $ = dom.$;
+export class ColorPickerHeader extends Disposable {
+    constructor(container, model, themeService) {
+        super();
+        this.model = model;
+        this.domNode = $('.colorpicker-header');
+        dom.append(container, this.domNode);
+        this.pickedColorNode = dom.append(this.domNode, $('.picked-color'));
+        const tooltip = localize('clickToToggleColorOptions', "Click to toggle color options (rgb/hsl/hex)");
+        this.pickedColorNode.setAttribute('title', tooltip);
+        const colorBox = dom.append(this.domNode, $('.original-color'));
+        colorBox.style.backgroundColor = Color.Format.CSS.format(this.model.originalColor) || '';
+        this.backgroundColor = themeService.getColorTheme().getColor(editorHoverBackground) || Color.white;
+        this._register(registerThemingParticipant((theme, collector) => {
+            this.backgroundColor = theme.getColor(editorHoverBackground) || Color.white;
         }));
-        _this._register(dom.addDisposableListener(_this.pickedColorNode, dom.EventType.CLICK, function () { return _this.model.selectNextColorPresentation(); }));
-        _this._register(dom.addDisposableListener(colorBox, dom.EventType.CLICK, function () {
-            _this.model.color = _this.model.originalColor;
-            _this.model.flushColor();
+        this._register(dom.addDisposableListener(this.pickedColorNode, dom.EventType.CLICK, () => this.model.selectNextColorPresentation()));
+        this._register(dom.addDisposableListener(colorBox, dom.EventType.CLICK, () => {
+            this.model.color = this.model.originalColor;
+            this.model.flushColor();
         }));
-        _this._register(model.onDidChangeColor(_this.onDidChangeColor, _this));
-        _this._register(model.onDidChangePresentation(_this.onDidChangePresentation, _this));
-        _this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(model.color) || '';
-        dom.toggleClass(_this.pickedColorNode, 'light', model.color.rgba.a < 0.5 ? _this.backgroundColor.isLighter() : model.color.isLighter());
-        return _this;
+        this._register(model.onDidChangeColor(this.onDidChangeColor, this));
+        this._register(model.onDidChangePresentation(this.onDidChangePresentation, this));
+        this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(model.color) || '';
+        this.pickedColorNode.classList.toggle('light', model.color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : model.color.isLighter());
+        this.onDidChangeColor(this.model.color);
     }
-    ColorPickerHeader.prototype.onDidChangeColor = function (color) {
+    onDidChangeColor(color) {
         this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(color) || '';
-        dom.toggleClass(this.pickedColorNode, 'light', color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : color.isLighter());
+        this.pickedColorNode.classList.toggle('light', color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : color.isLighter());
         this.onDidChangePresentation();
-    };
-    ColorPickerHeader.prototype.onDidChangePresentation = function () {
-        this.pickedColorNode.textContent = this.model.presentation ? this.model.presentation.label : '';
-    };
-    return ColorPickerHeader;
-}(Disposable));
-export { ColorPickerHeader };
-var ColorPickerBody = /** @class */ (function (_super) {
-    __extends(ColorPickerBody, _super);
-    function ColorPickerBody(container, model, pixelRatio) {
-        var _this = _super.call(this) || this;
-        _this.model = model;
-        _this.pixelRatio = pixelRatio;
-        _this.domNode = $('.colorpicker-body');
-        dom.append(container, _this.domNode);
-        _this.saturationBox = new SaturationBox(_this.domNode, _this.model, _this.pixelRatio);
-        _this._register(_this.saturationBox);
-        _this._register(_this.saturationBox.onDidChange(_this.onDidSaturationValueChange, _this));
-        _this._register(_this.saturationBox.onColorFlushed(_this.flushColor, _this));
-        _this.opacityStrip = new OpacityStrip(_this.domNode, _this.model);
-        _this._register(_this.opacityStrip);
-        _this._register(_this.opacityStrip.onDidChange(_this.onDidOpacityChange, _this));
-        _this._register(_this.opacityStrip.onColorFlushed(_this.flushColor, _this));
-        _this.hueStrip = new HueStrip(_this.domNode, _this.model);
-        _this._register(_this.hueStrip);
-        _this._register(_this.hueStrip.onDidChange(_this.onDidHueChange, _this));
-        _this._register(_this.hueStrip.onColorFlushed(_this.flushColor, _this));
-        return _this;
     }
-    ColorPickerBody.prototype.flushColor = function () {
+    onDidChangePresentation() {
+        this.pickedColorNode.textContent = this.model.presentation ? this.model.presentation.label : '';
+        this.pickedColorNode.prepend($('.codicon.codicon-color-mode'));
+    }
+}
+export class ColorPickerBody extends Disposable {
+    constructor(container, model, pixelRatio) {
+        super();
+        this.model = model;
+        this.pixelRatio = pixelRatio;
+        this.domNode = $('.colorpicker-body');
+        dom.append(container, this.domNode);
+        this.saturationBox = new SaturationBox(this.domNode, this.model, this.pixelRatio);
+        this._register(this.saturationBox);
+        this._register(this.saturationBox.onDidChange(this.onDidSaturationValueChange, this));
+        this._register(this.saturationBox.onColorFlushed(this.flushColor, this));
+        this.opacityStrip = new OpacityStrip(this.domNode, this.model);
+        this._register(this.opacityStrip);
+        this._register(this.opacityStrip.onDidChange(this.onDidOpacityChange, this));
+        this._register(this.opacityStrip.onColorFlushed(this.flushColor, this));
+        this.hueStrip = new HueStrip(this.domNode, this.model);
+        this._register(this.hueStrip);
+        this._register(this.hueStrip.onDidChange(this.onDidHueChange, this));
+        this._register(this.hueStrip.onColorFlushed(this.flushColor, this));
+    }
+    flushColor() {
         this.model.flushColor();
-    };
-    ColorPickerBody.prototype.onDidSaturationValueChange = function (_a) {
-        var s = _a.s, v = _a.v;
-        var hsva = this.model.color.hsva;
+    }
+    onDidSaturationValueChange({ s, v }) {
+        const hsva = this.model.color.hsva;
         this.model.color = new Color(new HSVA(hsva.h, s, v, hsva.a));
-    };
-    ColorPickerBody.prototype.onDidOpacityChange = function (a) {
-        var hsva = this.model.color.hsva;
+    }
+    onDidOpacityChange(a) {
+        const hsva = this.model.color.hsva;
         this.model.color = new Color(new HSVA(hsva.h, hsva.s, hsva.v, a));
-    };
-    ColorPickerBody.prototype.onDidHueChange = function (value) {
-        var hsva = this.model.color.hsva;
-        var h = (1 - value) * 360;
+    }
+    onDidHueChange(value) {
+        const hsva = this.model.color.hsva;
+        const h = (1 - value) * 360;
         this.model.color = new Color(new HSVA(h === 360 ? 0 : h, hsva.s, hsva.v, hsva.a));
-    };
-    ColorPickerBody.prototype.layout = function () {
+    }
+    layout() {
         this.saturationBox.layout();
         this.opacityStrip.layout();
         this.hueStrip.layout();
-    };
-    return ColorPickerBody;
-}(Disposable));
-export { ColorPickerBody };
-var SaturationBox = /** @class */ (function (_super) {
-    __extends(SaturationBox, _super);
-    function SaturationBox(container, model, pixelRatio) {
-        var _this = _super.call(this) || this;
-        _this.model = model;
-        _this.pixelRatio = pixelRatio;
-        _this._onDidChange = new Emitter();
-        _this.onDidChange = _this._onDidChange.event;
-        _this._onColorFlushed = new Emitter();
-        _this.onColorFlushed = _this._onColorFlushed.event;
-        _this.domNode = $('.saturation-wrap');
-        dom.append(container, _this.domNode);
-        // Create canvas, draw selected color
-        _this.canvas = document.createElement('canvas');
-        _this.canvas.className = 'saturation-box';
-        dom.append(_this.domNode, _this.canvas);
-        // Add selection circle
-        _this.selection = $('.saturation-selection');
-        dom.append(_this.domNode, _this.selection);
-        _this.layout();
-        _this._register(dom.addDisposableGenericMouseDownListner(_this.domNode, function (e) { return _this.onMouseDown(e); }));
-        _this._register(_this.model.onDidChangeColor(_this.onDidChangeColor, _this));
-        _this.monitor = null;
-        return _this;
     }
-    SaturationBox.prototype.onMouseDown = function (e) {
-        var _this = this;
+}
+class SaturationBox extends Disposable {
+    constructor(container, model, pixelRatio) {
+        super();
+        this.model = model;
+        this.pixelRatio = pixelRatio;
+        this._onDidChange = new Emitter();
+        this.onDidChange = this._onDidChange.event;
+        this._onColorFlushed = new Emitter();
+        this.onColorFlushed = this._onColorFlushed.event;
+        this.domNode = $('.saturation-wrap');
+        dom.append(container, this.domNode);
+        // Create canvas, draw selected color
+        this.canvas = document.createElement('canvas');
+        this.canvas.className = 'saturation-box';
+        dom.append(this.domNode, this.canvas);
+        // Add selection circle
+        this.selection = $('.saturation-selection');
+        dom.append(this.domNode, this.selection);
+        this.layout();
+        this._register(dom.addDisposableGenericMouseDownListner(this.domNode, e => this.onMouseDown(e)));
+        this._register(this.model.onDidChangeColor(this.onDidChangeColor, this));
+        this.monitor = null;
+    }
+    onMouseDown(e) {
         this.monitor = this._register(new GlobalMouseMoveMonitor());
-        var origin = dom.getDomNodePagePosition(this.domNode);
+        const origin = dom.getDomNodePagePosition(this.domNode);
         if (e.target !== this.selection) {
             this.onDidChangePosition(e.offsetX, e.offsetY);
         }
-        this.monitor.startMonitoring(e.target, e.buttons, standardMouseMoveMerger, function (event) { return _this.onDidChangePosition(event.posx - origin.left, event.posy - origin.top); }, function () { return null; });
-        var mouseUpListener = dom.addDisposableGenericMouseUpListner(document, function () {
-            _this._onColorFlushed.fire();
+        this.monitor.startMonitoring(e.target, e.buttons, standardMouseMoveMerger, event => this.onDidChangePosition(event.posx - origin.left, event.posy - origin.top), () => null);
+        const mouseUpListener = dom.addDisposableGenericMouseUpListner(document, () => {
+            this._onColorFlushed.fire();
             mouseUpListener.dispose();
-            if (_this.monitor) {
-                _this.monitor.stopMonitoring(true);
-                _this.monitor = null;
+            if (this.monitor) {
+                this.monitor.stopMonitoring(true);
+                this.monitor = null;
             }
         }, true);
-    };
-    SaturationBox.prototype.onDidChangePosition = function (left, top) {
-        var s = Math.max(0, Math.min(1, left / this.width));
-        var v = Math.max(0, Math.min(1, 1 - (top / this.height)));
+    }
+    onDidChangePosition(left, top) {
+        const s = Math.max(0, Math.min(1, left / this.width));
+        const v = Math.max(0, Math.min(1, 1 - (top / this.height)));
         this.paintSelection(s, v);
-        this._onDidChange.fire({ s: s, v: v });
-    };
-    SaturationBox.prototype.layout = function () {
+        this._onDidChange.fire({ s, v });
+    }
+    layout() {
         this.width = this.domNode.offsetWidth;
         this.height = this.domNode.offsetHeight;
         this.canvas.width = this.width * this.pixelRatio;
         this.canvas.height = this.height * this.pixelRatio;
         this.paint();
-        var hsva = this.model.color.hsva;
+        const hsva = this.model.color.hsva;
         this.paintSelection(hsva.s, hsva.v);
-    };
-    SaturationBox.prototype.paint = function () {
-        var hsva = this.model.color.hsva;
-        var saturatedColor = new Color(new HSVA(hsva.h, 1, 1, 1));
-        var ctx = this.canvas.getContext('2d');
-        var whiteGradient = ctx.createLinearGradient(0, 0, this.canvas.width, 0);
+    }
+    paint() {
+        const hsva = this.model.color.hsva;
+        const saturatedColor = new Color(new HSVA(hsva.h, 1, 1, 1));
+        const ctx = this.canvas.getContext('2d');
+        const whiteGradient = ctx.createLinearGradient(0, 0, this.canvas.width, 0);
         whiteGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
         whiteGradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.5)');
         whiteGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        var blackGradient = ctx.createLinearGradient(0, 0, 0, this.canvas.height);
+        const blackGradient = ctx.createLinearGradient(0, 0, 0, this.canvas.height);
         blackGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
         blackGradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
         ctx.rect(0, 0, this.canvas.width, this.canvas.height);
@@ -184,117 +164,102 @@ var SaturationBox = /** @class */ (function (_super) {
         ctx.fill();
         ctx.fillStyle = blackGradient;
         ctx.fill();
-    };
-    SaturationBox.prototype.paintSelection = function (s, v) {
-        this.selection.style.left = s * this.width + "px";
-        this.selection.style.top = this.height - v * this.height + "px";
-    };
-    SaturationBox.prototype.onDidChangeColor = function () {
+    }
+    paintSelection(s, v) {
+        this.selection.style.left = `${s * this.width}px`;
+        this.selection.style.top = `${this.height - v * this.height}px`;
+    }
+    onDidChangeColor() {
         if (this.monitor && this.monitor.isMonitoring()) {
             return;
         }
         this.paint();
-    };
-    return SaturationBox;
-}(Disposable));
-var Strip = /** @class */ (function (_super) {
-    __extends(Strip, _super);
-    function Strip(container, model) {
-        var _this = _super.call(this) || this;
-        _this.model = model;
-        _this._onDidChange = new Emitter();
-        _this.onDidChange = _this._onDidChange.event;
-        _this._onColorFlushed = new Emitter();
-        _this.onColorFlushed = _this._onColorFlushed.event;
-        _this.domNode = dom.append(container, $('.strip'));
-        _this.overlay = dom.append(_this.domNode, $('.overlay'));
-        _this.slider = dom.append(_this.domNode, $('.slider'));
-        _this.slider.style.top = "0px";
-        _this._register(dom.addDisposableGenericMouseDownListner(_this.domNode, function (e) { return _this.onMouseDown(e); }));
-        _this.layout();
-        return _this;
     }
-    Strip.prototype.layout = function () {
+}
+class Strip extends Disposable {
+    constructor(container, model) {
+        super();
+        this.model = model;
+        this._onDidChange = new Emitter();
+        this.onDidChange = this._onDidChange.event;
+        this._onColorFlushed = new Emitter();
+        this.onColorFlushed = this._onColorFlushed.event;
+        this.domNode = dom.append(container, $('.strip'));
+        this.overlay = dom.append(this.domNode, $('.overlay'));
+        this.slider = dom.append(this.domNode, $('.slider'));
+        this.slider.style.top = `0px`;
+        this._register(dom.addDisposableGenericMouseDownListner(this.domNode, e => this.onMouseDown(e)));
+        this.layout();
+    }
+    layout() {
         this.height = this.domNode.offsetHeight - this.slider.offsetHeight;
-        var value = this.getValue(this.model.color);
+        const value = this.getValue(this.model.color);
         this.updateSliderPosition(value);
-    };
-    Strip.prototype.onMouseDown = function (e) {
-        var _this = this;
-        var monitor = this._register(new GlobalMouseMoveMonitor());
-        var origin = dom.getDomNodePagePosition(this.domNode);
-        dom.addClass(this.domNode, 'grabbing');
+    }
+    onMouseDown(e) {
+        const monitor = this._register(new GlobalMouseMoveMonitor());
+        const origin = dom.getDomNodePagePosition(this.domNode);
+        this.domNode.classList.add('grabbing');
         if (e.target !== this.slider) {
             this.onDidChangeTop(e.offsetY);
         }
-        monitor.startMonitoring(e.target, e.buttons, standardMouseMoveMerger, function (event) { return _this.onDidChangeTop(event.posy - origin.top); }, function () { return null; });
-        var mouseUpListener = dom.addDisposableGenericMouseUpListner(document, function () {
-            _this._onColorFlushed.fire();
+        monitor.startMonitoring(e.target, e.buttons, standardMouseMoveMerger, event => this.onDidChangeTop(event.posy - origin.top), () => null);
+        const mouseUpListener = dom.addDisposableGenericMouseUpListner(document, () => {
+            this._onColorFlushed.fire();
             mouseUpListener.dispose();
             monitor.stopMonitoring(true);
-            dom.removeClass(_this.domNode, 'grabbing');
+            this.domNode.classList.remove('grabbing');
         }, true);
-    };
-    Strip.prototype.onDidChangeTop = function (top) {
-        var value = Math.max(0, Math.min(1, 1 - (top / this.height)));
+    }
+    onDidChangeTop(top) {
+        const value = Math.max(0, Math.min(1, 1 - (top / this.height)));
         this.updateSliderPosition(value);
         this._onDidChange.fire(value);
-    };
-    Strip.prototype.updateSliderPosition = function (value) {
-        this.slider.style.top = (1 - value) * this.height + "px";
-    };
-    return Strip;
-}(Disposable));
-var OpacityStrip = /** @class */ (function (_super) {
-    __extends(OpacityStrip, _super);
-    function OpacityStrip(container, model) {
-        var _this = _super.call(this, container, model) || this;
-        dom.addClass(_this.domNode, 'opacity-strip');
-        _this._register(model.onDidChangeColor(_this.onDidChangeColor, _this));
-        _this.onDidChangeColor(_this.model.color);
-        return _this;
     }
-    OpacityStrip.prototype.onDidChangeColor = function (color) {
-        var _a = color.rgba, r = _a.r, g = _a.g, b = _a.b;
-        var opaque = new Color(new RGBA(r, g, b, 1));
-        var transparent = new Color(new RGBA(r, g, b, 0));
-        this.overlay.style.background = "linear-gradient(to bottom, " + opaque + " 0%, " + transparent + " 100%)";
-    };
-    OpacityStrip.prototype.getValue = function (color) {
+    updateSliderPosition(value) {
+        this.slider.style.top = `${(1 - value) * this.height}px`;
+    }
+}
+class OpacityStrip extends Strip {
+    constructor(container, model) {
+        super(container, model);
+        this.domNode.classList.add('opacity-strip');
+        this._register(model.onDidChangeColor(this.onDidChangeColor, this));
+        this.onDidChangeColor(this.model.color);
+    }
+    onDidChangeColor(color) {
+        const { r, g, b } = color.rgba;
+        const opaque = new Color(new RGBA(r, g, b, 1));
+        const transparent = new Color(new RGBA(r, g, b, 0));
+        this.overlay.style.background = `linear-gradient(to bottom, ${opaque} 0%, ${transparent} 100%)`;
+    }
+    getValue(color) {
         return color.hsva.a;
-    };
-    return OpacityStrip;
-}(Strip));
-var HueStrip = /** @class */ (function (_super) {
-    __extends(HueStrip, _super);
-    function HueStrip(container, model) {
-        var _this = _super.call(this, container, model) || this;
-        dom.addClass(_this.domNode, 'hue-strip');
-        return _this;
     }
-    HueStrip.prototype.getValue = function (color) {
+}
+class HueStrip extends Strip {
+    constructor(container, model) {
+        super(container, model);
+        this.domNode.classList.add('hue-strip');
+    }
+    getValue(color) {
         return 1 - (color.hsva.h / 360);
-    };
-    return HueStrip;
-}(Strip));
-var ColorPickerWidget = /** @class */ (function (_super) {
-    __extends(ColorPickerWidget, _super);
-    function ColorPickerWidget(container, model, pixelRatio, themeService) {
-        var _this = _super.call(this) || this;
-        _this.model = model;
-        _this.pixelRatio = pixelRatio;
-        _this._register(onDidChangeZoomLevel(function () { return _this.layout(); }));
-        var element = $('.colorpicker-widget');
-        container.appendChild(element);
-        var header = new ColorPickerHeader(element, _this.model, themeService);
-        _this.body = new ColorPickerBody(element, _this.model, _this.pixelRatio);
-        _this._register(header);
-        _this._register(_this.body);
-        return _this;
     }
-    ColorPickerWidget.prototype.layout = function () {
+}
+export class ColorPickerWidget extends Widget {
+    constructor(container, model, pixelRatio, themeService) {
+        super();
+        this.model = model;
+        this.pixelRatio = pixelRatio;
+        this._register(onDidChangeZoomLevel(() => this.layout()));
+        const element = $('.colorpicker-widget');
+        container.appendChild(element);
+        const header = new ColorPickerHeader(element, this.model, themeService);
+        this.body = new ColorPickerBody(element, this.model, this.pixelRatio);
+        this._register(header);
+        this._register(this.body);
+    }
+    layout() {
         this.body.layout();
-    };
-    return ColorPickerWidget;
-}(Widget));
-export { ColorPickerWidget };
+    }
+}

@@ -2,30 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -44,58 +20,34 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __generator = (this && this.__generator) || function (thisArg, body) {
-    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
-    return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
-    function verb(n) { return function (v) { return step([n, v]); }; }
-    function step(op) {
-        if (f) throw new TypeError("Generator is already executing.");
-        while (_) try {
-            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-            if (y = 0, t) op = [op[0] & 2, t.value];
-            switch (op[0]) {
-                case 0: case 1: t = op; break;
-                case 4: _.label++; return { value: op[1], done: false };
-                case 5: _.label++; y = op[1]; op = [0]; continue;
-                case 7: op = _.ops.pop(); _.trys.pop(); continue;
-                default:
-                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
-                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
-                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
-                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
-                    if (t[2]) _.ops.pop();
-                    _.trys.pop(); continue;
-            }
-            op = body.call(thisArg, _);
-        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
-        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
-    }
-};
-import './links.css';
-import * as nls from '../../../nls.js';
 import * as async from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { MarkdownString } from '../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
 import * as platform from '../../../base/common/platform.js';
+import * as resources from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import './links.css';
 import { EditorAction, registerEditorAction, registerEditorContribution } from '../../browser/editorExtensions.js';
 import { ModelDecorationOptions } from '../../common/model/textModel.js';
 import { LinkProviderRegistry } from '../../common/modes.js';
 import { ClickLinkGesture } from '../gotoSymbol/link/clickLinkGesture.js';
 import { getLinks } from './getLinks.js';
+import * as nls from '../../../nls.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { editorActiveLinkForeground } from '../../../platform/theme/common/colorRegistry.js';
 import { registerThemingParticipant } from '../../../platform/theme/common/themeService.js';
 function getHoverMessage(link, useMetaKey) {
-    var executeCmd = link.url && /^command:/i.test(link.url.toString());
-    var label = link.tooltip
+    const executeCmd = link.url && /^command:/i.test(link.url.toString());
+    const label = link.tooltip
         ? link.tooltip
         : executeCmd
             ? nls.localize('links.navigate.executeCmd', 'Execute command')
             : nls.localize('links.navigate.follow', 'Follow link');
-    var kb = useMetaKey
+    const kb = useMetaKey
         ? platform.isMacintosh
             ? nls.localize('links.navigate.kb.meta.mac', "cmd + click")
             : nls.localize('links.navigate.kb.meta', "ctrl + click")
@@ -103,87 +55,96 @@ function getHoverMessage(link, useMetaKey) {
             ? nls.localize('links.navigate.kb.alt.mac', "option + click")
             : nls.localize('links.navigate.kb.alt', "alt + click");
     if (link.url) {
-        var hoverMessage = new MarkdownString('', true).appendMarkdown("[" + label + "](" + link.url.toString() + ") (" + kb + ")");
+        let nativeLabel = '';
+        if (/^command:/i.test(link.url.toString())) {
+            // Don't show complete command arguments in the native tooltip
+            const match = link.url.toString().match(/^command:([^?#]+)/);
+            if (match) {
+                const commandId = match[1];
+                const nativeLabelText = nls.localize('tooltip.explanation', "Execute command {0}", commandId);
+                nativeLabel = ` "${nativeLabelText}"`;
+            }
+        }
+        const hoverMessage = new MarkdownString('', true).appendMarkdown(`[${label}](${link.url.toString(true).replace(/ /g, '%20')}${nativeLabel}) (${kb})`);
         return hoverMessage;
     }
     else {
-        return new MarkdownString().appendText(label + " (" + kb + ")");
+        return new MarkdownString().appendText(`${label} (${kb})`);
     }
 }
-var decoration = {
+const decoration = {
     general: ModelDecorationOptions.register({
+        description: 'detected-link',
         stickiness: 1 /* NeverGrowsWhenTypingAtEdges */,
         collapseOnReplaceEdit: true,
         inlineClassName: 'detected-link'
     }),
     active: ModelDecorationOptions.register({
+        description: 'detected-link-active',
         stickiness: 1 /* NeverGrowsWhenTypingAtEdges */,
         collapseOnReplaceEdit: true,
         inlineClassName: 'detected-link-active'
     })
 };
-var LinkOccurrence = /** @class */ (function () {
-    function LinkOccurrence(link, decorationId) {
+class LinkOccurrence {
+    constructor(link, decorationId) {
         this.link = link;
         this.decorationId = decorationId;
     }
-    LinkOccurrence.decoration = function (link, useMetaKey) {
+    static decoration(link, useMetaKey) {
         return {
             range: link.range,
             options: LinkOccurrence._getOptions(link, useMetaKey, false)
         };
-    };
-    LinkOccurrence._getOptions = function (link, useMetaKey, isActive) {
-        var options = __assign({}, (isActive ? decoration.active : decoration.general));
+    }
+    static _getOptions(link, useMetaKey, isActive) {
+        const options = Object.assign({}, (isActive ? decoration.active : decoration.general));
         options.hoverMessage = getHoverMessage(link, useMetaKey);
         return options;
-    };
-    LinkOccurrence.prototype.activate = function (changeAccessor, useMetaKey) {
+    }
+    activate(changeAccessor, useMetaKey) {
         changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurrence._getOptions(this.link, useMetaKey, true));
-    };
-    LinkOccurrence.prototype.deactivate = function (changeAccessor, useMetaKey) {
+    }
+    deactivate(changeAccessor, useMetaKey) {
         changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurrence._getOptions(this.link, useMetaKey, false));
-    };
-    return LinkOccurrence;
-}());
-var LinkDetector = /** @class */ (function () {
-    function LinkDetector(editor, openerService, notificationService) {
-        var _this = this;
+    }
+}
+let LinkDetector = class LinkDetector {
+    constructor(editor, openerService, notificationService) {
         this.listenersToRemove = new DisposableStore();
         this.editor = editor;
         this.openerService = openerService;
         this.notificationService = notificationService;
-        var clickLinkGesture = new ClickLinkGesture(editor);
+        let clickLinkGesture = new ClickLinkGesture(editor);
         this.listenersToRemove.add(clickLinkGesture);
-        this.listenersToRemove.add(clickLinkGesture.onMouseMoveOrRelevantKeyDown(function (_a) {
-            var mouseEvent = _a[0], keyboardEvent = _a[1];
-            _this._onEditorMouseMove(mouseEvent, keyboardEvent);
+        this.listenersToRemove.add(clickLinkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
+            this._onEditorMouseMove(mouseEvent, keyboardEvent);
         }));
-        this.listenersToRemove.add(clickLinkGesture.onExecute(function (e) {
-            _this.onEditorMouseUp(e);
+        this.listenersToRemove.add(clickLinkGesture.onExecute((e) => {
+            this.onEditorMouseUp(e);
         }));
-        this.listenersToRemove.add(clickLinkGesture.onCancel(function (e) {
-            _this.cleanUpActiveLinkDecoration();
+        this.listenersToRemove.add(clickLinkGesture.onCancel((e) => {
+            this.cleanUpActiveLinkDecoration();
         }));
-        this.enabled = editor.getOption(52 /* links */);
-        this.listenersToRemove.add(editor.onDidChangeConfiguration(function (e) {
-            var enabled = editor.getOption(52 /* links */);
-            if (_this.enabled === enabled) {
+        this.enabled = editor.getOption(62 /* links */);
+        this.listenersToRemove.add(editor.onDidChangeConfiguration((e) => {
+            const enabled = editor.getOption(62 /* links */);
+            if (this.enabled === enabled) {
                 // No change in our configuration option
                 return;
             }
-            _this.enabled = enabled;
+            this.enabled = enabled;
             // Remove any links (for the getting disabled case)
-            _this.updateDecorations([]);
+            this.updateDecorations([]);
             // Stop any computation (for the getting disabled case)
-            _this.stop();
+            this.stop();
             // Start computing (for the getting enabled case)
-            _this.beginCompute();
+            this.beginCompute();
         }));
-        this.listenersToRemove.add(editor.onDidChangeModelContent(function (e) { return _this.onChange(); }));
-        this.listenersToRemove.add(editor.onDidChangeModel(function (e) { return _this.onModelChanged(); }));
-        this.listenersToRemove.add(editor.onDidChangeModelLanguage(function (e) { return _this.onModelModeChanged(); }));
-        this.listenersToRemove.add(LinkProviderRegistry.onDidChange(function (e) { return _this.onModelModeChanged(); }));
+        this.listenersToRemove.add(editor.onDidChangeModelContent((e) => this.onChange()));
+        this.listenersToRemove.add(editor.onDidChangeModel((e) => this.onModelChanged()));
+        this.listenersToRemove.add(editor.onDidChangeModelLanguage((e) => this.onModelModeChanged()));
+        this.listenersToRemove.add(LinkProviderRegistry.onDidChange((e) => this.onModelModeChanged()));
         this.timeout = new async.TimeoutTimer();
         this.computePromise = null;
         this.activeLinksList = null;
@@ -191,230 +152,229 @@ var LinkDetector = /** @class */ (function () {
         this.activeLinkDecorationId = null;
         this.beginCompute();
     }
-    LinkDetector.get = function (editor) {
+    static get(editor) {
         return editor.getContribution(LinkDetector.ID);
-    };
-    LinkDetector.prototype.onModelChanged = function () {
+    }
+    onModelChanged() {
         this.currentOccurrences = {};
         this.activeLinkDecorationId = null;
         this.stop();
         this.beginCompute();
-    };
-    LinkDetector.prototype.onModelModeChanged = function () {
+    }
+    onModelModeChanged() {
         this.stop();
         this.beginCompute();
-    };
-    LinkDetector.prototype.onChange = function () {
-        var _this = this;
-        this.timeout.setIfNotSet(function () { return _this.beginCompute(); }, LinkDetector.RECOMPUTE_TIME);
-    };
-    LinkDetector.prototype.beginCompute = function () {
-        return __awaiter(this, void 0, void 0, function () {
-            var model, _a, err_1;
-            return __generator(this, function (_b) {
-                switch (_b.label) {
-                    case 0:
-                        if (!this.editor.hasModel() || !this.enabled) {
-                            return [2 /*return*/];
-                        }
-                        model = this.editor.getModel();
-                        if (!LinkProviderRegistry.has(model)) {
-                            return [2 /*return*/];
-                        }
-                        if (this.activeLinksList) {
-                            this.activeLinksList.dispose();
-                            this.activeLinksList = null;
-                        }
-                        this.computePromise = async.createCancelablePromise(function (token) { return getLinks(model, token); });
-                        _b.label = 1;
-                    case 1:
-                        _b.trys.push([1, 3, 4, 5]);
-                        _a = this;
-                        return [4 /*yield*/, this.computePromise];
-                    case 2:
-                        _a.activeLinksList = _b.sent();
-                        this.updateDecorations(this.activeLinksList.links);
-                        return [3 /*break*/, 5];
-                    case 3:
-                        err_1 = _b.sent();
-                        onUnexpectedError(err_1);
-                        return [3 /*break*/, 5];
-                    case 4:
-                        this.computePromise = null;
-                        return [7 /*endfinally*/];
-                    case 5: return [2 /*return*/];
-                }
-            });
+    }
+    onChange() {
+        this.timeout.setIfNotSet(() => this.beginCompute(), LinkDetector.RECOMPUTE_TIME);
+    }
+    beginCompute() {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!this.editor.hasModel() || !this.enabled) {
+                return;
+            }
+            const model = this.editor.getModel();
+            if (!LinkProviderRegistry.has(model)) {
+                return;
+            }
+            if (this.activeLinksList) {
+                this.activeLinksList.dispose();
+                this.activeLinksList = null;
+            }
+            this.computePromise = async.createCancelablePromise(token => getLinks(model, token));
+            try {
+                this.activeLinksList = yield this.computePromise;
+                this.updateDecorations(this.activeLinksList.links);
+            }
+            catch (err) {
+                onUnexpectedError(err);
+            }
+            finally {
+                this.computePromise = null;
+            }
         });
-    };
-    LinkDetector.prototype.updateDecorations = function (links) {
-        var useMetaKey = (this.editor.getOption(59 /* multiCursorModifier */) === 'altKey');
-        var oldDecorations = [];
-        var keys = Object.keys(this.currentOccurrences);
-        for (var i = 0, len = keys.length; i < len; i++) {
-            var decorationId = keys[i];
-            var occurance = this.currentOccurrences[decorationId];
+    }
+    updateDecorations(links) {
+        const useMetaKey = (this.editor.getOption(69 /* multiCursorModifier */) === 'altKey');
+        let oldDecorations = [];
+        let keys = Object.keys(this.currentOccurrences);
+        for (let i = 0, len = keys.length; i < len; i++) {
+            let decorationId = keys[i];
+            let occurance = this.currentOccurrences[decorationId];
             oldDecorations.push(occurance.decorationId);
         }
-        var newDecorations = [];
+        let newDecorations = [];
         if (links) {
             // Not sure why this is sometimes null
-            for (var _i = 0, links_1 = links; _i < links_1.length; _i++) {
-                var link = links_1[_i];
+            for (const link of links) {
                 newDecorations.push(LinkOccurrence.decoration(link, useMetaKey));
             }
         }
-        var decorations = this.editor.deltaDecorations(oldDecorations, newDecorations);
+        let decorations = this.editor.deltaDecorations(oldDecorations, newDecorations);
         this.currentOccurrences = {};
         this.activeLinkDecorationId = null;
-        for (var i = 0, len = decorations.length; i < len; i++) {
-            var occurance = new LinkOccurrence(links[i], decorations[i]);
+        for (let i = 0, len = decorations.length; i < len; i++) {
+            let occurance = new LinkOccurrence(links[i], decorations[i]);
             this.currentOccurrences[occurance.decorationId] = occurance;
         }
-    };
-    LinkDetector.prototype._onEditorMouseMove = function (mouseEvent, withKey) {
-        var _this = this;
-        var useMetaKey = (this.editor.getOption(59 /* multiCursorModifier */) === 'altKey');
+    }
+    _onEditorMouseMove(mouseEvent, withKey) {
+        const useMetaKey = (this.editor.getOption(69 /* multiCursorModifier */) === 'altKey');
         if (this.isEnabled(mouseEvent, withKey)) {
             this.cleanUpActiveLinkDecoration(); // always remove previous link decoration as their can only be one
-            var occurrence_1 = this.getLinkOccurrence(mouseEvent.target.position);
-            if (occurrence_1) {
-                this.editor.changeDecorations(function (changeAccessor) {
-                    occurrence_1.activate(changeAccessor, useMetaKey);
-                    _this.activeLinkDecorationId = occurrence_1.decorationId;
+            const occurrence = this.getLinkOccurrence(mouseEvent.target.position);
+            if (occurrence) {
+                this.editor.changeDecorations((changeAccessor) => {
+                    occurrence.activate(changeAccessor, useMetaKey);
+                    this.activeLinkDecorationId = occurrence.decorationId;
                 });
             }
         }
         else {
             this.cleanUpActiveLinkDecoration();
         }
-    };
-    LinkDetector.prototype.cleanUpActiveLinkDecoration = function () {
-        var useMetaKey = (this.editor.getOption(59 /* multiCursorModifier */) === 'altKey');
+    }
+    cleanUpActiveLinkDecoration() {
+        const useMetaKey = (this.editor.getOption(69 /* multiCursorModifier */) === 'altKey');
         if (this.activeLinkDecorationId) {
-            var occurrence_2 = this.currentOccurrences[this.activeLinkDecorationId];
-            if (occurrence_2) {
-                this.editor.changeDecorations(function (changeAccessor) {
-                    occurrence_2.deactivate(changeAccessor, useMetaKey);
+            const occurrence = this.currentOccurrences[this.activeLinkDecorationId];
+            if (occurrence) {
+                this.editor.changeDecorations((changeAccessor) => {
+                    occurrence.deactivate(changeAccessor, useMetaKey);
                 });
             }
             this.activeLinkDecorationId = null;
         }
-    };
-    LinkDetector.prototype.onEditorMouseUp = function (mouseEvent) {
+    }
+    onEditorMouseUp(mouseEvent) {
         if (!this.isEnabled(mouseEvent)) {
             return;
         }
-        var occurrence = this.getLinkOccurrence(mouseEvent.target.position);
+        const occurrence = this.getLinkOccurrence(mouseEvent.target.position);
         if (!occurrence) {
             return;
         }
         this.openLinkOccurrence(occurrence, mouseEvent.hasSideBySideModifier, true /* from user gesture */);
-    };
-    LinkDetector.prototype.openLinkOccurrence = function (occurrence, openToSide, fromUserGesture) {
-        var _this = this;
-        if (fromUserGesture === void 0) { fromUserGesture = false; }
+    }
+    openLinkOccurrence(occurrence, openToSide, fromUserGesture = false) {
         if (!this.openerService) {
             return;
         }
-        var link = occurrence.link;
-        link.resolve(CancellationToken.None).then(function (uri) {
-            // open the uri
-            return _this.openerService.open(uri, { openToSide: openToSide, fromUserGesture: fromUserGesture });
-        }, function (err) {
-            var messageOrError = err instanceof Error ? err.message : err;
+        const { link } = occurrence;
+        link.resolve(CancellationToken.None).then(uri => {
+            // Support for relative file URIs of the shape file://./relativeFile.txt or file:///./relativeFile.txt
+            if (typeof uri === 'string' && this.editor.hasModel()) {
+                const modelUri = this.editor.getModel().uri;
+                if (modelUri.scheme === Schemas.file && uri.startsWith(`${Schemas.file}:`)) {
+                    const parsedUri = URI.parse(uri);
+                    if (parsedUri.scheme === Schemas.file) {
+                        const fsPath = resources.originalFSPath(parsedUri);
+                        let relativePath = null;
+                        if (fsPath.startsWith('/./')) {
+                            relativePath = `.${fsPath.substr(1)}`;
+                        }
+                        else if (fsPath.startsWith('//./')) {
+                            relativePath = `.${fsPath.substr(2)}`;
+                        }
+                        if (relativePath) {
+                            uri = resources.joinPath(modelUri, relativePath);
+                        }
+                    }
+                }
+            }
+            return this.openerService.open(uri, { openToSide, fromUserGesture, allowContributedOpeners: true, allowCommands: true });
+        }, err => {
+            const messageOrError = err instanceof Error ? err.message : err;
             // different error cases
             if (messageOrError === 'invalid') {
-                _this.notificationService.warn(nls.localize('invalid.url', 'Failed to open this link because it is not well-formed: {0}', link.url.toString()));
+                this.notificationService.warn(nls.localize('invalid.url', 'Failed to open this link because it is not well-formed: {0}', link.url.toString()));
             }
             else if (messageOrError === 'missing') {
-                _this.notificationService.warn(nls.localize('missing.url', 'Failed to open this link because its target is missing.'));
+                this.notificationService.warn(nls.localize('missing.url', 'Failed to open this link because its target is missing.'));
             }
             else {
                 onUnexpectedError(err);
             }
         });
-    };
-    LinkDetector.prototype.getLinkOccurrence = function (position) {
+    }
+    getLinkOccurrence(position) {
         if (!this.editor.hasModel() || !position) {
             return null;
         }
-        var decorations = this.editor.getModel().getDecorationsInRange({
+        const decorations = this.editor.getModel().getDecorationsInRange({
             startLineNumber: position.lineNumber,
             startColumn: position.column,
             endLineNumber: position.lineNumber,
             endColumn: position.column
         }, 0, true);
-        for (var _i = 0, decorations_1 = decorations; _i < decorations_1.length; _i++) {
-            var decoration_1 = decorations_1[_i];
-            var currentOccurrence = this.currentOccurrences[decoration_1.id];
+        for (const decoration of decorations) {
+            const currentOccurrence = this.currentOccurrences[decoration.id];
             if (currentOccurrence) {
                 return currentOccurrence;
             }
         }
         return null;
-    };
-    LinkDetector.prototype.isEnabled = function (mouseEvent, withKey) {
+    }
+    isEnabled(mouseEvent, withKey) {
         return Boolean((mouseEvent.target.type === 6 /* CONTENT_TEXT */)
             && (mouseEvent.hasTriggerModifier || (withKey && withKey.keyCodeIsTriggerKey)));
-    };
-    LinkDetector.prototype.stop = function () {
+    }
+    stop() {
+        var _a;
         this.timeout.cancel();
         if (this.activeLinksList) {
-            this.activeLinksList.dispose();
+            (_a = this.activeLinksList) === null || _a === void 0 ? void 0 : _a.dispose();
+            this.activeLinksList = null;
         }
         if (this.computePromise) {
             this.computePromise.cancel();
             this.computePromise = null;
         }
-    };
-    LinkDetector.prototype.dispose = function () {
+    }
+    dispose() {
         this.listenersToRemove.dispose();
         this.stop();
         this.timeout.dispose();
-    };
-    LinkDetector.ID = 'editor.linkDetector';
-    LinkDetector.RECOMPUTE_TIME = 1000; // ms
-    LinkDetector = __decorate([
-        __param(1, IOpenerService),
-        __param(2, INotificationService)
-    ], LinkDetector);
-    return LinkDetector;
-}());
-var OpenLinkAction = /** @class */ (function (_super) {
-    __extends(OpenLinkAction, _super);
-    function OpenLinkAction() {
-        return _super.call(this, {
+    }
+};
+LinkDetector.ID = 'editor.linkDetector';
+LinkDetector.RECOMPUTE_TIME = 1000; // ms
+LinkDetector = __decorate([
+    __param(1, IOpenerService),
+    __param(2, INotificationService)
+], LinkDetector);
+export { LinkDetector };
+class OpenLinkAction extends EditorAction {
+    constructor() {
+        super({
             id: 'editor.action.openLink',
             label: nls.localize('label', "Open Link"),
             alias: 'Open Link',
             precondition: undefined
-        }) || this;
+        });
     }
-    OpenLinkAction.prototype.run = function (accessor, editor) {
-        var linkDetector = LinkDetector.get(editor);
+    run(accessor, editor) {
+        let linkDetector = LinkDetector.get(editor);
         if (!linkDetector) {
             return;
         }
         if (!editor.hasModel()) {
             return;
         }
-        var selections = editor.getSelections();
-        for (var _i = 0, selections_1 = selections; _i < selections_1.length; _i++) {
-            var sel = selections_1[_i];
-            var link = linkDetector.getLinkOccurrence(sel.getEndPosition());
+        let selections = editor.getSelections();
+        for (let sel of selections) {
+            let link = linkDetector.getLinkOccurrence(sel.getEndPosition());
             if (link) {
                 linkDetector.openLinkOccurrence(link, false);
             }
         }
-    };
-    return OpenLinkAction;
-}(EditorAction));
+    }
+}
 registerEditorContribution(LinkDetector.ID, LinkDetector);
 registerEditorAction(OpenLinkAction);
-registerThemingParticipant(function (theme, collector) {
-    var activeLinkForeground = theme.getColor(editorActiveLinkForeground);
+registerThemingParticipant((theme, collector) => {
+    const activeLinkForeground = theme.getColor(editorActiveLinkForeground);
     if (activeLinkForeground) {
-        collector.addRule(".monaco-editor .detected-link-active { color: " + activeLinkForeground + " !important; }");
+        collector.addRule(`.monaco-editor .detected-link-active { color: ${activeLinkForeground} !important; }`);
     }
 });

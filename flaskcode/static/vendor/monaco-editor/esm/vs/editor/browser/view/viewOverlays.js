@@ -2,151 +2,134 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 import { createFastDomNode } from '../../../base/browser/fastDomNode.js';
 import { Configuration } from '../config/configuration.js';
 import { VisibleLinesCollection } from './viewLayer.js';
 import { ViewPart } from './viewPart.js';
-var ViewOverlays = /** @class */ (function (_super) {
-    __extends(ViewOverlays, _super);
-    function ViewOverlays(context) {
-        var _this = _super.call(this, context) || this;
-        _this._visibleLines = new VisibleLinesCollection(_this);
-        _this.domNode = _this._visibleLines.domNode;
-        _this._dynamicOverlays = [];
-        _this._isFocused = false;
-        _this.domNode.setClassName('view-overlays');
-        return _this;
+export class ViewOverlays extends ViewPart {
+    constructor(context) {
+        super(context);
+        this._visibleLines = new VisibleLinesCollection(this);
+        this.domNode = this._visibleLines.domNode;
+        this._dynamicOverlays = [];
+        this._isFocused = false;
+        this.domNode.setClassName('view-overlays');
     }
-    ViewOverlays.prototype.shouldRender = function () {
-        if (_super.prototype.shouldRender.call(this)) {
+    shouldRender() {
+        if (super.shouldRender()) {
             return true;
         }
-        for (var i = 0, len = this._dynamicOverlays.length; i < len; i++) {
-            var dynamicOverlay = this._dynamicOverlays[i];
+        for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
+            const dynamicOverlay = this._dynamicOverlays[i];
             if (dynamicOverlay.shouldRender()) {
                 return true;
             }
         }
         return false;
-    };
-    ViewOverlays.prototype.dispose = function () {
-        _super.prototype.dispose.call(this);
-        for (var i = 0, len = this._dynamicOverlays.length; i < len; i++) {
-            var dynamicOverlay = this._dynamicOverlays[i];
+    }
+    dispose() {
+        super.dispose();
+        for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
+            const dynamicOverlay = this._dynamicOverlays[i];
             dynamicOverlay.dispose();
         }
         this._dynamicOverlays = [];
-    };
-    ViewOverlays.prototype.getDomNode = function () {
+    }
+    getDomNode() {
         return this.domNode;
-    };
+    }
     // ---- begin IVisibleLinesHost
-    ViewOverlays.prototype.createVisibleLine = function () {
+    createVisibleLine() {
         return new ViewOverlayLine(this._context.configuration, this._dynamicOverlays);
-    };
+    }
     // ---- end IVisibleLinesHost
-    ViewOverlays.prototype.addDynamicOverlay = function (overlay) {
+    addDynamicOverlay(overlay) {
         this._dynamicOverlays.push(overlay);
-    };
+    }
     // ----- event handlers
-    ViewOverlays.prototype.onConfigurationChanged = function (e) {
+    onConfigurationChanged(e) {
         this._visibleLines.onConfigurationChanged(e);
-        var startLineNumber = this._visibleLines.getStartLineNumber();
-        var endLineNumber = this._visibleLines.getEndLineNumber();
-        for (var lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-            var line = this._visibleLines.getVisibleLine(lineNumber);
+        const startLineNumber = this._visibleLines.getStartLineNumber();
+        const endLineNumber = this._visibleLines.getEndLineNumber();
+        for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+            const line = this._visibleLines.getVisibleLine(lineNumber);
             line.onConfigurationChanged(e);
         }
         return true;
-    };
-    ViewOverlays.prototype.onFlushed = function (e) {
+    }
+    onFlushed(e) {
         return this._visibleLines.onFlushed(e);
-    };
-    ViewOverlays.prototype.onFocusChanged = function (e) {
+    }
+    onFocusChanged(e) {
         this._isFocused = e.isFocused;
         return true;
-    };
-    ViewOverlays.prototype.onLinesChanged = function (e) {
+    }
+    onLinesChanged(e) {
         return this._visibleLines.onLinesChanged(e);
-    };
-    ViewOverlays.prototype.onLinesDeleted = function (e) {
+    }
+    onLinesDeleted(e) {
         return this._visibleLines.onLinesDeleted(e);
-    };
-    ViewOverlays.prototype.onLinesInserted = function (e) {
+    }
+    onLinesInserted(e) {
         return this._visibleLines.onLinesInserted(e);
-    };
-    ViewOverlays.prototype.onScrollChanged = function (e) {
+    }
+    onScrollChanged(e) {
         return this._visibleLines.onScrollChanged(e) || true;
-    };
-    ViewOverlays.prototype.onTokensChanged = function (e) {
+    }
+    onTokensChanged(e) {
         return this._visibleLines.onTokensChanged(e);
-    };
-    ViewOverlays.prototype.onZonesChanged = function (e) {
+    }
+    onZonesChanged(e) {
         return this._visibleLines.onZonesChanged(e);
-    };
+    }
     // ----- end event handlers
-    ViewOverlays.prototype.prepareRender = function (ctx) {
-        var toRender = this._dynamicOverlays.filter(function (overlay) { return overlay.shouldRender(); });
-        for (var i = 0, len = toRender.length; i < len; i++) {
-            var dynamicOverlay = toRender[i];
+    prepareRender(ctx) {
+        const toRender = this._dynamicOverlays.filter(overlay => overlay.shouldRender());
+        for (let i = 0, len = toRender.length; i < len; i++) {
+            const dynamicOverlay = toRender[i];
             dynamicOverlay.prepareRender(ctx);
             dynamicOverlay.onDidRender();
         }
-    };
-    ViewOverlays.prototype.render = function (ctx) {
+    }
+    render(ctx) {
         // Overwriting to bypass `shouldRender` flag
         this._viewOverlaysRender(ctx);
         this.domNode.toggleClassName('focused', this._isFocused);
-    };
-    ViewOverlays.prototype._viewOverlaysRender = function (ctx) {
+    }
+    _viewOverlaysRender(ctx) {
         this._visibleLines.renderLines(ctx.viewportData);
-    };
-    return ViewOverlays;
-}(ViewPart));
-export { ViewOverlays };
-var ViewOverlayLine = /** @class */ (function () {
-    function ViewOverlayLine(configuration, dynamicOverlays) {
+    }
+}
+export class ViewOverlayLine {
+    constructor(configuration, dynamicOverlays) {
         this._configuration = configuration;
-        this._lineHeight = this._configuration.options.get(49 /* lineHeight */);
+        this._lineHeight = this._configuration.options.get(58 /* lineHeight */);
         this._dynamicOverlays = dynamicOverlays;
         this._domNode = null;
         this._renderedContent = null;
     }
-    ViewOverlayLine.prototype.getDomNode = function () {
+    getDomNode() {
         if (!this._domNode) {
             return null;
         }
         return this._domNode.domNode;
-    };
-    ViewOverlayLine.prototype.setDomNode = function (domNode) {
+    }
+    setDomNode(domNode) {
         this._domNode = createFastDomNode(domNode);
-    };
-    ViewOverlayLine.prototype.onContentChanged = function () {
+    }
+    onContentChanged() {
         // Nothing
-    };
-    ViewOverlayLine.prototype.onTokensChanged = function () {
+    }
+    onTokensChanged() {
         // Nothing
-    };
-    ViewOverlayLine.prototype.onConfigurationChanged = function (e) {
-        this._lineHeight = this._configuration.options.get(49 /* lineHeight */);
-    };
-    ViewOverlayLine.prototype.renderLine = function (lineNumber, deltaTop, viewportData, sb) {
-        var result = '';
-        for (var i = 0, len = this._dynamicOverlays.length; i < len; i++) {
-            var dynamicOverlay = this._dynamicOverlays[i];
+    }
+    onConfigurationChanged(e) {
+        this._lineHeight = this._configuration.options.get(58 /* lineHeight */);
+    }
+    renderLine(lineNumber, deltaTop, viewportData, sb) {
+        let result = '';
+        for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
+            const dynamicOverlay = this._dynamicOverlays[i];
             result += dynamicOverlay.render(viewportData.startLineNumber, lineNumber);
         }
         if (this._renderedContent === result) {
@@ -162,72 +145,62 @@ var ViewOverlayLine = /** @class */ (function () {
         sb.appendASCIIString(result);
         sb.appendASCIIString('</div>');
         return true;
-    };
-    ViewOverlayLine.prototype.layoutLine = function (lineNumber, deltaTop) {
+    }
+    layoutLine(lineNumber, deltaTop) {
         if (this._domNode) {
             this._domNode.setTop(deltaTop);
             this._domNode.setHeight(this._lineHeight);
         }
-    };
-    return ViewOverlayLine;
-}());
-export { ViewOverlayLine };
-var ContentViewOverlays = /** @class */ (function (_super) {
-    __extends(ContentViewOverlays, _super);
-    function ContentViewOverlays(context) {
-        var _this = _super.call(this, context) || this;
-        var options = _this._context.configuration.options;
-        var layoutInfo = options.get(107 /* layoutInfo */);
-        _this._contentWidth = layoutInfo.contentWidth;
-        _this.domNode.setHeight(0);
-        return _this;
+    }
+}
+export class ContentViewOverlays extends ViewOverlays {
+    constructor(context) {
+        super(context);
+        const options = this._context.configuration.options;
+        const layoutInfo = options.get(130 /* layoutInfo */);
+        this._contentWidth = layoutInfo.contentWidth;
+        this.domNode.setHeight(0);
     }
     // --- begin event handlers
-    ContentViewOverlays.prototype.onConfigurationChanged = function (e) {
-        var options = this._context.configuration.options;
-        var layoutInfo = options.get(107 /* layoutInfo */);
+    onConfigurationChanged(e) {
+        const options = this._context.configuration.options;
+        const layoutInfo = options.get(130 /* layoutInfo */);
         this._contentWidth = layoutInfo.contentWidth;
-        return _super.prototype.onConfigurationChanged.call(this, e) || true;
-    };
-    ContentViewOverlays.prototype.onScrollChanged = function (e) {
-        return _super.prototype.onScrollChanged.call(this, e) || e.scrollWidthChanged;
-    };
-    // --- end event handlers
-    ContentViewOverlays.prototype._viewOverlaysRender = function (ctx) {
-        _super.prototype._viewOverlaysRender.call(this, ctx);
-        this.domNode.setWidth(Math.max(ctx.scrollWidth, this._contentWidth));
-    };
-    return ContentViewOverlays;
-}(ViewOverlays));
-export { ContentViewOverlays };
-var MarginViewOverlays = /** @class */ (function (_super) {
-    __extends(MarginViewOverlays, _super);
-    function MarginViewOverlays(context) {
-        var _this = _super.call(this, context) || this;
-        var options = _this._context.configuration.options;
-        var layoutInfo = options.get(107 /* layoutInfo */);
-        _this._contentLeft = layoutInfo.contentLeft;
-        _this.domNode.setClassName('margin-view-overlays');
-        _this.domNode.setWidth(1);
-        Configuration.applyFontInfo(_this.domNode, options.get(34 /* fontInfo */));
-        return _this;
+        return super.onConfigurationChanged(e) || true;
     }
-    MarginViewOverlays.prototype.onConfigurationChanged = function (e) {
-        var options = this._context.configuration.options;
-        Configuration.applyFontInfo(this.domNode, options.get(34 /* fontInfo */));
-        var layoutInfo = options.get(107 /* layoutInfo */);
+    onScrollChanged(e) {
+        return super.onScrollChanged(e) || e.scrollWidthChanged;
+    }
+    // --- end event handlers
+    _viewOverlaysRender(ctx) {
+        super._viewOverlaysRender(ctx);
+        this.domNode.setWidth(Math.max(ctx.scrollWidth, this._contentWidth));
+    }
+}
+export class MarginViewOverlays extends ViewOverlays {
+    constructor(context) {
+        super(context);
+        const options = this._context.configuration.options;
+        const layoutInfo = options.get(130 /* layoutInfo */);
         this._contentLeft = layoutInfo.contentLeft;
-        return _super.prototype.onConfigurationChanged.call(this, e) || true;
-    };
-    MarginViewOverlays.prototype.onScrollChanged = function (e) {
-        return _super.prototype.onScrollChanged.call(this, e) || e.scrollHeightChanged;
-    };
-    MarginViewOverlays.prototype._viewOverlaysRender = function (ctx) {
-        _super.prototype._viewOverlaysRender.call(this, ctx);
-        var height = Math.min(ctx.scrollHeight, 1000000);
+        this.domNode.setClassName('margin-view-overlays');
+        this.domNode.setWidth(1);
+        Configuration.applyFontInfo(this.domNode, options.get(43 /* fontInfo */));
+    }
+    onConfigurationChanged(e) {
+        const options = this._context.configuration.options;
+        Configuration.applyFontInfo(this.domNode, options.get(43 /* fontInfo */));
+        const layoutInfo = options.get(130 /* layoutInfo */);
+        this._contentLeft = layoutInfo.contentLeft;
+        return super.onConfigurationChanged(e) || true;
+    }
+    onScrollChanged(e) {
+        return super.onScrollChanged(e) || e.scrollHeightChanged;
+    }
+    _viewOverlaysRender(ctx) {
+        super._viewOverlaysRender(ctx);
+        const height = Math.min(ctx.scrollHeight, 1000000);
         this.domNode.setHeight(height);
         this.domNode.setWidth(this._contentLeft);
-    };
-    return MarginViewOverlays;
-}(ViewOverlays));
-export { MarginViewOverlays };
+    }
+}
