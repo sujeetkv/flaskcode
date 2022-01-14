@@ -2,33 +2,21 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 import * as dom from '../../../../base/browser/dom.js';
 import { createFastDomNode } from '../../../../base/browser/fastDomNode.js';
 import { SmoothScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { PartFingerprints, ViewPart } from '../../view/viewPart.js';
-import { getThemeTypeSelector } from '../../../../platform/theme/common/themeService.js';
-var EditorScrollbar = /** @class */ (function (_super) {
-    __extends(EditorScrollbar, _super);
-    function EditorScrollbar(context, linesContent, viewDomNode, overflowGuardDomNode) {
-        var _this = _super.call(this, context) || this;
-        var options = _this._context.configuration.options;
-        var scrollbar = options.get(78 /* scrollbar */);
-        var mouseWheelScrollSensitivity = options.get(56 /* mouseWheelScrollSensitivity */);
-        var fastScrollSensitivity = options.get(27 /* fastScrollSensitivity */);
-        var scrollbarOptions = {
+import { registerThemingParticipant, getThemeTypeSelector } from '../../../../platform/theme/common/themeService.js';
+import { scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
+export class EditorScrollbar extends ViewPart {
+    constructor(context, linesContent, viewDomNode, overflowGuardDomNode) {
+        super(context);
+        const options = this._context.configuration.options;
+        const scrollbar = options.get(91 /* scrollbar */);
+        const mouseWheelScrollSensitivity = options.get(66 /* mouseWheelScrollSensitivity */);
+        const fastScrollSensitivity = options.get(34 /* fastScrollSensitivity */);
+        const scrollPredominantAxis = options.get(94 /* scrollPredominantAxis */);
+        const scrollbarOptions = {
             listenOnDomNode: viewDomNode.domNode,
             className: 'editor-scrollable' + ' ' + getThemeTypeSelector(context.theme.type),
             useShadows: false,
@@ -46,101 +34,150 @@ var EditorScrollbar = /** @class */ (function (_super) {
             arrowSize: scrollbar.arrowSize,
             mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
             fastScrollSensitivity: fastScrollSensitivity,
+            scrollPredominantAxis: scrollPredominantAxis,
+            scrollByPage: scrollbar.scrollByPage,
         };
-        _this.scrollbar = _this._register(new SmoothScrollableElement(linesContent.domNode, scrollbarOptions, _this._context.viewLayout.getScrollable()));
-        PartFingerprints.write(_this.scrollbar.getDomNode(), 5 /* ScrollableElement */);
-        _this.scrollbarDomNode = createFastDomNode(_this.scrollbar.getDomNode());
-        _this.scrollbarDomNode.setPosition('absolute');
-        _this._setLayout();
+        this.scrollbar = this._register(new SmoothScrollableElement(linesContent.domNode, scrollbarOptions, this._context.viewLayout.getScrollable()));
+        PartFingerprints.write(this.scrollbar.getDomNode(), 5 /* ScrollableElement */);
+        this.scrollbarDomNode = createFastDomNode(this.scrollbar.getDomNode());
+        this.scrollbarDomNode.setPosition('absolute');
+        this._setLayout();
         // When having a zone widget that calls .focus() on one of its dom elements,
         // the browser will try desperately to reveal that dom node, unexpectedly
         // changing the .scrollTop of this.linesContent
-        var onBrowserDesperateReveal = function (domNode, lookAtScrollTop, lookAtScrollLeft) {
-            var newScrollPosition = {};
+        const onBrowserDesperateReveal = (domNode, lookAtScrollTop, lookAtScrollLeft) => {
+            const newScrollPosition = {};
             if (lookAtScrollTop) {
-                var deltaTop = domNode.scrollTop;
+                const deltaTop = domNode.scrollTop;
                 if (deltaTop) {
-                    newScrollPosition.scrollTop = _this._context.viewLayout.getCurrentScrollTop() + deltaTop;
+                    newScrollPosition.scrollTop = this._context.viewLayout.getCurrentScrollTop() + deltaTop;
                     domNode.scrollTop = 0;
                 }
             }
             if (lookAtScrollLeft) {
-                var deltaLeft = domNode.scrollLeft;
+                const deltaLeft = domNode.scrollLeft;
                 if (deltaLeft) {
-                    newScrollPosition.scrollLeft = _this._context.viewLayout.getCurrentScrollLeft() + deltaLeft;
+                    newScrollPosition.scrollLeft = this._context.viewLayout.getCurrentScrollLeft() + deltaLeft;
                     domNode.scrollLeft = 0;
                 }
             }
-            _this._context.viewLayout.setScrollPositionNow(newScrollPosition);
+            this._context.model.setScrollPosition(newScrollPosition, 1 /* Immediate */);
         };
         // I've seen this happen both on the view dom node & on the lines content dom node.
-        _this._register(dom.addDisposableListener(viewDomNode.domNode, 'scroll', function (e) { return onBrowserDesperateReveal(viewDomNode.domNode, true, true); }));
-        _this._register(dom.addDisposableListener(linesContent.domNode, 'scroll', function (e) { return onBrowserDesperateReveal(linesContent.domNode, true, false); }));
-        _this._register(dom.addDisposableListener(overflowGuardDomNode.domNode, 'scroll', function (e) { return onBrowserDesperateReveal(overflowGuardDomNode.domNode, true, false); }));
-        _this._register(dom.addDisposableListener(_this.scrollbarDomNode.domNode, 'scroll', function (e) { return onBrowserDesperateReveal(_this.scrollbarDomNode.domNode, true, false); }));
-        return _this;
+        this._register(dom.addDisposableListener(viewDomNode.domNode, 'scroll', (e) => onBrowserDesperateReveal(viewDomNode.domNode, true, true)));
+        this._register(dom.addDisposableListener(linesContent.domNode, 'scroll', (e) => onBrowserDesperateReveal(linesContent.domNode, true, false)));
+        this._register(dom.addDisposableListener(overflowGuardDomNode.domNode, 'scroll', (e) => onBrowserDesperateReveal(overflowGuardDomNode.domNode, true, false)));
+        this._register(dom.addDisposableListener(this.scrollbarDomNode.domNode, 'scroll', (e) => onBrowserDesperateReveal(this.scrollbarDomNode.domNode, true, false)));
     }
-    EditorScrollbar.prototype.dispose = function () {
-        _super.prototype.dispose.call(this);
-    };
-    EditorScrollbar.prototype._setLayout = function () {
-        var options = this._context.configuration.options;
-        var layoutInfo = options.get(107 /* layoutInfo */);
+    dispose() {
+        super.dispose();
+    }
+    _setLayout() {
+        const options = this._context.configuration.options;
+        const layoutInfo = options.get(130 /* layoutInfo */);
         this.scrollbarDomNode.setLeft(layoutInfo.contentLeft);
-        var minimap = options.get(54 /* minimap */);
-        var side = minimap.side;
+        const minimap = options.get(64 /* minimap */);
+        const side = minimap.side;
         if (side === 'right') {
-            this.scrollbarDomNode.setWidth(layoutInfo.contentWidth + layoutInfo.minimapWidth);
+            this.scrollbarDomNode.setWidth(layoutInfo.contentWidth + layoutInfo.minimap.minimapWidth);
         }
         else {
             this.scrollbarDomNode.setWidth(layoutInfo.contentWidth);
         }
         this.scrollbarDomNode.setHeight(layoutInfo.height);
-    };
-    EditorScrollbar.prototype.getOverviewRulerLayoutInfo = function () {
+    }
+    getOverviewRulerLayoutInfo() {
         return this.scrollbar.getOverviewRulerLayoutInfo();
-    };
-    EditorScrollbar.prototype.getDomNode = function () {
+    }
+    getDomNode() {
         return this.scrollbarDomNode;
-    };
-    EditorScrollbar.prototype.delegateVerticalScrollbarMouseDown = function (browserEvent) {
+    }
+    delegateVerticalScrollbarMouseDown(browserEvent) {
         this.scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
-    };
+    }
     // --- begin event handlers
-    EditorScrollbar.prototype.onConfigurationChanged = function (e) {
-        if (e.hasChanged(78 /* scrollbar */)
-            || e.hasChanged(56 /* mouseWheelScrollSensitivity */)
-            || e.hasChanged(27 /* fastScrollSensitivity */)) {
-            var options = this._context.configuration.options;
-            var scrollbar = options.get(78 /* scrollbar */);
-            var mouseWheelScrollSensitivity = options.get(56 /* mouseWheelScrollSensitivity */);
-            var fastScrollSensitivity = options.get(27 /* fastScrollSensitivity */);
-            var newOpts = {
+    onConfigurationChanged(e) {
+        if (e.hasChanged(91 /* scrollbar */)
+            || e.hasChanged(66 /* mouseWheelScrollSensitivity */)
+            || e.hasChanged(34 /* fastScrollSensitivity */)) {
+            const options = this._context.configuration.options;
+            const scrollbar = options.get(91 /* scrollbar */);
+            const mouseWheelScrollSensitivity = options.get(66 /* mouseWheelScrollSensitivity */);
+            const fastScrollSensitivity = options.get(34 /* fastScrollSensitivity */);
+            const scrollPredominantAxis = options.get(94 /* scrollPredominantAxis */);
+            const newOpts = {
+                vertical: scrollbar.vertical,
+                horizontal: scrollbar.horizontal,
+                verticalScrollbarSize: scrollbar.verticalScrollbarSize,
+                horizontalScrollbarSize: scrollbar.horizontalScrollbarSize,
+                scrollByPage: scrollbar.scrollByPage,
                 handleMouseWheel: scrollbar.handleMouseWheel,
                 mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
-                fastScrollSensitivity: fastScrollSensitivity
+                fastScrollSensitivity: fastScrollSensitivity,
+                scrollPredominantAxis: scrollPredominantAxis
             };
             this.scrollbar.updateOptions(newOpts);
         }
-        if (e.hasChanged(107 /* layoutInfo */)) {
+        if (e.hasChanged(130 /* layoutInfo */)) {
             this._setLayout();
         }
         return true;
-    };
-    EditorScrollbar.prototype.onScrollChanged = function (e) {
+    }
+    onScrollChanged(e) {
         return true;
-    };
-    EditorScrollbar.prototype.onThemeChanged = function (e) {
+    }
+    onThemeChanged(e) {
         this.scrollbar.updateClassName('editor-scrollable' + ' ' + getThemeTypeSelector(this._context.theme.type));
         return true;
-    };
+    }
     // --- end event handlers
-    EditorScrollbar.prototype.prepareRender = function (ctx) {
+    prepareRender(ctx) {
         // Nothing to do
-    };
-    EditorScrollbar.prototype.render = function (ctx) {
+    }
+    render(ctx) {
         this.scrollbar.renderNow();
-    };
-    return EditorScrollbar;
-}(ViewPart));
-export { EditorScrollbar };
+    }
+}
+registerThemingParticipant((theme, collector) => {
+    // Scrollbars
+    const scrollbarShadowColor = theme.getColor(scrollbarShadow);
+    if (scrollbarShadowColor) {
+        collector.addRule(`
+			.monaco-scrollable-element > .shadow.top {
+				box-shadow: ${scrollbarShadowColor} 0 6px 6px -6px inset;
+			}
+
+			.monaco-scrollable-element > .shadow.left {
+				box-shadow: ${scrollbarShadowColor} 6px 0 6px -6px inset;
+			}
+
+			.monaco-scrollable-element > .shadow.top.left {
+				box-shadow: ${scrollbarShadowColor} 6px 6px 6px -6px inset;
+			}
+		`);
+    }
+    const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
+    if (scrollbarSliderBackgroundColor) {
+        collector.addRule(`
+			.monaco-scrollable-element > .scrollbar > .slider {
+				background: ${scrollbarSliderBackgroundColor};
+			}
+		`);
+    }
+    const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
+    if (scrollbarSliderHoverBackgroundColor) {
+        collector.addRule(`
+			.monaco-scrollable-element > .scrollbar > .slider:hover {
+				background: ${scrollbarSliderHoverBackgroundColor};
+			}
+		`);
+    }
+    const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
+    if (scrollbarSliderActiveBackgroundColor) {
+        collector.addRule(`
+			.monaco-scrollable-element > .scrollbar > .slider.active {
+				background: ${scrollbarSliderActiveBackgroundColor};
+			}
+		`);
+    }
+});

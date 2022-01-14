@@ -2,50 +2,40 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 import { createFastDomNode } from '../../../../base/browser/fastDomNode.js';
 import { Color } from '../../../../base/common/color.js';
 import { ViewPart } from '../../view/viewPart.js';
 import { Position } from '../../../common/core/position.js';
 import { TokenizationRegistry } from '../../../common/modes.js';
-import { editorCursorForeground, editorOverviewRulerBorder } from '../../../common/view/editorColorRegistry.js';
-var Settings = /** @class */ (function () {
-    function Settings(config, theme) {
-        var options = config.options;
-        this.lineHeight = options.get(49 /* lineHeight */);
-        this.pixelRatio = options.get(105 /* pixelRatio */);
-        this.overviewRulerLanes = options.get(63 /* overviewRulerLanes */);
-        this.renderBorder = options.get(62 /* overviewRulerBorder */);
-        var borderColor = theme.getColor(editorOverviewRulerBorder);
+import { editorCursorForeground, editorOverviewRulerBorder, editorOverviewRulerBackground } from '../../../common/view/editorColorRegistry.js';
+import { OverviewRulerDecorationsGroup } from '../../../common/viewModel/viewModel.js';
+class Settings {
+    constructor(config, theme) {
+        const options = config.options;
+        this.lineHeight = options.get(58 /* lineHeight */);
+        this.pixelRatio = options.get(128 /* pixelRatio */);
+        this.overviewRulerLanes = options.get(73 /* overviewRulerLanes */);
+        this.renderBorder = options.get(72 /* overviewRulerBorder */);
+        const borderColor = theme.getColor(editorOverviewRulerBorder);
         this.borderColor = borderColor ? borderColor.toString() : null;
-        this.hideCursor = options.get(42 /* hideCursorInOverviewRuler */);
-        var cursorColor = theme.getColor(editorCursorForeground);
+        this.hideCursor = options.get(51 /* hideCursorInOverviewRuler */);
+        const cursorColor = theme.getColor(editorCursorForeground);
         this.cursorColor = cursorColor ? cursorColor.transparent(0.7).toString() : null;
         this.themeType = theme.type;
-        var minimapOpts = options.get(54 /* minimap */);
-        var minimapEnabled = minimapOpts.enabled;
-        var minimapSide = minimapOpts.side;
-        var backgroundColor = (minimapEnabled ? TokenizationRegistry.getDefaultBackground() : null);
+        const minimapOpts = options.get(64 /* minimap */);
+        const minimapEnabled = minimapOpts.enabled;
+        const minimapSide = minimapOpts.side;
+        const backgroundColor = minimapEnabled
+            ? theme.getColor(editorOverviewRulerBackground) || TokenizationRegistry.getDefaultBackground()
+            : null;
         if (backgroundColor === null || minimapSide === 'left') {
             this.backgroundColor = null;
         }
         else {
             this.backgroundColor = Color.Format.CSS.formatHex(backgroundColor);
         }
-        var layoutInfo = options.get(107 /* layoutInfo */);
-        var position = layoutInfo.overviewRuler;
+        const layoutInfo = options.get(130 /* layoutInfo */);
+        const position = layoutInfo.overviewRuler;
         this.top = position.top;
         this.right = position.right;
         this.domWidth = position.width;
@@ -59,19 +49,19 @@ var Settings = /** @class */ (function () {
             this.canvasWidth = (this.domWidth * this.pixelRatio) | 0;
             this.canvasHeight = (this.domHeight * this.pixelRatio) | 0;
         }
-        var _a = this._initLanes(1, this.canvasWidth, this.overviewRulerLanes), x = _a[0], w = _a[1];
+        const [x, w] = this._initLanes(1, this.canvasWidth, this.overviewRulerLanes);
         this.x = x;
         this.w = w;
     }
-    Settings.prototype._initLanes = function (canvasLeftOffset, canvasWidth, laneCount) {
-        var remainingWidth = canvasWidth - canvasLeftOffset;
+    _initLanes(canvasLeftOffset, canvasWidth, laneCount) {
+        const remainingWidth = canvasWidth - canvasLeftOffset;
         if (laneCount >= 3) {
-            var leftWidth = Math.floor(remainingWidth / 3);
-            var rightWidth = Math.floor(remainingWidth / 3);
-            var centerWidth = remainingWidth - leftWidth - rightWidth;
-            var leftOffset = canvasLeftOffset;
-            var centerOffset = leftOffset + leftWidth;
-            var rightOffset = leftOffset + leftWidth + centerWidth;
+            const leftWidth = Math.floor(remainingWidth / 3);
+            const rightWidth = Math.floor(remainingWidth / 3);
+            const centerWidth = remainingWidth - leftWidth - rightWidth;
+            const leftOffset = canvasLeftOffset;
+            const centerOffset = leftOffset + leftWidth;
+            const rightOffset = leftOffset + leftWidth + centerWidth;
             return [
                 [
                     0,
@@ -81,7 +71,7 @@ var Settings = /** @class */ (function () {
                     rightOffset,
                     leftOffset,
                     centerOffset,
-                    leftOffset,
+                    leftOffset, // Left | Center | Right
                 ], [
                     0,
                     leftWidth,
@@ -90,15 +80,15 @@ var Settings = /** @class */ (function () {
                     rightWidth,
                     leftWidth + centerWidth + rightWidth,
                     centerWidth + rightWidth,
-                    leftWidth + centerWidth + rightWidth,
+                    leftWidth + centerWidth + rightWidth, // Left | Center | Right
                 ]
             ];
         }
         else if (laneCount === 2) {
-            var leftWidth = Math.floor(remainingWidth / 2);
-            var rightWidth = remainingWidth - leftWidth;
-            var leftOffset = canvasLeftOffset;
-            var rightOffset = leftOffset + leftWidth;
+            const leftWidth = Math.floor(remainingWidth / 2);
+            const rightWidth = remainingWidth - leftWidth;
+            const leftOffset = canvasLeftOffset;
+            const rightOffset = leftOffset + leftWidth;
             return [
                 [
                     0,
@@ -108,7 +98,7 @@ var Settings = /** @class */ (function () {
                     rightOffset,
                     leftOffset,
                     leftOffset,
-                    leftOffset,
+                    leftOffset, // Left | Center | Right
                 ], [
                     0,
                     leftWidth,
@@ -117,13 +107,13 @@ var Settings = /** @class */ (function () {
                     rightWidth,
                     leftWidth + rightWidth,
                     leftWidth + rightWidth,
-                    leftWidth + rightWidth,
+                    leftWidth + rightWidth, // Left | Center | Right
                 ]
             ];
         }
         else {
-            var offset = canvasLeftOffset;
-            var width = remainingWidth;
+            const offset = canvasLeftOffset;
+            const width = remainingWidth;
             return [
                 [
                     0,
@@ -133,7 +123,7 @@ var Settings = /** @class */ (function () {
                     offset,
                     offset,
                     offset,
-                    offset,
+                    offset, // Left | Center | Right
                 ], [
                     0,
                     width,
@@ -142,12 +132,12 @@ var Settings = /** @class */ (function () {
                     width,
                     width,
                     width,
-                    width,
+                    width, // Left | Center | Right
                 ]
             ];
         }
-    };
-    Settings.prototype.equals = function (other) {
+    }
+    equals(other) {
         return (this.lineHeight === other.lineHeight
             && this.pixelRatio === other.pixelRatio
             && this.overviewRulerLanes === other.overviewRulerLanes
@@ -163,34 +153,31 @@ var Settings = /** @class */ (function () {
             && this.domHeight === other.domHeight
             && this.canvasWidth === other.canvasWidth
             && this.canvasHeight === other.canvasHeight);
-    };
-    return Settings;
-}());
-var DecorationsOverviewRuler = /** @class */ (function (_super) {
-    __extends(DecorationsOverviewRuler, _super);
-    function DecorationsOverviewRuler(context) {
-        var _this = _super.call(this, context) || this;
-        _this._domNode = createFastDomNode(document.createElement('canvas'));
-        _this._domNode.setClassName('decorationsOverviewRuler');
-        _this._domNode.setPosition('absolute');
-        _this._domNode.setLayerHinting(true);
-        _this._domNode.setContain('strict');
-        _this._domNode.setAttribute('aria-hidden', 'true');
-        _this._updateSettings(false);
-        _this._tokensColorTrackerListener = TokenizationRegistry.onDidChange(function (e) {
+    }
+}
+export class DecorationsOverviewRuler extends ViewPart {
+    constructor(context) {
+        super(context);
+        this._domNode = createFastDomNode(document.createElement('canvas'));
+        this._domNode.setClassName('decorationsOverviewRuler');
+        this._domNode.setPosition('absolute');
+        this._domNode.setLayerHinting(true);
+        this._domNode.setContain('strict');
+        this._domNode.setAttribute('aria-hidden', 'true');
+        this._updateSettings(false);
+        this._tokensColorTrackerListener = TokenizationRegistry.onDidChange((e) => {
             if (e.changedColorMap) {
-                _this._updateSettings(true);
+                this._updateSettings(true);
             }
         });
-        _this._cursorPositions = [];
-        return _this;
+        this._cursorPositions = [];
     }
-    DecorationsOverviewRuler.prototype.dispose = function () {
-        _super.prototype.dispose.call(this);
+    dispose() {
+        super.dispose();
         this._tokensColorTrackerListener.dispose();
-    };
-    DecorationsOverviewRuler.prototype._updateSettings = function (renderNow) {
-        var newSettings = new Settings(this._context.configuration, this._context.theme);
+    }
+    _updateSettings(renderNow) {
+        const newSettings = new Settings(this._context.configuration, this._context.theme);
         if (this._settings && this._settings.equals(newSettings)) {
             // nothing to do
             return false;
@@ -206,62 +193,65 @@ var DecorationsOverviewRuler = /** @class */ (function (_super) {
             this._render();
         }
         return true;
-    };
+    }
     // ---- begin view event handlers
-    DecorationsOverviewRuler.prototype.onConfigurationChanged = function (e) {
+    onConfigurationChanged(e) {
         return this._updateSettings(false);
-    };
-    DecorationsOverviewRuler.prototype.onCursorStateChanged = function (e) {
+    }
+    onCursorStateChanged(e) {
         this._cursorPositions = [];
-        for (var i = 0, len = e.selections.length; i < len; i++) {
+        for (let i = 0, len = e.selections.length; i < len; i++) {
             this._cursorPositions[i] = e.selections[i].getPosition();
         }
         this._cursorPositions.sort(Position.compare);
         return true;
-    };
-    DecorationsOverviewRuler.prototype.onDecorationsChanged = function (e) {
+    }
+    onDecorationsChanged(e) {
+        if (e.affectsOverviewRuler) {
+            return true;
+        }
+        return false;
+    }
+    onFlushed(e) {
         return true;
-    };
-    DecorationsOverviewRuler.prototype.onFlushed = function (e) {
-        return true;
-    };
-    DecorationsOverviewRuler.prototype.onScrollChanged = function (e) {
+    }
+    onScrollChanged(e) {
         return e.scrollHeightChanged;
-    };
-    DecorationsOverviewRuler.prototype.onZonesChanged = function (e) {
+    }
+    onZonesChanged(e) {
         return true;
-    };
-    DecorationsOverviewRuler.prototype.onThemeChanged = function (e) {
+    }
+    onThemeChanged(e) {
         // invalidate color cache
         this._context.model.invalidateOverviewRulerColorCache();
         return this._updateSettings(false);
-    };
+    }
     // ---- end view event handlers
-    DecorationsOverviewRuler.prototype.getDomNode = function () {
+    getDomNode() {
         return this._domNode.domNode;
-    };
-    DecorationsOverviewRuler.prototype.prepareRender = function (ctx) {
+    }
+    prepareRender(ctx) {
         // Nothing to read
-    };
-    DecorationsOverviewRuler.prototype.render = function (editorCtx) {
+    }
+    render(editorCtx) {
         this._render();
-    };
-    DecorationsOverviewRuler.prototype._render = function () {
+    }
+    _render() {
         if (this._settings.overviewRulerLanes === 0) {
             // overview ruler is off
             this._domNode.setBackgroundColor(this._settings.backgroundColor ? this._settings.backgroundColor : '');
             return;
         }
-        var canvasWidth = this._settings.canvasWidth;
-        var canvasHeight = this._settings.canvasHeight;
-        var lineHeight = this._settings.lineHeight;
-        var viewLayout = this._context.viewLayout;
-        var outerHeight = this._context.viewLayout.getScrollHeight();
-        var heightRatio = canvasHeight / outerHeight;
-        var decorations = this._context.model.getAllOverviewRulerDecorations(this._context.theme);
-        var minDecorationHeight = (6 /* MIN_DECORATION_HEIGHT */ * this._settings.pixelRatio) | 0;
-        var halfMinDecorationHeight = (minDecorationHeight / 2) | 0;
-        var canvasCtx = this._domNode.domNode.getContext('2d');
+        const canvasWidth = this._settings.canvasWidth;
+        const canvasHeight = this._settings.canvasHeight;
+        const lineHeight = this._settings.lineHeight;
+        const viewLayout = this._context.viewLayout;
+        const outerHeight = this._context.viewLayout.getScrollHeight();
+        const heightRatio = canvasHeight / outerHeight;
+        const decorations = this._context.model.getAllOverviewRulerDecorations(this._context.theme);
+        const minDecorationHeight = (6 /* MIN_DECORATION_HEIGHT */ * this._settings.pixelRatio) | 0;
+        const halfMinDecorationHeight = (minDecorationHeight / 2) | 0;
+        const canvasCtx = this._domNode.domNode.getContext('2d');
         if (this._settings.backgroundColor === null) {
             canvasCtx.clearRect(0, 0, canvasWidth, canvasHeight);
         }
@@ -269,28 +259,25 @@ var DecorationsOverviewRuler = /** @class */ (function (_super) {
             canvasCtx.fillStyle = this._settings.backgroundColor;
             canvasCtx.fillRect(0, 0, canvasWidth, canvasHeight);
         }
-        var x = this._settings.x;
-        var w = this._settings.w;
-        // Avoid flickering by always rendering the colors in the same order
-        // colors that don't use transparency will be sorted last (they start with #)
-        var colors = Object.keys(decorations);
-        colors.sort();
-        for (var cIndex = 0, cLen = colors.length; cIndex < cLen; cIndex++) {
-            var color = colors[cIndex];
-            var colorDecorations = decorations[color];
+        const x = this._settings.x;
+        const w = this._settings.w;
+        decorations.sort(OverviewRulerDecorationsGroup.cmp);
+        for (const decorationGroup of decorations) {
+            const color = decorationGroup.color;
+            const decorationGroupData = decorationGroup.data;
             canvasCtx.fillStyle = color;
-            var prevLane = 0;
-            var prevY1 = 0;
-            var prevY2 = 0;
-            for (var i = 0, len = colorDecorations.length; i < len; i++) {
-                var lane = colorDecorations[3 * i];
-                var startLineNumber = colorDecorations[3 * i + 1];
-                var endLineNumber = colorDecorations[3 * i + 2];
-                var y1 = (viewLayout.getVerticalOffsetForLineNumber(startLineNumber) * heightRatio) | 0;
-                var y2 = ((viewLayout.getVerticalOffsetForLineNumber(endLineNumber) + lineHeight) * heightRatio) | 0;
-                var height = y2 - y1;
+            let prevLane = 0;
+            let prevY1 = 0;
+            let prevY2 = 0;
+            for (let i = 0, len = decorationGroupData.length / 3; i < len; i++) {
+                const lane = decorationGroupData[3 * i];
+                const startLineNumber = decorationGroupData[3 * i + 1];
+                const endLineNumber = decorationGroupData[3 * i + 2];
+                let y1 = (viewLayout.getVerticalOffsetForLineNumber(startLineNumber) * heightRatio) | 0;
+                let y2 = ((viewLayout.getVerticalOffsetForLineNumber(endLineNumber) + lineHeight) * heightRatio) | 0;
+                const height = y2 - y1;
                 if (height < minDecorationHeight) {
-                    var yCenter = ((y1 + y2) / 2) | 0;
+                    let yCenter = ((y1 + y2) / 2) | 0;
                     if (yCenter < halfMinDecorationHeight) {
                         yCenter = halfMinDecorationHeight;
                     }
@@ -320,24 +307,24 @@ var DecorationsOverviewRuler = /** @class */ (function (_super) {
         }
         // Draw cursors
         if (!this._settings.hideCursor && this._settings.cursorColor) {
-            var cursorHeight = (2 * this._settings.pixelRatio) | 0;
-            var halfCursorHeight = (cursorHeight / 2) | 0;
-            var cursorX = this._settings.x[7 /* Full */];
-            var cursorW = this._settings.w[7 /* Full */];
+            const cursorHeight = (2 * this._settings.pixelRatio) | 0;
+            const halfCursorHeight = (cursorHeight / 2) | 0;
+            const cursorX = this._settings.x[7 /* Full */];
+            const cursorW = this._settings.w[7 /* Full */];
             canvasCtx.fillStyle = this._settings.cursorColor;
-            var prevY1 = -100;
-            var prevY2 = -100;
-            for (var i = 0, len = this._cursorPositions.length; i < len; i++) {
-                var cursor = this._cursorPositions[i];
-                var yCenter = (viewLayout.getVerticalOffsetForLineNumber(cursor.lineNumber) * heightRatio) | 0;
+            let prevY1 = -100;
+            let prevY2 = -100;
+            for (let i = 0, len = this._cursorPositions.length; i < len; i++) {
+                const cursor = this._cursorPositions[i];
+                let yCenter = (viewLayout.getVerticalOffsetForLineNumber(cursor.lineNumber) * heightRatio) | 0;
                 if (yCenter < halfCursorHeight) {
                     yCenter = halfCursorHeight;
                 }
                 else if (yCenter + halfCursorHeight > canvasHeight) {
                     yCenter = canvasHeight - halfCursorHeight;
                 }
-                var y1 = yCenter - halfCursorHeight;
-                var y2 = y1 + cursorHeight;
+                const y1 = yCenter - halfCursorHeight;
+                const y2 = y1 + cursorHeight;
                 if (y1 > prevY2 + 1) {
                     // flush prev
                     if (i !== 0) {
@@ -366,7 +353,5 @@ var DecorationsOverviewRuler = /** @class */ (function (_super) {
             canvasCtx.lineTo(canvasWidth, 0);
             canvasCtx.stroke();
         }
-    };
-    return DecorationsOverviewRuler;
-}(ViewPart));
-export { DecorationsOverviewRuler };
+    }
+}

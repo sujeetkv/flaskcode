@@ -2,18 +2,21 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScore, anyScore } from '../../../base/common/filters.js';
+import { quickSelect } from '../../../base/common/arrays.js';
+import { anyScore, fuzzyScore, FuzzyScore, fuzzyScoreGracefulAggressive } from '../../../base/common/filters.js';
 import { compareIgnoreCase } from '../../../base/common/strings.js';
-var LineContext = /** @class */ (function () {
-    function LineContext(leadingLineContent, characterCountDelta) {
+export class LineContext {
+    constructor(leadingLineContent, characterCountDelta) {
         this.leadingLineContent = leadingLineContent;
         this.characterCountDelta = characterCountDelta;
     }
-    return LineContext;
-}());
-export { LineContext };
-var CompletionModel = /** @class */ (function () {
-    function CompletionModel(items, column, lineContext, wordDistance, options, snippetSuggestions) {
+}
+/**
+ * Sorted, filtered completion view model
+ * */
+export class CompletionModel {
+    constructor(items, column, lineContext, wordDistance, options, snippetSuggestions, clipboardText) {
+        this.clipboardText = clipboardText;
         this._snippetCompareFn = CompletionModel._compareCompletionItems;
         this._items = items;
         this._column = column;
@@ -28,39 +31,37 @@ var CompletionModel = /** @class */ (function () {
             this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsDown;
         }
     }
-    Object.defineProperty(CompletionModel.prototype, "lineContext", {
-        get: function () {
-            return this._lineContext;
-        },
-        set: function (value) {
-            if (this._lineContext.leadingLineContent !== value.leadingLineContent
-                || this._lineContext.characterCountDelta !== value.characterCountDelta) {
-                this._refilterKind = this._lineContext.characterCountDelta < value.characterCountDelta && this._filteredItems ? 2 /* Incr */ : 1 /* All */;
-                this._lineContext = value;
+    get lineContext() {
+        return this._lineContext;
+    }
+    set lineContext(value) {
+        if (this._lineContext.leadingLineContent !== value.leadingLineContent
+            || this._lineContext.characterCountDelta !== value.characterCountDelta) {
+            this._refilterKind = this._lineContext.characterCountDelta < value.characterCountDelta && this._filteredItems ? 2 /* Incr */ : 1 /* All */;
+            this._lineContext = value;
+        }
+    }
+    get items() {
+        this._ensureCachedState();
+        return this._filteredItems;
+    }
+    get allProvider() {
+        this._ensureCachedState();
+        return this._providerInfo.keys();
+    }
+    get incomplete() {
+        this._ensureCachedState();
+        const result = new Set();
+        for (let [provider, incomplete] of this._providerInfo) {
+            if (incomplete) {
+                result.add(provider);
             }
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(CompletionModel.prototype, "items", {
-        get: function () {
-            this._ensureCachedState();
-            return this._filteredItems;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(CompletionModel.prototype, "incomplete", {
-        get: function () {
-            this._ensureCachedState();
-            return this._isIncomplete;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    CompletionModel.prototype.adopt = function (except) {
-        var res = new Array();
-        for (var i = 0; i < this._items.length;) {
+        }
+        return result;
+    }
+    adopt(except) {
+        let res = [];
+        for (let i = 0; i < this._items.length;) {
             if (!except.has(this._items[i].provider)) {
                 res.push(this._items[i]);
                 // unordered removed
@@ -74,45 +75,41 @@ var CompletionModel = /** @class */ (function () {
         }
         this._refilterKind = 1 /* All */;
         return res;
-    };
-    Object.defineProperty(CompletionModel.prototype, "stats", {
-        get: function () {
-            this._ensureCachedState();
-            return this._stats;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    CompletionModel.prototype._ensureCachedState = function () {
+    }
+    get stats() {
+        this._ensureCachedState();
+        return this._stats;
+    }
+    _ensureCachedState() {
         if (this._refilterKind !== 0 /* Nothing */) {
             this._createCachedState();
         }
-    };
-    CompletionModel.prototype._createCachedState = function () {
-        this._isIncomplete = new Set();
-        this._stats = { suggestionCount: 0, snippetCount: 0, textCount: 0 };
-        var _a = this._lineContext, leadingLineContent = _a.leadingLineContent, characterCountDelta = _a.characterCountDelta;
-        var word = '';
-        var wordLow = '';
+    }
+    _createCachedState() {
+        this._providerInfo = new Map();
+        const labelLengths = [];
+        const { leadingLineContent, characterCountDelta } = this._lineContext;
+        let word = '';
+        let wordLow = '';
         // incrementally filter less
-        var source = this._refilterKind === 1 /* All */ ? this._items : this._filteredItems;
-        var target = [];
+        const source = this._refilterKind === 1 /* All */ ? this._items : this._filteredItems;
+        const target = [];
         // picks a score function based on the number of
         // items that we have to score/filter and based on the
         // user-configuration
-        var scoreFn = (!this._options.filterGraceful || source.length > 2000) ? fuzzyScore : fuzzyScoreGracefulAggressive;
-        for (var i = 0; i < source.length; i++) {
-            var item = source[i];
-            // collect those supports that signaled having
-            // an incomplete result
-            if (item.container.incomplete) {
-                this._isIncomplete.add(item.provider);
+        const scoreFn = (!this._options.filterGraceful || source.length > 2000) ? fuzzyScore : fuzzyScoreGracefulAggressive;
+        for (let i = 0; i < source.length; i++) {
+            const item = source[i];
+            if (item.isInvalid) {
+                continue; // SKIP invalid items
             }
+            // collect all support, know if their result is incomplete
+            this._providerInfo.set(item.provider, Boolean(item.container.incomplete));
             // 'word' is that remainder of the current line that we
             // filter and score against. In theory each suggestion uses a
             // different word, but in practice not - that's why we cache
-            var overwriteBefore = item.position.column - item.editStart.column;
-            var wordLen = overwriteBefore + characterCountDelta - (item.position.column - this._column);
+            const overwriteBefore = item.position.column - item.editStart.column;
+            const wordLen = overwriteBefore + characterCountDelta - (item.position.column - this._column);
             if (word.length !== wordLen) {
                 word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
                 wordLow = word.toLowerCase();
@@ -131,9 +128,9 @@ var CompletionModel = /** @class */ (function () {
             else {
                 // skip word characters that are whitespace until
                 // we have hit the replace range (overwriteBefore)
-                var wordPos = 0;
+                let wordPos = 0;
                 while (wordPos < overwriteBefore) {
-                    var ch = word.charCodeAt(wordPos);
+                    const ch = word.charCodeAt(wordPos);
                     if (ch === 32 /* Space */ || ch === 9 /* Tab */) {
                         wordPos += 1;
                     }
@@ -141,7 +138,6 @@ var CompletionModel = /** @class */ (function () {
                         break;
                     }
                 }
-                var textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
                 if (wordPos >= wordLen) {
                     // the wordPos at which scoring starts is the whole word
                     // and therefore the same rules as not having a word apply
@@ -152,24 +148,24 @@ var CompletionModel = /** @class */ (function () {
                     // if it matches we check with the label to compute highlights
                     // and if that doesn't yield a result we have no highlights,
                     // despite having the match
-                    var match = scoreFn(word, wordLow, wordPos, item.completion.filterText, item.filterTextLow, 0, false);
+                    let match = scoreFn(word, wordLow, wordPos, item.completion.filterText, item.filterTextLow, 0, false);
                     if (!match) {
                         continue; // NO match
                     }
-                    if (compareIgnoreCase(item.completion.filterText, textLabel) === 0) {
+                    if (compareIgnoreCase(item.completion.filterText, item.textLabel) === 0) {
                         // filterText and label are actually the same -> use good highlights
                         item.score = match;
                     }
                     else {
                         // re-run the scorer on the label in the hope of a result BUT use the rank
                         // of the filterText-match
-                        item.score = anyScore(word, wordLow, wordPos, textLabel, item.labelLow, 0);
+                        item.score = anyScore(word, wordLow, wordPos, item.textLabel, item.labelLow, 0);
                         item.score[0] = match[0]; // use score from filterText
                     }
                 }
                 else {
                     // by default match `word` against the `label`
-                    var match = scoreFn(word, wordLow, wordPos, textLabel, item.labelLow, 0, false);
+                    let match = scoreFn(word, wordLow, wordPos, item.textLabel, item.labelLow, 0, false);
                     if (!match) {
                         continue; // NO match
                     }
@@ -180,20 +176,17 @@ var CompletionModel = /** @class */ (function () {
             item.distance = this._wordDistance.distance(item.position, item.completion);
             target.push(item);
             // update stats
-            this._stats.suggestionCount++;
-            switch (item.completion.kind) {
-                case 25 /* Snippet */:
-                    this._stats.snippetCount++;
-                    break;
-                case 18 /* Text */:
-                    this._stats.textCount++;
-                    break;
-            }
+            labelLengths.push(item.textLabel.length);
         }
         this._filteredItems = target.sort(this._snippetCompareFn);
         this._refilterKind = 0 /* Nothing */;
-    };
-    CompletionModel._compareCompletionItems = function (a, b) {
+        this._stats = {
+            pLabelLen: labelLengths.length ?
+                quickSelect(labelLengths.length - .85, labelLengths, (a, b) => a - b)
+                : 0
+        };
+    }
+    static _compareCompletionItems(a, b) {
         if (a.score[0] > b.score[0]) {
             return -1;
         }
@@ -215,29 +208,27 @@ var CompletionModel = /** @class */ (function () {
         else {
             return 0;
         }
-    };
-    CompletionModel._compareCompletionItemsSnippetsDown = function (a, b) {
+    }
+    static _compareCompletionItemsSnippetsDown(a, b) {
         if (a.completion.kind !== b.completion.kind) {
-            if (a.completion.kind === 25 /* Snippet */) {
+            if (a.completion.kind === 27 /* Snippet */) {
                 return 1;
             }
-            else if (b.completion.kind === 25 /* Snippet */) {
+            else if (b.completion.kind === 27 /* Snippet */) {
                 return -1;
             }
         }
         return CompletionModel._compareCompletionItems(a, b);
-    };
-    CompletionModel._compareCompletionItemsSnippetsUp = function (a, b) {
+    }
+    static _compareCompletionItemsSnippetsUp(a, b) {
         if (a.completion.kind !== b.completion.kind) {
-            if (a.completion.kind === 25 /* Snippet */) {
+            if (a.completion.kind === 27 /* Snippet */) {
                 return -1;
             }
-            else if (b.completion.kind === 25 /* Snippet */) {
+            else if (b.completion.kind === 27 /* Snippet */) {
                 return 1;
             }
         }
         return CompletionModel._compareCompletionItems(a, b);
-    };
-    return CompletionModel;
-}());
-export { CompletionModel };
+    }
+}

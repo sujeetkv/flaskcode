@@ -3,37 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { onUnexpectedExternalError } from '../../../base/common/errors.js';
-import { MAX_LINE_NUMBER, FoldingRegions } from './foldingRanges.js';
-var MAX_FOLDING_REGIONS = 5000;
-var foldingContext = {};
-export var ID_SYNTAX_PROVIDER = 'syntax';
-var SyntaxRangeProvider = /** @class */ (function () {
-    function SyntaxRangeProvider(editorModel, providers, limit) {
-        if (limit === void 0) { limit = MAX_FOLDING_REGIONS; }
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { FoldingRegions, MAX_LINE_NUMBER } from './foldingRanges.js';
+const MAX_FOLDING_REGIONS = 5000;
+const foldingContext = {};
+export const ID_SYNTAX_PROVIDER = 'syntax';
+export class SyntaxRangeProvider {
+    constructor(editorModel, providers, handleFoldingRangesChange, limit = MAX_FOLDING_REGIONS) {
         this.editorModel = editorModel;
         this.providers = providers;
         this.limit = limit;
         this.id = ID_SYNTAX_PROVIDER;
+        for (const provider of providers) {
+            if (typeof provider.onDidChange === 'function') {
+                if (!this.disposables) {
+                    this.disposables = new DisposableStore();
+                }
+                this.disposables.add(provider.onDidChange(handleFoldingRangesChange));
+            }
+        }
     }
-    SyntaxRangeProvider.prototype.compute = function (cancellationToken) {
-        var _this = this;
-        return collectSyntaxRanges(this.providers, this.editorModel, cancellationToken).then(function (ranges) {
+    compute(cancellationToken) {
+        return collectSyntaxRanges(this.providers, this.editorModel, cancellationToken).then(ranges => {
             if (ranges) {
-                var res = sanitizeRanges(ranges, _this.limit);
+                let res = sanitizeRanges(ranges, this.limit);
                 return res;
             }
             return null;
         });
-    };
-    SyntaxRangeProvider.prototype.dispose = function () {
-    };
-    return SyntaxRangeProvider;
-}());
-export { SyntaxRangeProvider };
+    }
+    dispose() {
+        var _a;
+        (_a = this.disposables) === null || _a === void 0 ? void 0 : _a.dispose();
+    }
+}
 function collectSyntaxRanges(providers, model, cancellationToken) {
-    var rangeData = null;
-    var promises = providers.map(function (provider, i) {
-        return Promise.resolve(provider.provideFoldingRanges(model, foldingContext, cancellationToken)).then(function (ranges) {
+    let rangeData = null;
+    let promises = providers.map((provider, i) => {
+        return Promise.resolve(provider.provideFoldingRanges(model, foldingContext, cancellationToken)).then(ranges => {
             if (cancellationToken.isCancellationRequested) {
                 return;
             }
@@ -41,9 +48,8 @@ function collectSyntaxRanges(providers, model, cancellationToken) {
                 if (!Array.isArray(rangeData)) {
                     rangeData = [];
                 }
-                var nLines = model.getLineCount();
-                for (var _i = 0, ranges_1 = ranges; _i < ranges_1.length; _i++) {
-                    var r = ranges_1[_i];
+                let nLines = model.getLineCount();
+                for (let r of ranges) {
                     if (r.start > 0 && r.end > r.start && r.end <= nLines) {
                         rangeData.push({ start: r.start, end: r.end, rank: i, kind: r.kind });
                     }
@@ -51,12 +57,12 @@ function collectSyntaxRanges(providers, model, cancellationToken) {
             }
         }, onUnexpectedExternalError);
     });
-    return Promise.all(promises).then(function (_) {
+    return Promise.all(promises).then(_ => {
         return rangeData;
     });
 }
-var RangesCollector = /** @class */ (function () {
-    function RangesCollector(foldingRangesLimit) {
+export class RangesCollector {
+    constructor(foldingRangesLimit) {
         this._startIndexes = [];
         this._endIndexes = [];
         this._nestingLevels = [];
@@ -65,11 +71,11 @@ var RangesCollector = /** @class */ (function () {
         this._length = 0;
         this._foldingRangesLimit = foldingRangesLimit;
     }
-    RangesCollector.prototype.add = function (startLineNumber, endLineNumber, type, nestingLevel) {
+    add(startLineNumber, endLineNumber, type, nestingLevel) {
         if (startLineNumber > MAX_LINE_NUMBER || endLineNumber > MAX_LINE_NUMBER) {
             return;
         }
-        var index = this._length;
+        let index = this._length;
         this._startIndexes[index] = startLineNumber;
         this._endIndexes[index] = endLineNumber;
         this._nestingLevels[index] = nestingLevel;
@@ -78,22 +84,22 @@ var RangesCollector = /** @class */ (function () {
         if (nestingLevel < 30) {
             this._nestingLevelCounts[nestingLevel] = (this._nestingLevelCounts[nestingLevel] || 0) + 1;
         }
-    };
-    RangesCollector.prototype.toIndentRanges = function () {
+    }
+    toIndentRanges() {
         if (this._length <= this._foldingRangesLimit) {
-            var startIndexes = new Uint32Array(this._length);
-            var endIndexes = new Uint32Array(this._length);
-            for (var i = 0; i < this._length; i++) {
+            let startIndexes = new Uint32Array(this._length);
+            let endIndexes = new Uint32Array(this._length);
+            for (let i = 0; i < this._length; i++) {
                 startIndexes[i] = this._startIndexes[i];
                 endIndexes[i] = this._endIndexes[i];
             }
             return new FoldingRegions(startIndexes, endIndexes, this._types);
         }
         else {
-            var entries = 0;
-            var maxLevel = this._nestingLevelCounts.length;
-            for (var i = 0; i < this._nestingLevelCounts.length; i++) {
-                var n = this._nestingLevelCounts[i];
+            let entries = 0;
+            let maxLevel = this._nestingLevelCounts.length;
+            for (let i = 0; i < this._nestingLevelCounts.length; i++) {
+                let n = this._nestingLevelCounts[i];
                 if (n) {
                     if (n + entries > this._foldingRangesLimit) {
                         maxLevel = i;
@@ -102,11 +108,11 @@ var RangesCollector = /** @class */ (function () {
                     entries += n;
                 }
             }
-            var startIndexes = new Uint32Array(this._foldingRangesLimit);
-            var endIndexes = new Uint32Array(this._foldingRangesLimit);
-            var types = [];
-            for (var i = 0, k = 0; i < this._length; i++) {
-                var level = this._nestingLevels[i];
+            let startIndexes = new Uint32Array(this._foldingRangesLimit);
+            let endIndexes = new Uint32Array(this._foldingRangesLimit);
+            let types = [];
+            for (let i = 0, k = 0; i < this._length; i++) {
+                let level = this._nestingLevels[i];
                 if (level < maxLevel || (level === maxLevel && entries++ < this._foldingRangesLimit)) {
                     startIndexes[k] = this._startIndexes[i];
                     endIndexes[k] = this._endIndexes[i];
@@ -116,23 +122,20 @@ var RangesCollector = /** @class */ (function () {
             }
             return new FoldingRegions(startIndexes, endIndexes, types);
         }
-    };
-    return RangesCollector;
-}());
-export { RangesCollector };
+    }
+}
 export function sanitizeRanges(rangeData, limit) {
-    var sorted = rangeData.sort(function (d1, d2) {
-        var diff = d1.start - d2.start;
+    let sorted = rangeData.sort((d1, d2) => {
+        let diff = d1.start - d2.start;
         if (diff === 0) {
             diff = d1.rank - d2.rank;
         }
         return diff;
     });
-    var collector = new RangesCollector(limit);
-    var top = undefined;
-    var previous = [];
-    for (var _i = 0, sorted_1 = sorted; _i < sorted_1.length; _i++) {
-        var entry = sorted_1[_i];
+    let collector = new RangesCollector(limit);
+    let top = undefined;
+    let previous = [];
+    for (let entry of sorted) {
         if (!top) {
             top = entry;
             collector.add(entry.start, entry.end, entry.kind && entry.kind.value, previous.length);

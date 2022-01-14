@@ -5,9 +5,9 @@
 /**
  * The minimal size of the slider (such that it can still be clickable) -- it is artificially enlarged.
  */
-var MINIMUM_SLIDER_SIZE = 20;
-var ScrollbarState = /** @class */ (function () {
-    function ScrollbarState(arrowSize, scrollbarSize, oppositeScrollbarSize, visibleSize, scrollSize, scrollPosition) {
+const MINIMUM_SLIDER_SIZE = 20;
+export class ScrollbarState {
+    constructor(arrowSize, scrollbarSize, oppositeScrollbarSize, visibleSize, scrollSize, scrollPosition) {
         this._scrollbarSize = Math.round(scrollbarSize);
         this._oppositeScrollbarSize = Math.round(oppositeScrollbarSize);
         this._arrowSize = Math.round(arrowSize);
@@ -21,40 +21,46 @@ var ScrollbarState = /** @class */ (function () {
         this._computedSliderPosition = 0;
         this._refreshComputedValues();
     }
-    ScrollbarState.prototype.clone = function () {
+    clone() {
         return new ScrollbarState(this._arrowSize, this._scrollbarSize, this._oppositeScrollbarSize, this._visibleSize, this._scrollSize, this._scrollPosition);
-    };
-    ScrollbarState.prototype.setVisibleSize = function (visibleSize) {
-        var iVisibleSize = Math.round(visibleSize);
+    }
+    setVisibleSize(visibleSize) {
+        const iVisibleSize = Math.round(visibleSize);
         if (this._visibleSize !== iVisibleSize) {
             this._visibleSize = iVisibleSize;
             this._refreshComputedValues();
             return true;
         }
         return false;
-    };
-    ScrollbarState.prototype.setScrollSize = function (scrollSize) {
-        var iScrollSize = Math.round(scrollSize);
+    }
+    setScrollSize(scrollSize) {
+        const iScrollSize = Math.round(scrollSize);
         if (this._scrollSize !== iScrollSize) {
             this._scrollSize = iScrollSize;
             this._refreshComputedValues();
             return true;
         }
         return false;
-    };
-    ScrollbarState.prototype.setScrollPosition = function (scrollPosition) {
-        var iScrollPosition = Math.round(scrollPosition);
+    }
+    setScrollPosition(scrollPosition) {
+        const iScrollPosition = Math.round(scrollPosition);
         if (this._scrollPosition !== iScrollPosition) {
             this._scrollPosition = iScrollPosition;
             this._refreshComputedValues();
             return true;
         }
         return false;
-    };
-    ScrollbarState._computeValues = function (oppositeScrollbarSize, arrowSize, visibleSize, scrollSize, scrollPosition) {
-        var computedAvailableSize = Math.max(0, visibleSize - oppositeScrollbarSize);
-        var computedRepresentableSize = Math.max(0, computedAvailableSize - 2 * arrowSize);
-        var computedIsNeeded = (scrollSize > 0 && scrollSize > visibleSize);
+    }
+    setScrollbarSize(scrollbarSize) {
+        this._scrollbarSize = Math.round(scrollbarSize);
+    }
+    setOppositeScrollbarSize(oppositeScrollbarSize) {
+        this._oppositeScrollbarSize = Math.round(oppositeScrollbarSize);
+    }
+    static _computeValues(oppositeScrollbarSize, arrowSize, visibleSize, scrollSize, scrollPosition) {
+        const computedAvailableSize = Math.max(0, visibleSize - oppositeScrollbarSize);
+        const computedRepresentableSize = Math.max(0, computedAvailableSize - 2 * arrowSize);
+        const computedIsNeeded = (scrollSize > 0 && scrollSize > visibleSize);
         if (!computedIsNeeded) {
             // There is no need for a slider
             return {
@@ -66,11 +72,11 @@ var ScrollbarState = /** @class */ (function () {
             };
         }
         // We must artificially increase the size of the slider if needed, since the slider would be too small to grab with the mouse otherwise
-        var computedSliderSize = Math.round(Math.max(MINIMUM_SLIDER_SIZE, Math.floor(visibleSize * computedRepresentableSize / scrollSize)));
+        const computedSliderSize = Math.round(Math.max(MINIMUM_SLIDER_SIZE, Math.floor(visibleSize * computedRepresentableSize / scrollSize)));
         // The slider can move from 0 to `computedRepresentableSize` - `computedSliderSize`
         // in the same way `scrollPosition` can move from 0 to `scrollSize` - `visibleSize`.
-        var computedSliderRatio = (computedRepresentableSize - computedSliderSize) / (scrollSize - visibleSize);
-        var computedSliderPosition = (scrollPosition * computedSliderRatio);
+        const computedSliderRatio = (computedRepresentableSize - computedSliderSize) / (scrollSize - visibleSize);
+        const computedSliderPosition = (scrollPosition * computedSliderRatio);
         return {
             computedAvailableSize: Math.round(computedAvailableSize),
             computedIsNeeded: computedIsNeeded,
@@ -78,59 +84,78 @@ var ScrollbarState = /** @class */ (function () {
             computedSliderRatio: computedSliderRatio,
             computedSliderPosition: Math.round(computedSliderPosition),
         };
-    };
-    ScrollbarState.prototype._refreshComputedValues = function () {
-        var r = ScrollbarState._computeValues(this._oppositeScrollbarSize, this._arrowSize, this._visibleSize, this._scrollSize, this._scrollPosition);
+    }
+    _refreshComputedValues() {
+        const r = ScrollbarState._computeValues(this._oppositeScrollbarSize, this._arrowSize, this._visibleSize, this._scrollSize, this._scrollPosition);
         this._computedAvailableSize = r.computedAvailableSize;
         this._computedIsNeeded = r.computedIsNeeded;
         this._computedSliderSize = r.computedSliderSize;
         this._computedSliderRatio = r.computedSliderRatio;
         this._computedSliderPosition = r.computedSliderPosition;
-    };
-    ScrollbarState.prototype.getArrowSize = function () {
+    }
+    getArrowSize() {
         return this._arrowSize;
-    };
-    ScrollbarState.prototype.getScrollPosition = function () {
+    }
+    getScrollPosition() {
         return this._scrollPosition;
-    };
-    ScrollbarState.prototype.getRectangleLargeSize = function () {
+    }
+    getRectangleLargeSize() {
         return this._computedAvailableSize;
-    };
-    ScrollbarState.prototype.getRectangleSmallSize = function () {
+    }
+    getRectangleSmallSize() {
         return this._scrollbarSize;
-    };
-    ScrollbarState.prototype.isNeeded = function () {
+    }
+    isNeeded() {
         return this._computedIsNeeded;
-    };
-    ScrollbarState.prototype.getSliderSize = function () {
+    }
+    getSliderSize() {
         return this._computedSliderSize;
-    };
-    ScrollbarState.prototype.getSliderPosition = function () {
+    }
+    getSliderPosition() {
         return this._computedSliderPosition;
-    };
+    }
     /**
      * Compute a desired `scrollPosition` such that `offset` ends up in the center of the slider.
      * `offset` is based on the same coordinate system as the `sliderPosition`.
      */
-    ScrollbarState.prototype.getDesiredScrollPositionFromOffset = function (offset) {
+    getDesiredScrollPositionFromOffset(offset) {
         if (!this._computedIsNeeded) {
             // no need for a slider
             return 0;
         }
-        var desiredSliderPosition = offset - this._arrowSize - this._computedSliderSize / 2;
+        const desiredSliderPosition = offset - this._arrowSize - this._computedSliderSize / 2;
         return Math.round(desiredSliderPosition / this._computedSliderRatio);
-    };
+    }
+    /**
+     * Compute a desired `scrollPosition` from if offset is before or after the slider position.
+     * If offset is before slider, treat as a page up (or left).  If after, page down (or right).
+     * `offset` and `_computedSliderPosition` are based on the same coordinate system.
+     * `_visibleSize` corresponds to a "page" of lines in the returned coordinate system.
+     */
+    getDesiredScrollPositionFromOffsetPaged(offset) {
+        if (!this._computedIsNeeded) {
+            // no need for a slider
+            return 0;
+        }
+        const correctedOffset = offset - this._arrowSize; // compensate if has arrows
+        let desiredScrollPosition = this._scrollPosition;
+        if (correctedOffset < this._computedSliderPosition) {
+            desiredScrollPosition -= this._visibleSize; // page up/left
+        }
+        else {
+            desiredScrollPosition += this._visibleSize; // page down/right
+        }
+        return desiredScrollPosition;
+    }
     /**
      * Compute a desired `scrollPosition` such that the slider moves by `delta`.
      */
-    ScrollbarState.prototype.getDesiredScrollPositionFromDelta = function (delta) {
+    getDesiredScrollPositionFromDelta(delta) {
         if (!this._computedIsNeeded) {
             // no need for a slider
             return 0;
         }
-        var desiredSliderPosition = this._computedSliderPosition + delta;
+        const desiredSliderPosition = this._computedSliderPosition + delta;
         return Math.round(desiredSliderPosition / this._computedSliderRatio);
-    };
-    return ScrollbarState;
-}());
-export { ScrollbarState };
+    }
+}

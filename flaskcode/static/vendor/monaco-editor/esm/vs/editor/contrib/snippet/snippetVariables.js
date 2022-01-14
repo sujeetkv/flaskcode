@@ -2,61 +2,104 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as nls from '../../../nls.js';
+import { normalizeDriveLetter } from '../../../base/common/labels.js';
 import * as path from '../../../base/common/path.js';
 import { dirname } from '../../../base/common/resources.js';
-import { Text } from './snippetParser.js';
+import { commonPrefixLength, getLeadingWhitespace, isFalsyOrWhitespace, splitLines } from '../../../base/common/strings.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { LanguageConfigurationRegistry } from '../../common/modes/languageConfigurationRegistry.js';
-import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad, endsWith } from '../../../base/common/strings.js';
+import { Text } from './snippetParser.js';
+import * as nls from '../../../nls.js';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION } from '../../../platform/workspaces/common/workspaces.js';
-import { normalizeDriveLetter } from '../../../base/common/labels.js';
-var CompositeSnippetVariableResolver = /** @class */ (function () {
-    function CompositeSnippetVariableResolver(_delegates) {
+export const KnownSnippetVariableNames = Object.freeze({
+    'CURRENT_YEAR': true,
+    'CURRENT_YEAR_SHORT': true,
+    'CURRENT_MONTH': true,
+    'CURRENT_DATE': true,
+    'CURRENT_HOUR': true,
+    'CURRENT_MINUTE': true,
+    'CURRENT_SECOND': true,
+    'CURRENT_DAY_NAME': true,
+    'CURRENT_DAY_NAME_SHORT': true,
+    'CURRENT_MONTH_NAME': true,
+    'CURRENT_MONTH_NAME_SHORT': true,
+    'CURRENT_SECONDS_UNIX': true,
+    'SELECTION': true,
+    'CLIPBOARD': true,
+    'TM_SELECTED_TEXT': true,
+    'TM_CURRENT_LINE': true,
+    'TM_CURRENT_WORD': true,
+    'TM_LINE_INDEX': true,
+    'TM_LINE_NUMBER': true,
+    'TM_FILENAME': true,
+    'TM_FILENAME_BASE': true,
+    'TM_DIRECTORY': true,
+    'TM_FILEPATH': true,
+    'RELATIVE_FILEPATH': true,
+    'BLOCK_COMMENT_START': true,
+    'BLOCK_COMMENT_END': true,
+    'LINE_COMMENT': true,
+    'WORKSPACE_NAME': true,
+    'WORKSPACE_FOLDER': true,
+    'RANDOM': true,
+    'RANDOM_HEX': true,
+    'UUID': true
+});
+export class CompositeSnippetVariableResolver {
+    constructor(_delegates) {
         this._delegates = _delegates;
         //
     }
-    CompositeSnippetVariableResolver.prototype.resolve = function (variable) {
-        for (var _i = 0, _a = this._delegates; _i < _a.length; _i++) {
-            var delegate = _a[_i];
-            var value = delegate.resolve(variable);
+    resolve(variable) {
+        for (const delegate of this._delegates) {
+            let value = delegate.resolve(variable);
             if (value !== undefined) {
                 return value;
             }
         }
         return undefined;
-    };
-    return CompositeSnippetVariableResolver;
-}());
-export { CompositeSnippetVariableResolver };
-var SelectionBasedVariableResolver = /** @class */ (function () {
-    function SelectionBasedVariableResolver(_model, _selection) {
+    }
+}
+export class SelectionBasedVariableResolver {
+    constructor(_model, _selection, _selectionIdx, _overtypingCapturer) {
         this._model = _model;
         this._selection = _selection;
+        this._selectionIdx = _selectionIdx;
+        this._overtypingCapturer = _overtypingCapturer;
         //
     }
-    SelectionBasedVariableResolver.prototype.resolve = function (variable) {
-        var name = variable.name;
+    resolve(variable) {
+        const { name } = variable;
         if (name === 'SELECTION' || name === 'TM_SELECTED_TEXT') {
-            var value = this._model.getValueInRange(this._selection) || undefined;
-            if (value && this._selection.startLineNumber !== this._selection.endLineNumber && variable.snippet) {
+            let value = this._model.getValueInRange(this._selection) || undefined;
+            let isMultiline = this._selection.startLineNumber !== this._selection.endLineNumber;
+            // If there was no selected text, try to get last overtyped text
+            if (!value && this._overtypingCapturer) {
+                const info = this._overtypingCapturer.getLastOvertypedInfo(this._selectionIdx);
+                if (info) {
+                    value = info.value;
+                    isMultiline = info.multiline;
+                }
+            }
+            if (value && isMultiline && variable.snippet) {
                 // Selection is a multiline string which we indentation we now
                 // need to adjust. We compare the indentation of this variable
                 // with the indentation at the editor position and add potential
                 // extra indentation to the value
-                var line = this._model.getLineContent(this._selection.startLineNumber);
-                var lineLeadingWhitespace = getLeadingWhitespace(line, 0, this._selection.startColumn - 1);
-                var varLeadingWhitespace_1 = lineLeadingWhitespace;
-                variable.snippet.walk(function (marker) {
+                const line = this._model.getLineContent(this._selection.startLineNumber);
+                const lineLeadingWhitespace = getLeadingWhitespace(line, 0, this._selection.startColumn - 1);
+                let varLeadingWhitespace = lineLeadingWhitespace;
+                variable.snippet.walk(marker => {
                     if (marker === variable) {
                         return false;
                     }
                     if (marker instanceof Text) {
-                        varLeadingWhitespace_1 = getLeadingWhitespace(marker.value.split(/\r\n|\r|\n/).pop());
+                        varLeadingWhitespace = getLeadingWhitespace(splitLines(marker.value).pop());
                     }
                     return true;
                 });
-                var whitespaceCommonLength_1 = commonPrefixLength(varLeadingWhitespace_1, lineLeadingWhitespace);
-                value = value.replace(/(\r\n|\r|\n)(.*)/g, function (m, newline, rest) { return "" + newline + varLeadingWhitespace_1.substr(whitespaceCommonLength_1) + rest; });
+                const whitespaceCommonLength = commonPrefixLength(varLeadingWhitespace, lineLeadingWhitespace);
+                value = value.replace(/(\r\n|\r|\n)(.*)/g, (m, newline, rest) => `${newline}${varLeadingWhitespace.substr(whitespaceCommonLength)}${rest}`);
             }
             return value;
         }
@@ -64,7 +107,7 @@ var SelectionBasedVariableResolver = /** @class */ (function () {
             return this._model.getLineContent(this._selection.positionLineNumber);
         }
         else if (name === 'TM_CURRENT_WORD') {
-            var info = this._model.getWordAtPosition({
+            const info = this._model.getWordAtPosition({
                 lineNumber: this._selection.positionLineNumber,
                 column: this._selection.positionColumn
             });
@@ -77,58 +120,57 @@ var SelectionBasedVariableResolver = /** @class */ (function () {
             return String(this._selection.positionLineNumber);
         }
         return undefined;
-    };
-    return SelectionBasedVariableResolver;
-}());
-export { SelectionBasedVariableResolver };
-var ModelBasedVariableResolver = /** @class */ (function () {
-    function ModelBasedVariableResolver(_labelService, _model) {
+    }
+}
+export class ModelBasedVariableResolver {
+    constructor(_labelService, _model) {
         this._labelService = _labelService;
         this._model = _model;
         //
     }
-    ModelBasedVariableResolver.prototype.resolve = function (variable) {
-        var name = variable.name;
+    resolve(variable) {
+        const { name } = variable;
         if (name === 'TM_FILENAME') {
             return path.basename(this._model.uri.fsPath);
         }
         else if (name === 'TM_FILENAME_BASE') {
-            var name_1 = path.basename(this._model.uri.fsPath);
-            var idx = name_1.lastIndexOf('.');
+            const name = path.basename(this._model.uri.fsPath);
+            const idx = name.lastIndexOf('.');
             if (idx <= 0) {
-                return name_1;
+                return name;
             }
             else {
-                return name_1.slice(0, idx);
+                return name.slice(0, idx);
             }
         }
-        else if (name === 'TM_DIRECTORY' && this._labelService) {
+        else if (name === 'TM_DIRECTORY') {
             if (path.dirname(this._model.uri.fsPath) === '.') {
                 return '';
             }
             return this._labelService.getUriLabel(dirname(this._model.uri));
         }
-        else if (name === 'TM_FILEPATH' && this._labelService) {
+        else if (name === 'TM_FILEPATH') {
             return this._labelService.getUriLabel(this._model.uri);
         }
+        else if (name === 'RELATIVE_FILEPATH') {
+            return this._labelService.getUriLabel(this._model.uri, { relative: true, noPrefix: true });
+        }
         return undefined;
-    };
-    return ModelBasedVariableResolver;
-}());
-export { ModelBasedVariableResolver };
-var ClipboardBasedVariableResolver = /** @class */ (function () {
-    function ClipboardBasedVariableResolver(_readClipboardText, _selectionIdx, _selectionCount, _spread) {
+    }
+}
+export class ClipboardBasedVariableResolver {
+    constructor(_readClipboardText, _selectionIdx, _selectionCount, _spread) {
         this._readClipboardText = _readClipboardText;
         this._selectionIdx = _selectionIdx;
         this._selectionCount = _selectionCount;
         this._spread = _spread;
         //
     }
-    ClipboardBasedVariableResolver.prototype.resolve = function (variable) {
+    resolve(variable) {
         if (variable.name !== 'CLIPBOARD') {
             return undefined;
         }
-        var clipboardText = this._readClipboardText();
+        const clipboardText = this._readClipboardText();
         if (!clipboardText) {
             return undefined;
         }
@@ -136,25 +178,24 @@ var ClipboardBasedVariableResolver = /** @class */ (function () {
         // text whenever there the line count equals the cursor count
         // and when enabled
         if (this._spread) {
-            var lines = clipboardText.split(/\r\n|\n|\r/).filter(function (s) { return !isFalsyOrWhitespace(s); });
+            const lines = clipboardText.split(/\r\n|\n|\r/).filter(s => !isFalsyOrWhitespace(s));
             if (lines.length === this._selectionCount) {
                 return lines[this._selectionIdx];
             }
         }
         return clipboardText;
-    };
-    return ClipboardBasedVariableResolver;
-}());
-export { ClipboardBasedVariableResolver };
-var CommentBasedVariableResolver = /** @class */ (function () {
-    function CommentBasedVariableResolver(_model) {
+    }
+}
+export class CommentBasedVariableResolver {
+    constructor(_model, _selection) {
         this._model = _model;
+        this._selection = _selection;
         //
     }
-    CommentBasedVariableResolver.prototype.resolve = function (variable) {
-        var name = variable.name;
-        var language = this._model.getLanguageIdentifier();
-        var config = LanguageConfigurationRegistry.getComments(language.id);
+    resolve(variable) {
+        const { name } = variable;
+        const langId = this._model.getLanguageIdAtPosition(this._selection.selectionStartLineNumber, this._selection.selectionStartColumn);
+        const config = LanguageConfigurationRegistry.getComments(langId);
         if (!config) {
             return undefined;
         }
@@ -168,70 +209,67 @@ var CommentBasedVariableResolver = /** @class */ (function () {
             return config.blockCommentEndToken || undefined;
         }
         return undefined;
-    };
-    return CommentBasedVariableResolver;
-}());
-export { CommentBasedVariableResolver };
-var TimeBasedVariableResolver = /** @class */ (function () {
-    function TimeBasedVariableResolver() {
     }
-    TimeBasedVariableResolver.prototype.resolve = function (variable) {
-        var name = variable.name;
+}
+export class TimeBasedVariableResolver {
+    constructor() {
+        this._date = new Date();
+    }
+    resolve(variable) {
+        const { name } = variable;
         if (name === 'CURRENT_YEAR') {
-            return String(new Date().getFullYear());
+            return String(this._date.getFullYear());
         }
         else if (name === 'CURRENT_YEAR_SHORT') {
-            return String(new Date().getFullYear()).slice(-2);
+            return String(this._date.getFullYear()).slice(-2);
         }
         else if (name === 'CURRENT_MONTH') {
-            return pad((new Date().getMonth().valueOf() + 1), 2);
+            return String(this._date.getMonth().valueOf() + 1).padStart(2, '0');
         }
         else if (name === 'CURRENT_DATE') {
-            return pad(new Date().getDate().valueOf(), 2);
+            return String(this._date.getDate().valueOf()).padStart(2, '0');
         }
         else if (name === 'CURRENT_HOUR') {
-            return pad(new Date().getHours().valueOf(), 2);
+            return String(this._date.getHours().valueOf()).padStart(2, '0');
         }
         else if (name === 'CURRENT_MINUTE') {
-            return pad(new Date().getMinutes().valueOf(), 2);
+            return String(this._date.getMinutes().valueOf()).padStart(2, '0');
         }
         else if (name === 'CURRENT_SECOND') {
-            return pad(new Date().getSeconds().valueOf(), 2);
+            return String(this._date.getSeconds().valueOf()).padStart(2, '0');
         }
         else if (name === 'CURRENT_DAY_NAME') {
-            return TimeBasedVariableResolver.dayNames[new Date().getDay()];
+            return TimeBasedVariableResolver.dayNames[this._date.getDay()];
         }
         else if (name === 'CURRENT_DAY_NAME_SHORT') {
-            return TimeBasedVariableResolver.dayNamesShort[new Date().getDay()];
+            return TimeBasedVariableResolver.dayNamesShort[this._date.getDay()];
         }
         else if (name === 'CURRENT_MONTH_NAME') {
-            return TimeBasedVariableResolver.monthNames[new Date().getMonth()];
+            return TimeBasedVariableResolver.monthNames[this._date.getMonth()];
         }
         else if (name === 'CURRENT_MONTH_NAME_SHORT') {
-            return TimeBasedVariableResolver.monthNamesShort[new Date().getMonth()];
+            return TimeBasedVariableResolver.monthNamesShort[this._date.getMonth()];
         }
         else if (name === 'CURRENT_SECONDS_UNIX') {
-            return String(Math.floor(Date.now() / 1000));
+            return String(Math.floor(this._date.getTime() / 1000));
         }
         return undefined;
-    };
-    TimeBasedVariableResolver.dayNames = [nls.localize('Sunday', "Sunday"), nls.localize('Monday', "Monday"), nls.localize('Tuesday', "Tuesday"), nls.localize('Wednesday', "Wednesday"), nls.localize('Thursday', "Thursday"), nls.localize('Friday', "Friday"), nls.localize('Saturday', "Saturday")];
-    TimeBasedVariableResolver.dayNamesShort = [nls.localize('SundayShort', "Sun"), nls.localize('MondayShort', "Mon"), nls.localize('TuesdayShort', "Tue"), nls.localize('WednesdayShort', "Wed"), nls.localize('ThursdayShort', "Thu"), nls.localize('FridayShort', "Fri"), nls.localize('SaturdayShort', "Sat")];
-    TimeBasedVariableResolver.monthNames = [nls.localize('January', "January"), nls.localize('February', "February"), nls.localize('March', "March"), nls.localize('April', "April"), nls.localize('May', "May"), nls.localize('June', "June"), nls.localize('July', "July"), nls.localize('August', "August"), nls.localize('September', "September"), nls.localize('October', "October"), nls.localize('November', "November"), nls.localize('December', "December")];
-    TimeBasedVariableResolver.monthNamesShort = [nls.localize('JanuaryShort', "Jan"), nls.localize('FebruaryShort', "Feb"), nls.localize('MarchShort', "Mar"), nls.localize('AprilShort', "Apr"), nls.localize('MayShort', "May"), nls.localize('JuneShort', "Jun"), nls.localize('JulyShort', "Jul"), nls.localize('AugustShort', "Aug"), nls.localize('SeptemberShort', "Sep"), nls.localize('OctoberShort', "Oct"), nls.localize('NovemberShort', "Nov"), nls.localize('DecemberShort', "Dec")];
-    return TimeBasedVariableResolver;
-}());
-export { TimeBasedVariableResolver };
-var WorkspaceBasedVariableResolver = /** @class */ (function () {
-    function WorkspaceBasedVariableResolver(_workspaceService) {
+    }
+}
+TimeBasedVariableResolver.dayNames = [nls.localize('Sunday', "Sunday"), nls.localize('Monday', "Monday"), nls.localize('Tuesday', "Tuesday"), nls.localize('Wednesday', "Wednesday"), nls.localize('Thursday', "Thursday"), nls.localize('Friday', "Friday"), nls.localize('Saturday', "Saturday")];
+TimeBasedVariableResolver.dayNamesShort = [nls.localize('SundayShort', "Sun"), nls.localize('MondayShort', "Mon"), nls.localize('TuesdayShort', "Tue"), nls.localize('WednesdayShort', "Wed"), nls.localize('ThursdayShort', "Thu"), nls.localize('FridayShort', "Fri"), nls.localize('SaturdayShort', "Sat")];
+TimeBasedVariableResolver.monthNames = [nls.localize('January', "January"), nls.localize('February', "February"), nls.localize('March', "March"), nls.localize('April', "April"), nls.localize('May', "May"), nls.localize('June', "June"), nls.localize('July', "July"), nls.localize('August', "August"), nls.localize('September', "September"), nls.localize('October', "October"), nls.localize('November', "November"), nls.localize('December', "December")];
+TimeBasedVariableResolver.monthNamesShort = [nls.localize('JanuaryShort', "Jan"), nls.localize('FebruaryShort', "Feb"), nls.localize('MarchShort', "Mar"), nls.localize('AprilShort', "Apr"), nls.localize('MayShort', "May"), nls.localize('JuneShort', "Jun"), nls.localize('JulyShort', "Jul"), nls.localize('AugustShort', "Aug"), nls.localize('SeptemberShort', "Sep"), nls.localize('OctoberShort', "Oct"), nls.localize('NovemberShort', "Nov"), nls.localize('DecemberShort', "Dec")];
+export class WorkspaceBasedVariableResolver {
+    constructor(_workspaceService) {
         this._workspaceService = _workspaceService;
         //
     }
-    WorkspaceBasedVariableResolver.prototype.resolve = function (variable) {
+    resolve(variable) {
         if (!this._workspaceService) {
             return undefined;
         }
-        var workspaceIdentifier = toWorkspaceIdentifier(this._workspaceService.getWorkspace());
+        const workspaceIdentifier = toWorkspaceIdentifier(this._workspaceService.getWorkspace());
         if (!workspaceIdentifier) {
             return undefined;
         }
@@ -242,44 +280,41 @@ var WorkspaceBasedVariableResolver = /** @class */ (function () {
             return this._resoveWorkspacePath(workspaceIdentifier);
         }
         return undefined;
-    };
-    WorkspaceBasedVariableResolver.prototype._resolveWorkspaceName = function (workspaceIdentifier) {
+    }
+    _resolveWorkspaceName(workspaceIdentifier) {
         if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
-            return path.basename(workspaceIdentifier.path);
+            return path.basename(workspaceIdentifier.uri.path);
         }
-        var filename = path.basename(workspaceIdentifier.configPath.path);
-        if (endsWith(filename, WORKSPACE_EXTENSION)) {
+        let filename = path.basename(workspaceIdentifier.configPath.path);
+        if (filename.endsWith(WORKSPACE_EXTENSION)) {
             filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
         }
         return filename;
-    };
-    WorkspaceBasedVariableResolver.prototype._resoveWorkspacePath = function (workspaceIdentifier) {
+    }
+    _resoveWorkspacePath(workspaceIdentifier) {
         if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
-            return normalizeDriveLetter(workspaceIdentifier.fsPath);
+            return normalizeDriveLetter(workspaceIdentifier.uri.fsPath);
         }
-        var filename = path.basename(workspaceIdentifier.configPath.path);
-        var folderpath = workspaceIdentifier.configPath.fsPath;
-        if (endsWith(folderpath, filename)) {
+        let filename = path.basename(workspaceIdentifier.configPath.path);
+        let folderpath = workspaceIdentifier.configPath.fsPath;
+        if (folderpath.endsWith(filename)) {
             folderpath = folderpath.substr(0, folderpath.length - filename.length - 1);
         }
         return (folderpath ? normalizeDriveLetter(folderpath) : '/');
-    };
-    return WorkspaceBasedVariableResolver;
-}());
-export { WorkspaceBasedVariableResolver };
-var RandomBasedVariableResolver = /** @class */ (function () {
-    function RandomBasedVariableResolver() {
     }
-    RandomBasedVariableResolver.prototype.resolve = function (variable) {
-        var name = variable.name;
+}
+export class RandomBasedVariableResolver {
+    resolve(variable) {
+        const { name } = variable;
         if (name === 'RANDOM') {
             return Math.random().toString().slice(-6);
         }
         else if (name === 'RANDOM_HEX') {
             return Math.random().toString(16).slice(-6);
         }
+        else if (name === 'UUID') {
+            return generateUuid();
+        }
         return undefined;
-    };
-    return RandomBasedVariableResolver;
-}());
-export { RandomBasedVariableResolver };
+    }
+}

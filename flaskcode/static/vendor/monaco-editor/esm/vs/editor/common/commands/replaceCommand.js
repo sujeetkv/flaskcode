@@ -3,94 +3,80 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Selection } from '../core/selection.js';
-var ReplaceCommand = /** @class */ (function () {
-    function ReplaceCommand(range, text, insertsAutoWhitespace) {
-        if (insertsAutoWhitespace === void 0) { insertsAutoWhitespace = false; }
+export class ReplaceCommand {
+    constructor(range, text, insertsAutoWhitespace = false) {
         this._range = range;
         this._text = text;
         this.insertsAutoWhitespace = insertsAutoWhitespace;
     }
-    ReplaceCommand.prototype.getEditOperations = function (model, builder) {
+    getEditOperations(model, builder) {
         builder.addTrackedEditOperation(this._range, this._text);
-    };
-    ReplaceCommand.prototype.computeCursorState = function (model, helper) {
-        var inverseEditOperations = helper.getInverseEditOperations();
-        var srcRange = inverseEditOperations[0].range;
-        return new Selection(srcRange.endLineNumber, srcRange.endColumn, srcRange.endLineNumber, srcRange.endColumn);
-    };
-    return ReplaceCommand;
-}());
-export { ReplaceCommand };
-var ReplaceCommandThatSelectsText = /** @class */ (function () {
-    function ReplaceCommandThatSelectsText(range, text) {
+    }
+    computeCursorState(model, helper) {
+        let inverseEditOperations = helper.getInverseEditOperations();
+        let srcRange = inverseEditOperations[0].range;
+        return Selection.fromPositions(srcRange.getEndPosition());
+    }
+}
+export class ReplaceCommandThatSelectsText {
+    constructor(range, text) {
         this._range = range;
         this._text = text;
     }
-    ReplaceCommandThatSelectsText.prototype.getEditOperations = function (model, builder) {
+    getEditOperations(model, builder) {
         builder.addTrackedEditOperation(this._range, this._text);
-    };
-    ReplaceCommandThatSelectsText.prototype.computeCursorState = function (model, helper) {
-        var inverseEditOperations = helper.getInverseEditOperations();
-        var srcRange = inverseEditOperations[0].range;
-        return new Selection(srcRange.startLineNumber, srcRange.startColumn, srcRange.endLineNumber, srcRange.endColumn);
-    };
-    return ReplaceCommandThatSelectsText;
-}());
-export { ReplaceCommandThatSelectsText };
-var ReplaceCommandWithoutChangingPosition = /** @class */ (function () {
-    function ReplaceCommandWithoutChangingPosition(range, text, insertsAutoWhitespace) {
-        if (insertsAutoWhitespace === void 0) { insertsAutoWhitespace = false; }
+    }
+    computeCursorState(model, helper) {
+        const inverseEditOperations = helper.getInverseEditOperations();
+        const srcRange = inverseEditOperations[0].range;
+        return Selection.fromRange(srcRange, 0 /* LTR */);
+    }
+}
+export class ReplaceCommandWithoutChangingPosition {
+    constructor(range, text, insertsAutoWhitespace = false) {
         this._range = range;
         this._text = text;
         this.insertsAutoWhitespace = insertsAutoWhitespace;
     }
-    ReplaceCommandWithoutChangingPosition.prototype.getEditOperations = function (model, builder) {
+    getEditOperations(model, builder) {
         builder.addTrackedEditOperation(this._range, this._text);
-    };
-    ReplaceCommandWithoutChangingPosition.prototype.computeCursorState = function (model, helper) {
-        var inverseEditOperations = helper.getInverseEditOperations();
-        var srcRange = inverseEditOperations[0].range;
-        return new Selection(srcRange.startLineNumber, srcRange.startColumn, srcRange.startLineNumber, srcRange.startColumn);
-    };
-    return ReplaceCommandWithoutChangingPosition;
-}());
-export { ReplaceCommandWithoutChangingPosition };
-var ReplaceCommandWithOffsetCursorState = /** @class */ (function () {
-    function ReplaceCommandWithOffsetCursorState(range, text, lineNumberDeltaOffset, columnDeltaOffset, insertsAutoWhitespace) {
-        if (insertsAutoWhitespace === void 0) { insertsAutoWhitespace = false; }
+    }
+    computeCursorState(model, helper) {
+        let inverseEditOperations = helper.getInverseEditOperations();
+        let srcRange = inverseEditOperations[0].range;
+        return Selection.fromPositions(srcRange.getStartPosition());
+    }
+}
+export class ReplaceCommandWithOffsetCursorState {
+    constructor(range, text, lineNumberDeltaOffset, columnDeltaOffset, insertsAutoWhitespace = false) {
         this._range = range;
         this._text = text;
         this._columnDeltaOffset = columnDeltaOffset;
         this._lineNumberDeltaOffset = lineNumberDeltaOffset;
         this.insertsAutoWhitespace = insertsAutoWhitespace;
     }
-    ReplaceCommandWithOffsetCursorState.prototype.getEditOperations = function (model, builder) {
+    getEditOperations(model, builder) {
         builder.addTrackedEditOperation(this._range, this._text);
-    };
-    ReplaceCommandWithOffsetCursorState.prototype.computeCursorState = function (model, helper) {
-        var inverseEditOperations = helper.getInverseEditOperations();
-        var srcRange = inverseEditOperations[0].range;
-        return new Selection(srcRange.endLineNumber + this._lineNumberDeltaOffset, srcRange.endColumn + this._columnDeltaOffset, srcRange.endLineNumber + this._lineNumberDeltaOffset, srcRange.endColumn + this._columnDeltaOffset);
-    };
-    return ReplaceCommandWithOffsetCursorState;
-}());
-export { ReplaceCommandWithOffsetCursorState };
-var ReplaceCommandThatPreservesSelection = /** @class */ (function () {
-    function ReplaceCommandThatPreservesSelection(editRange, text, initialSelection, forceMoveMarkers) {
-        if (forceMoveMarkers === void 0) { forceMoveMarkers = false; }
+    }
+    computeCursorState(model, helper) {
+        let inverseEditOperations = helper.getInverseEditOperations();
+        let srcRange = inverseEditOperations[0].range;
+        return Selection.fromPositions(srcRange.getEndPosition().delta(this._lineNumberDeltaOffset, this._columnDeltaOffset));
+    }
+}
+export class ReplaceCommandThatPreservesSelection {
+    constructor(editRange, text, initialSelection, forceMoveMarkers = false) {
         this._range = editRange;
         this._text = text;
         this._initialSelection = initialSelection;
         this._forceMoveMarkers = forceMoveMarkers;
         this._selectionId = null;
     }
-    ReplaceCommandThatPreservesSelection.prototype.getEditOperations = function (model, builder) {
+    getEditOperations(model, builder) {
         builder.addTrackedEditOperation(this._range, this._text, this._forceMoveMarkers);
         this._selectionId = builder.trackSelection(this._initialSelection);
-    };
-    ReplaceCommandThatPreservesSelection.prototype.computeCursorState = function (model, helper) {
+    }
+    computeCursorState(model, helper) {
         return helper.getTrackedSelection(this._selectionId);
-    };
-    return ReplaceCommandThatPreservesSelection;
-}());
-export { ReplaceCommandThatPreservesSelection };
+    }
+}

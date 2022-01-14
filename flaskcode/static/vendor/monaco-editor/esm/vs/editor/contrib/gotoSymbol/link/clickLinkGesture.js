@@ -2,22 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-import * as browser from '../../../../base/browser/browser.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import * as platform from '../../../../base/common/platform.js';
 function hasModifier(e, modifier) {
     return !!e[modifier];
@@ -25,44 +11,38 @@ function hasModifier(e, modifier) {
 /**
  * An event that encapsulates the various trigger modifiers logic needed for go to definition.
  */
-var ClickLinkMouseEvent = /** @class */ (function () {
-    function ClickLinkMouseEvent(source, opts) {
+export class ClickLinkMouseEvent {
+    constructor(source, opts) {
         this.target = source.target;
         this.hasTriggerModifier = hasModifier(source.event, opts.triggerModifier);
         this.hasSideBySideModifier = hasModifier(source.event, opts.triggerSideBySideModifier);
-        this.isNoneOrSingleMouseDown = (browser.isIE || source.event.detail <= 1); // IE does not support event.detail properly
+        this.isNoneOrSingleMouseDown = (source.event.detail <= 1);
     }
-    return ClickLinkMouseEvent;
-}());
-export { ClickLinkMouseEvent };
+}
 /**
  * An event that encapsulates the various trigger modifiers logic needed for go to definition.
  */
-var ClickLinkKeyboardEvent = /** @class */ (function () {
-    function ClickLinkKeyboardEvent(source, opts) {
+export class ClickLinkKeyboardEvent {
+    constructor(source, opts) {
         this.keyCodeIsTriggerKey = (source.keyCode === opts.triggerKey);
         this.keyCodeIsSideBySideKey = (source.keyCode === opts.triggerSideBySideKey);
         this.hasTriggerModifier = hasModifier(source, opts.triggerModifier);
     }
-    return ClickLinkKeyboardEvent;
-}());
-export { ClickLinkKeyboardEvent };
-var ClickLinkOptions = /** @class */ (function () {
-    function ClickLinkOptions(triggerKey, triggerModifier, triggerSideBySideKey, triggerSideBySideModifier) {
+}
+export class ClickLinkOptions {
+    constructor(triggerKey, triggerModifier, triggerSideBySideKey, triggerSideBySideModifier) {
         this.triggerKey = triggerKey;
         this.triggerModifier = triggerModifier;
         this.triggerSideBySideKey = triggerSideBySideKey;
         this.triggerSideBySideModifier = triggerSideBySideModifier;
     }
-    ClickLinkOptions.prototype.equals = function (other) {
+    equals(other) {
         return (this.triggerKey === other.triggerKey
             && this.triggerModifier === other.triggerModifier
             && this.triggerSideBySideKey === other.triggerSideBySideKey
             && this.triggerSideBySideModifier === other.triggerSideBySideModifier);
-    };
-    return ClickLinkOptions;
-}());
-export { ClickLinkOptions };
+    }
+}
 function createOptions(multiCursorModifier) {
     if (multiCursorModifier === 'altKey') {
         if (platform.isMacintosh) {
@@ -75,90 +55,90 @@ function createOptions(multiCursorModifier) {
     }
     return new ClickLinkOptions(6 /* Alt */, 'altKey', 5 /* Ctrl */, 'ctrlKey');
 }
-var ClickLinkGesture = /** @class */ (function (_super) {
-    __extends(ClickLinkGesture, _super);
-    function ClickLinkGesture(editor) {
-        var _this = _super.call(this) || this;
-        _this._onMouseMoveOrRelevantKeyDown = _this._register(new Emitter());
-        _this.onMouseMoveOrRelevantKeyDown = _this._onMouseMoveOrRelevantKeyDown.event;
-        _this._onExecute = _this._register(new Emitter());
-        _this.onExecute = _this._onExecute.event;
-        _this._onCancel = _this._register(new Emitter());
-        _this.onCancel = _this._onCancel.event;
-        _this._editor = editor;
-        _this._opts = createOptions(_this._editor.getOption(59 /* multiCursorModifier */));
-        _this.lastMouseMoveEvent = null;
-        _this.hasTriggerKeyOnMouseDown = false;
-        _this._register(_this._editor.onDidChangeConfiguration(function (e) {
-            if (e.hasChanged(59 /* multiCursorModifier */)) {
-                var newOpts = createOptions(_this._editor.getOption(59 /* multiCursorModifier */));
-                if (_this._opts.equals(newOpts)) {
+export class ClickLinkGesture extends Disposable {
+    constructor(editor) {
+        super();
+        this._onMouseMoveOrRelevantKeyDown = this._register(new Emitter());
+        this.onMouseMoveOrRelevantKeyDown = this._onMouseMoveOrRelevantKeyDown.event;
+        this._onExecute = this._register(new Emitter());
+        this.onExecute = this._onExecute.event;
+        this._onCancel = this._register(new Emitter());
+        this.onCancel = this._onCancel.event;
+        this._editor = editor;
+        this._opts = createOptions(this._editor.getOption(69 /* multiCursorModifier */));
+        this._lastMouseMoveEvent = null;
+        this._hasTriggerKeyOnMouseDown = false;
+        this._lineNumberOnMouseDown = 0;
+        this._register(this._editor.onDidChangeConfiguration((e) => {
+            if (e.hasChanged(69 /* multiCursorModifier */)) {
+                const newOpts = createOptions(this._editor.getOption(69 /* multiCursorModifier */));
+                if (this._opts.equals(newOpts)) {
                     return;
                 }
-                _this._opts = newOpts;
-                _this.lastMouseMoveEvent = null;
-                _this.hasTriggerKeyOnMouseDown = false;
-                _this._onCancel.fire();
+                this._opts = newOpts;
+                this._lastMouseMoveEvent = null;
+                this._hasTriggerKeyOnMouseDown = false;
+                this._lineNumberOnMouseDown = 0;
+                this._onCancel.fire();
             }
         }));
-        _this._register(_this._editor.onMouseMove(function (e) { return _this.onEditorMouseMove(new ClickLinkMouseEvent(e, _this._opts)); }));
-        _this._register(_this._editor.onMouseDown(function (e) { return _this.onEditorMouseDown(new ClickLinkMouseEvent(e, _this._opts)); }));
-        _this._register(_this._editor.onMouseUp(function (e) { return _this.onEditorMouseUp(new ClickLinkMouseEvent(e, _this._opts)); }));
-        _this._register(_this._editor.onKeyDown(function (e) { return _this.onEditorKeyDown(new ClickLinkKeyboardEvent(e, _this._opts)); }));
-        _this._register(_this._editor.onKeyUp(function (e) { return _this.onEditorKeyUp(new ClickLinkKeyboardEvent(e, _this._opts)); }));
-        _this._register(_this._editor.onMouseDrag(function () { return _this.resetHandler(); }));
-        _this._register(_this._editor.onDidChangeCursorSelection(function (e) { return _this.onDidChangeCursorSelection(e); }));
-        _this._register(_this._editor.onDidChangeModel(function (e) { return _this.resetHandler(); }));
-        _this._register(_this._editor.onDidChangeModelContent(function () { return _this.resetHandler(); }));
-        _this._register(_this._editor.onDidScrollChange(function (e) {
+        this._register(this._editor.onMouseMove((e) => this._onEditorMouseMove(new ClickLinkMouseEvent(e, this._opts))));
+        this._register(this._editor.onMouseDown((e) => this._onEditorMouseDown(new ClickLinkMouseEvent(e, this._opts))));
+        this._register(this._editor.onMouseUp((e) => this._onEditorMouseUp(new ClickLinkMouseEvent(e, this._opts))));
+        this._register(this._editor.onKeyDown((e) => this._onEditorKeyDown(new ClickLinkKeyboardEvent(e, this._opts))));
+        this._register(this._editor.onKeyUp((e) => this._onEditorKeyUp(new ClickLinkKeyboardEvent(e, this._opts))));
+        this._register(this._editor.onMouseDrag(() => this._resetHandler()));
+        this._register(this._editor.onDidChangeCursorSelection((e) => this._onDidChangeCursorSelection(e)));
+        this._register(this._editor.onDidChangeModel((e) => this._resetHandler()));
+        this._register(this._editor.onDidChangeModelContent(() => this._resetHandler()));
+        this._register(this._editor.onDidScrollChange((e) => {
             if (e.scrollTopChanged || e.scrollLeftChanged) {
-                _this.resetHandler();
+                this._resetHandler();
             }
         }));
-        return _this;
     }
-    ClickLinkGesture.prototype.onDidChangeCursorSelection = function (e) {
+    _onDidChangeCursorSelection(e) {
         if (e.selection && e.selection.startColumn !== e.selection.endColumn) {
-            this.resetHandler(); // immediately stop this feature if the user starts to select (https://github.com/Microsoft/vscode/issues/7827)
+            this._resetHandler(); // immediately stop this feature if the user starts to select (https://github.com/microsoft/vscode/issues/7827)
         }
-    };
-    ClickLinkGesture.prototype.onEditorMouseMove = function (mouseEvent) {
-        this.lastMouseMoveEvent = mouseEvent;
+    }
+    _onEditorMouseMove(mouseEvent) {
+        this._lastMouseMoveEvent = mouseEvent;
         this._onMouseMoveOrRelevantKeyDown.fire([mouseEvent, null]);
-    };
-    ClickLinkGesture.prototype.onEditorMouseDown = function (mouseEvent) {
+    }
+    _onEditorMouseDown(mouseEvent) {
         // We need to record if we had the trigger key on mouse down because someone might select something in the editor
         // holding the mouse down and then while mouse is down start to press Ctrl/Cmd to start a copy operation and then
         // release the mouse button without wanting to do the navigation.
         // With this flag we prevent goto definition if the mouse was down before the trigger key was pressed.
-        this.hasTriggerKeyOnMouseDown = mouseEvent.hasTriggerModifier;
-    };
-    ClickLinkGesture.prototype.onEditorMouseUp = function (mouseEvent) {
-        if (this.hasTriggerKeyOnMouseDown) {
+        this._hasTriggerKeyOnMouseDown = mouseEvent.hasTriggerModifier;
+        this._lineNumberOnMouseDown = mouseEvent.target.position ? mouseEvent.target.position.lineNumber : 0;
+    }
+    _onEditorMouseUp(mouseEvent) {
+        const currentLineNumber = mouseEvent.target.position ? mouseEvent.target.position.lineNumber : 0;
+        if (this._hasTriggerKeyOnMouseDown && this._lineNumberOnMouseDown && this._lineNumberOnMouseDown === currentLineNumber) {
             this._onExecute.fire(mouseEvent);
         }
-    };
-    ClickLinkGesture.prototype.onEditorKeyDown = function (e) {
-        if (this.lastMouseMoveEvent
+    }
+    _onEditorKeyDown(e) {
+        if (this._lastMouseMoveEvent
             && (e.keyCodeIsTriggerKey // User just pressed Ctrl/Cmd (normal goto definition)
                 || (e.keyCodeIsSideBySideKey && e.hasTriggerModifier) // User pressed Ctrl/Cmd+Alt (goto definition to the side)
             )) {
-            this._onMouseMoveOrRelevantKeyDown.fire([this.lastMouseMoveEvent, e]);
+            this._onMouseMoveOrRelevantKeyDown.fire([this._lastMouseMoveEvent, e]);
         }
         else if (e.hasTriggerModifier) {
             this._onCancel.fire(); // remove decorations if user holds another key with ctrl/cmd to prevent accident goto declaration
         }
-    };
-    ClickLinkGesture.prototype.onEditorKeyUp = function (e) {
+    }
+    _onEditorKeyUp(e) {
         if (e.keyCodeIsTriggerKey) {
             this._onCancel.fire();
         }
-    };
-    ClickLinkGesture.prototype.resetHandler = function () {
-        this.lastMouseMoveEvent = null;
-        this.hasTriggerKeyOnMouseDown = false;
+    }
+    _resetHandler() {
+        this._lastMouseMoveEvent = null;
+        this._hasTriggerKeyOnMouseDown = false;
         this._onCancel.fire();
-    };
-    return ClickLinkGesture;
-}(Disposable));
-export { ClickLinkGesture };
+    }
+}

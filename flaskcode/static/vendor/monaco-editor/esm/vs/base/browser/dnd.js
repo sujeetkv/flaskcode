@@ -1,5 +1,6 @@
+import { Mimes } from '../common/mime.js';
 // Common data transfers
-export var DataTransfers = {
+export const DataTransfers = {
     /**
      * Application specific resource transfer type
      */
@@ -15,21 +16,23 @@ export var DataTransfers = {
     /**
      * Typically transfer type for copy/paste transfers.
      */
-    TEXT: 'text/plain'
+    TEXT: Mimes.text,
+    /**
+     * Application specific terminal transfer type.
+     */
+    TERMINALS: 'Terminals'
 };
-var DragAndDropData = /** @class */ (function () {
-    function DragAndDropData(data) {
+export class DragAndDropData {
+    constructor(data) {
         this.data = data;
     }
-    DragAndDropData.prototype.update = function () {
+    update() {
         // noop
-    };
-    DragAndDropData.prototype.getData = function () {
+    }
+    getData() {
         return this.data;
-    };
-    return DragAndDropData;
-}());
-export { DragAndDropData };
-export var StaticDND = {
+    }
+}
+export const StaticDND = {
     CurrentDragAndDropData: undefined
 };

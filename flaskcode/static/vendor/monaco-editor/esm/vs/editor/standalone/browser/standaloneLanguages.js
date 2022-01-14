@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { Color } from '../../../base/common/color.js';
 import { Range } from '../../common/core/range.js';
 import { Token, TokenizationResult, TokenizationResult2 } from '../../common/core/token.js';
 import * as modes from '../../common/modes.js';
@@ -21,21 +22,21 @@ export function register(language) {
  * Get the information of all the registered languages.
  */
 export function getLanguages() {
-    var result = [];
+    let result = [];
     result = result.concat(ModesRegistry.getLanguages());
     return result;
 }
 export function getEncodedLanguageId(languageId) {
-    var lid = StaticServices.modeService.get().getLanguageIdentifier(languageId);
-    return lid ? lid.id : 0;
+    const modeService = StaticServices.modeService.get();
+    return modeService.languageIdCodec.encodeLanguageId(languageId);
 }
 /**
  * An event emitted when a language is first time needed (e.g. a model has it set).
  * @event
  */
 export function onLanguage(languageId, callback) {
-    var disposable = StaticServices.modeService.get().onDidCreateMode(function (mode) {
-        if (mode.getId() === languageId) {
+    let disposable = StaticServices.modeService.get().onDidEncounterLanguage((encounteredLanguageId) => {
+        if (encounteredLanguageId === languageId) {
             // stop listening
             disposable.dispose();
             // invoke actual listener
@@ -48,50 +49,53 @@ export function onLanguage(languageId, callback) {
  * Set the editing configuration for a language.
  */
 export function setLanguageConfiguration(languageId, configuration) {
-    var languageIdentifier = StaticServices.modeService.get().getLanguageIdentifier(languageId);
-    if (!languageIdentifier) {
-        throw new Error("Cannot set configuration for unknown language " + languageId);
+    const validLanguageId = StaticServices.modeService.get().validateLanguageId(languageId);
+    if (!validLanguageId) {
+        throw new Error(`Cannot set configuration for unknown language ${languageId}`);
     }
-    return LanguageConfigurationRegistry.register(languageIdentifier, configuration);
+    return LanguageConfigurationRegistry.register(validLanguageId, configuration, 100);
 }
 /**
  * @internal
  */
-var EncodedTokenizationSupport2Adapter = /** @class */ (function () {
-    function EncodedTokenizationSupport2Adapter(actual) {
+export class EncodedTokenizationSupport2Adapter {
+    constructor(languageId, actual) {
+        this._languageId = languageId;
         this._actual = actual;
     }
-    EncodedTokenizationSupport2Adapter.prototype.getInitialState = function () {
+    getInitialState() {
         return this._actual.getInitialState();
-    };
-    EncodedTokenizationSupport2Adapter.prototype.tokenize = function (line, state, offsetDelta) {
+    }
+    tokenize(line, hasEOL, state, offsetDelta) {
+        if (typeof this._actual.tokenize === 'function') {
+            return TokenizationSupport2Adapter.adaptTokenize(this._languageId, this._actual, line, state, offsetDelta);
+        }
         throw new Error('Not supported!');
-    };
-    EncodedTokenizationSupport2Adapter.prototype.tokenize2 = function (line, state) {
-        var result = this._actual.tokenizeEncoded(line, state);
+    }
+    tokenize2(line, hasEOL, state) {
+        let result = this._actual.tokenizeEncoded(line, state);
         return new TokenizationResult2(result.tokens, result.endState);
-    };
-    return EncodedTokenizationSupport2Adapter;
-}());
-export { EncodedTokenizationSupport2Adapter };
+    }
+}
 /**
  * @internal
  */
-var TokenizationSupport2Adapter = /** @class */ (function () {
-    function TokenizationSupport2Adapter(standaloneThemeService, languageIdentifier, actual) {
-        this._standaloneThemeService = standaloneThemeService;
-        this._languageIdentifier = languageIdentifier;
-        this._actual = actual;
+export class TokenizationSupport2Adapter {
+    constructor(_languageId, _actual, _modeService, _standaloneThemeService) {
+        this._languageId = _languageId;
+        this._actual = _actual;
+        this._modeService = _modeService;
+        this._standaloneThemeService = _standaloneThemeService;
     }
-    TokenizationSupport2Adapter.prototype.getInitialState = function () {
+    getInitialState() {
         return this._actual.getInitialState();
-    };
-    TokenizationSupport2Adapter.prototype._toClassicTokens = function (tokens, language, offsetDelta) {
-        var result = [];
-        var previousStartIndex = 0;
-        for (var i = 0, len = tokens.length; i < len; i++) {
-            var t = tokens[i];
-            var startIndex = t.startIndex;
+    }
+    static _toClassicTokens(tokens, language, offsetDelta) {
+        let result = [];
+        let previousStartIndex = 0;
+        for (let i = 0, len = tokens.length; i < len; i++) {
+            const t = tokens[i];
+            let startIndex = t.startIndex;
             // Prevent issues stemming from a buggy external tokenizer.
             if (i === 0) {
                 // Force first token to start at first index!
@@ -105,11 +109,11 @@ var TokenizationSupport2Adapter = /** @class */ (function () {
             previousStartIndex = startIndex;
         }
         return result;
-    };
-    TokenizationSupport2Adapter.prototype.tokenize = function (line, state, offsetDelta) {
-        var actualResult = this._actual.tokenize(line, state);
-        var tokens = this._toClassicTokens(actualResult.tokens, this._languageIdentifier.language, offsetDelta);
-        var endState;
+    }
+    static adaptTokenize(language, actual, line, state, offsetDelta) {
+        let actualResult = actual.tokenize(line, state);
+        let tokens = TokenizationSupport2Adapter._toClassicTokens(actualResult.tokens, language, offsetDelta);
+        let endState;
         // try to save an object if possible
         if (actualResult.endState.equals(state)) {
             endState = state;
@@ -118,20 +122,23 @@ var TokenizationSupport2Adapter = /** @class */ (function () {
             endState = actualResult.endState;
         }
         return new TokenizationResult(tokens, endState);
-    };
-    TokenizationSupport2Adapter.prototype._toBinaryTokens = function (tokens, offsetDelta) {
-        var languageId = this._languageIdentifier.id;
-        var tokenTheme = this._standaloneThemeService.getTheme().tokenTheme;
-        var result = [], resultLen = 0;
-        var previousStartIndex = 0;
-        for (var i = 0, len = tokens.length; i < len; i++) {
-            var t = tokens[i];
-            var metadata = tokenTheme.match(languageId, t.scopes);
+    }
+    tokenize(line, hasEOL, state, offsetDelta) {
+        return TokenizationSupport2Adapter.adaptTokenize(this._languageId, this._actual, line, state, offsetDelta);
+    }
+    _toBinaryTokens(languageIdCodec, tokens, offsetDelta) {
+        const languageId = languageIdCodec.encodeLanguageId(this._languageId);
+        const tokenTheme = this._standaloneThemeService.getColorTheme().tokenTheme;
+        let result = [], resultLen = 0;
+        let previousStartIndex = 0;
+        for (let i = 0, len = tokens.length; i < len; i++) {
+            const t = tokens[i];
+            const metadata = tokenTheme.match(languageId, t.scopes);
             if (resultLen > 0 && result[resultLen - 1] === metadata) {
                 // same metadata
                 continue;
             }
-            var startIndex = t.startIndex;
+            let startIndex = t.startIndex;
             // Prevent issues stemming from a buggy external tokenizer.
             if (i === 0) {
                 // Force first token to start at first index!
@@ -145,16 +152,16 @@ var TokenizationSupport2Adapter = /** @class */ (function () {
             result[resultLen++] = metadata;
             previousStartIndex = startIndex;
         }
-        var actualResult = new Uint32Array(resultLen);
-        for (var i = 0; i < resultLen; i++) {
+        let actualResult = new Uint32Array(resultLen);
+        for (let i = 0; i < resultLen; i++) {
             actualResult[i] = result[i];
         }
         return actualResult;
-    };
-    TokenizationSupport2Adapter.prototype.tokenize2 = function (line, state, offsetDelta) {
-        var actualResult = this._actual.tokenize(line, state);
-        var tokens = this._toBinaryTokens(actualResult.tokens, offsetDelta);
-        var endState;
+    }
+    tokenize2(line, hasEOL, state, offsetDelta) {
+        let actualResult = this._actual.tokenize(line, state);
+        let tokens = this._toBinaryTokens(this._modeService.languageIdCodec, actualResult.tokens, offsetDelta);
+        let endState;
         // try to save an object if possible
         if (actualResult.endState.equals(state)) {
             endState = state;
@@ -163,10 +170,8 @@ var TokenizationSupport2Adapter = /** @class */ (function () {
             endState = actualResult.endState;
         }
         return new TokenizationResult2(tokens, endState);
-    };
-    return TokenizationSupport2Adapter;
-}());
-export { TokenizationSupport2Adapter };
+    }
+}
 function isEncodedTokensProvider(provider) {
     return 'tokenizeEncoded' in provider;
 }
@@ -174,23 +179,39 @@ function isThenable(obj) {
     return obj && typeof obj.then === 'function';
 }
 /**
+ * Change the color map that is used for token colors.
+ * Supported formats (hex): #RRGGBB, $RRGGBBAA, #RGB, #RGBA
+ */
+export function setColorMap(colorMap) {
+    if (colorMap) {
+        const result = [null];
+        for (let i = 1, len = colorMap.length; i < len; i++) {
+            result[i] = Color.fromHex(colorMap[i]);
+        }
+        StaticServices.standaloneThemeService.get().setColorMapOverride(result);
+    }
+    else {
+        StaticServices.standaloneThemeService.get().setColorMapOverride(null);
+    }
+}
+/**
  * Set the tokens provider for a language (manual implementation).
  */
 export function setTokensProvider(languageId, provider) {
-    var languageIdentifier = StaticServices.modeService.get().getLanguageIdentifier(languageId);
-    if (!languageIdentifier) {
-        throw new Error("Cannot set tokens provider for unknown language " + languageId);
+    const validLanguageId = StaticServices.modeService.get().validateLanguageId(languageId);
+    if (!validLanguageId) {
+        throw new Error(`Cannot set tokens provider for unknown language ${languageId}`);
     }
-    var create = function (provider) {
+    const create = (provider) => {
         if (isEncodedTokensProvider(provider)) {
-            return new EncodedTokenizationSupport2Adapter(provider);
+            return new EncodedTokenizationSupport2Adapter(validLanguageId, provider);
         }
         else {
-            return new TokenizationSupport2Adapter(StaticServices.standaloneThemeService.get(), languageIdentifier, provider);
+            return new TokenizationSupport2Adapter(validLanguageId, provider, StaticServices.modeService.get(), StaticServices.standaloneThemeService.get());
         }
     };
     if (isThenable(provider)) {
-        return modes.TokenizationRegistry.registerPromise(languageId, provider.then(function (provider) { return create(provider); }));
+        return modes.TokenizationRegistry.registerPromise(languageId, provider.then(provider => create(provider)));
     }
     return modes.TokenizationRegistry.register(languageId, create(provider));
 }
@@ -198,11 +219,11 @@ export function setTokensProvider(languageId, provider) {
  * Set the tokens provider for a language (monarch implementation).
  */
 export function setMonarchTokensProvider(languageId, languageDef) {
-    var create = function (languageDef) {
+    const create = (languageDef) => {
         return createTokenizationSupport(StaticServices.modeService.get(), StaticServices.standaloneThemeService.get(), languageId, compile(languageId, languageDef));
     };
     if (isThenable(languageDef)) {
-        return modes.TokenizationRegistry.registerPromise(languageId, languageDef.then(function (languageDef) { return create(languageDef); }));
+        return modes.TokenizationRegistry.registerPromise(languageId, languageDef.then(languageDef => create(languageDef)));
     }
     return modes.TokenizationRegistry.register(languageId, create(languageDef));
 }
@@ -229,9 +250,9 @@ export function registerSignatureHelpProvider(languageId, provider) {
  */
 export function registerHoverProvider(languageId, provider) {
     return modes.HoverProviderRegistry.register(languageId, {
-        provideHover: function (model, position, token) {
-            var word = model.getWordAtPosition(position);
-            return Promise.resolve(provider.provideHover(model, position, token)).then(function (value) {
+        provideHover: (model, position, token) => {
+            let word = model.getWordAtPosition(position);
+            return Promise.resolve(provider.provideHover(model, position, token)).then((value) => {
                 if (!value) {
                     return undefined;
                 }
@@ -257,6 +278,12 @@ export function registerDocumentSymbolProvider(languageId, provider) {
  */
 export function registerDocumentHighlightProvider(languageId, provider) {
     return modes.DocumentHighlightProviderRegistry.register(languageId, provider);
+}
+/**
+ * Register an linked editing range provider.
+ */
+export function registerLinkedEditingRangeProvider(languageId, provider) {
+    return modes.LinkedEditingRangeProviderRegistry.register(languageId, provider);
 }
 /**
  * Register a definition provider (used by e.g. go to definition).
@@ -285,14 +312,16 @@ export function registerCodeLensProvider(languageId, provider) {
 /**
  * Register a code action provider (used by e.g. quick fix).
  */
-export function registerCodeActionProvider(languageId, provider) {
+export function registerCodeActionProvider(languageId, provider, metadata) {
     return modes.CodeActionProviderRegistry.register(languageId, {
-        provideCodeActions: function (model, range, context, token) {
-            var markers = StaticServices.markerService.get().read({ resource: model.uri }).filter(function (m) {
+        providedCodeActionKinds: metadata === null || metadata === void 0 ? void 0 : metadata.providedCodeActionKinds,
+        provideCodeActions: (model, range, context, token) => {
+            let markers = StaticServices.markerService.get().read({ resource: model.uri }).filter(m => {
                 return Range.areIntersectingOrTouching(m, range);
             });
-            return provider.provideCodeActions(model, range, { markers: markers, only: context.only }, token);
-        }
+            return provider.provideCodeActions(model, range, { markers, only: context.only }, token);
+        },
+        resolveCodeAction: provider.resolveCodeAction
     });
 }
 /**
@@ -362,6 +391,18 @@ export function registerDocumentRangeSemanticTokensProvider(languageId, provider
     return modes.DocumentRangeSemanticTokensProviderRegistry.register(languageId, provider);
 }
 /**
+ * Register an inline completions provider.
+ */
+export function registerInlineCompletionsProvider(languageId, provider) {
+    return modes.InlineCompletionsProviderRegistry.register(languageId, provider);
+}
+/**
+ * Register an inlay hints provider.
+ */
+export function registerInlayHintsProvider(languageId, provider) {
+    return modes.InlayHintsProviderRegistry.register(languageId, provider);
+}
+/**
  * @internal
  */
 export function createMonacoLanguagesAPI() {
@@ -372,6 +413,7 @@ export function createMonacoLanguagesAPI() {
         getEncodedLanguageId: getEncodedLanguageId,
         // provider methods
         setLanguageConfiguration: setLanguageConfiguration,
+        setColorMap: setColorMap,
         setTokensProvider: setTokensProvider,
         setMonarchTokensProvider: setMonarchTokensProvider,
         registerReferenceProvider: registerReferenceProvider,
@@ -381,6 +423,7 @@ export function createMonacoLanguagesAPI() {
         registerHoverProvider: registerHoverProvider,
         registerDocumentSymbolProvider: registerDocumentSymbolProvider,
         registerDocumentHighlightProvider: registerDocumentHighlightProvider,
+        registerLinkedEditingRangeProvider: registerLinkedEditingRangeProvider,
         registerDefinitionProvider: registerDefinitionProvider,
         registerImplementationProvider: registerImplementationProvider,
         registerTypeDefinitionProvider: registerTypeDefinitionProvider,
@@ -396,6 +439,8 @@ export function createMonacoLanguagesAPI() {
         registerSelectionRangeProvider: registerSelectionRangeProvider,
         registerDocumentSemanticTokensProvider: registerDocumentSemanticTokensProvider,
         registerDocumentRangeSemanticTokensProvider: registerDocumentRangeSemanticTokensProvider,
+        registerInlineCompletionsProvider: registerInlineCompletionsProvider,
+        registerInlayHintsProvider: registerInlayHintsProvider,
         // enums
         DocumentHighlightKind: standaloneEnums.DocumentHighlightKind,
         CompletionItemKind: standaloneEnums.CompletionItemKind,
@@ -406,6 +451,8 @@ export function createMonacoLanguagesAPI() {
         IndentAction: standaloneEnums.IndentAction,
         CompletionTriggerKind: standaloneEnums.CompletionTriggerKind,
         SignatureHelpTriggerKind: standaloneEnums.SignatureHelpTriggerKind,
+        InlayHintKind: standaloneEnums.InlayHintKind,
+        InlineCompletionTriggerKind: standaloneEnums.InlineCompletionTriggerKind,
         // classes
         FoldingRangeKind: modes.FoldingRangeKind,
     };

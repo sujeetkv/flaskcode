@@ -1,113 +1,185 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-define(["require", "exports"], function (require, exports) {
-    'use strict';
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.conf = {
-        comments: {
-            lineComment: '//',
-            blockComment: ['(*', '*)'],
-        },
-        brackets: [
-            ['{', '}'],
-            ['[', ']'],
-            ['(', ')'],
-            ['<', '>'],
+/*!-----------------------------------------------------------------------------
+ * Copyright (c) Microsoft Corporation. All rights reserved.
+ * Version: 0.31.1(337587859b1c171314b40503171188b6cea6a32a)
+ * Released under the MIT license
+ * https://github.com/microsoft/monaco-editor/blob/main/LICENSE.txt
+ *-----------------------------------------------------------------------------*/
+define("vs/basic-languages/cameligo/cameligo",[],()=>{
+var moduleExports = (() => {
+  var __defProp = Object.defineProperty;
+  var __markAsModule = (target) => __defProp(target, "__esModule", { value: true });
+  var __export = (target, all) => {
+    __markAsModule(target);
+    for (var name in all)
+      __defProp(target, name, { get: all[name], enumerable: true });
+  };
+
+  // src/basic-languages/cameligo/cameligo.ts
+  var cameligo_exports = {};
+  __export(cameligo_exports, {
+    conf: () => conf,
+    language: () => language
+  });
+  var conf = {
+    comments: {
+      lineComment: "//",
+      blockComment: ["(*", "*)"]
+    },
+    brackets: [
+      ["{", "}"],
+      ["[", "]"],
+      ["(", ")"],
+      ["<", ">"]
+    ],
+    autoClosingPairs: [
+      { open: "{", close: "}" },
+      { open: "[", close: "]" },
+      { open: "(", close: ")" },
+      { open: "<", close: ">" },
+      { open: "'", close: "'" },
+      { open: '"', close: '"' },
+      { open: "(*", close: "*)" }
+    ],
+    surroundingPairs: [
+      { open: "{", close: "}" },
+      { open: "[", close: "]" },
+      { open: "(", close: ")" },
+      { open: "<", close: ">" },
+      { open: "'", close: "'" },
+      { open: '"', close: '"' },
+      { open: "(*", close: "*)" }
+    ]
+  };
+  var language = {
+    defaultToken: "",
+    tokenPostfix: ".cameligo",
+    ignoreCase: true,
+    brackets: [
+      { open: "{", close: "}", token: "delimiter.curly" },
+      { open: "[", close: "]", token: "delimiter.square" },
+      { open: "(", close: ")", token: "delimiter.parenthesis" },
+      { open: "<", close: ">", token: "delimiter.angle" }
+    ],
+    keywords: [
+      "abs",
+      "assert",
+      "block",
+      "Bytes",
+      "case",
+      "Crypto",
+      "Current",
+      "else",
+      "failwith",
+      "false",
+      "for",
+      "fun",
+      "if",
+      "in",
+      "let",
+      "let%entry",
+      "let%init",
+      "List",
+      "list",
+      "Map",
+      "map",
+      "match",
+      "match%nat",
+      "mod",
+      "not",
+      "operation",
+      "Operation",
+      "of",
+      "record",
+      "Set",
+      "set",
+      "sender",
+      "skip",
+      "source",
+      "String",
+      "then",
+      "to",
+      "true",
+      "type",
+      "with"
+    ],
+    typeKeywords: ["int", "unit", "string", "tz", "nat", "bool"],
+    operators: [
+      "=",
+      ">",
+      "<",
+      "<=",
+      ">=",
+      "<>",
+      ":",
+      ":=",
+      "and",
+      "mod",
+      "or",
+      "+",
+      "-",
+      "*",
+      "/",
+      "@",
+      "&",
+      "^",
+      "%",
+      "->",
+      "<-",
+      "&&",
+      "||"
+    ],
+    symbols: /[=><:@\^&|+\-*\/\^%]+/,
+    tokenizer: {
+      root: [
+        [
+          /[a-zA-Z_][\w]*/,
+          {
+            cases: {
+              "@keywords": { token: "keyword.$0" },
+              "@default": "identifier"
+            }
+          }
         ],
-        autoClosingPairs: [
-            { open: '{', close: '}' },
-            { open: '[', close: ']' },
-            { open: '(', close: ')' },
-            { open: '<', close: '>' },
-            { open: '\'', close: '\'' },
+        { include: "@whitespace" },
+        [/[{}()\[\]]/, "@brackets"],
+        [/[<>](?!@symbols)/, "@brackets"],
+        [
+          /@symbols/,
+          {
+            cases: {
+              "@operators": "delimiter",
+              "@default": ""
+            }
+          }
         ],
-        surroundingPairs: [
-            { open: '{', close: '}' },
-            { open: '[', close: ']' },
-            { open: '(', close: ')' },
-            { open: '<', close: '>' },
-            { open: '\'', close: '\'' },
-        ]
-    };
-    exports.language = {
-        defaultToken: '',
-        tokenPostfix: '.cameligo',
-        ignoreCase: true,
-        brackets: [
-            { open: '{', close: '}', token: 'delimiter.curly' },
-            { open: '[', close: ']', token: 'delimiter.square' },
-            { open: '(', close: ')', token: 'delimiter.parenthesis' },
-            { open: '<', close: '>', token: 'delimiter.angle' }
-        ],
-        keywords: [
-            'abs', 'begin', 'Bytes', 'Crypto', 'Current', 'else', 'end', 'failwith',
-            'false', 'fun', 'if', 'in', 'let', 'let%entry', 'let%init', 'List', 'list',
-            'Map', 'map', 'match', 'match%nat', 'mod', 'not', 'operation', 'Operation', 'of',
-            'Set', 'set', 'sender', 'source', 'String', 'then', 'true', 'type', 'with',
-        ],
-        typeKeywords: [
-            'int', 'unit', 'string', 'tz',
-        ],
-        operators: [
-            '=', '>', '<', '<=', '>=', '<>', ':', ':=', 'and', 'mod', 'or',
-            '+', '-', '*', '/', '@', '&', '^', '%', '->', '<-'
-        ],
-        // we include these common regular expressions
-        symbols: /[=><:@\^&|+\-*\/\^%]+/,
-        // The main tokenizer for our languages
-        tokenizer: {
-            root: [
-                // identifiers and keywords
-                [/[a-zA-Z_][\w]*/, {
-                        cases: {
-                            '@keywords': { token: 'keyword.$0' },
-                            '@default': 'identifier'
-                        }
-                    }],
-                // whitespace
-                { include: '@whitespace' },
-                // delimiters and operators
-                [/[{}()\[\]]/, '@brackets'],
-                [/[<>](?!@symbols)/, '@brackets'],
-                [/@symbols/, {
-                        cases: {
-                            '@operators': 'delimiter',
-                            '@default': ''
-                        }
-                    }],
-                // numbers
-                [/\d*\.\d+([eE][\-+]?\d+)?/, 'number.float'],
-                [/\$[0-9a-fA-F]{1,16}/, 'number.hex'],
-                [/\d+/, 'number'],
-                // delimiter: after number because of .\d floats
-                [/[;,.]/, 'delimiter'],
-                // strings
-                [/'([^'\\]|\\.)*$/, 'string.invalid'],
-                [/'/, 'string', '@string'],
-                // characters
-                [/'[^\\']'/, 'string'],
-                [/'/, 'string.invalid'],
-                [/\#\d+/, 'string']
-            ],
-            /* */
-            comment: [
-                [/[^\(\*]+/, 'comment'],
-                //[/\(\*/,    'comment', '@push' ],    // nested comment  not allowed :-(
-                [/\*\)/, 'comment', '@pop'],
-                [/\(\*/, 'comment']
-            ],
-            string: [
-                [/[^\\']+/, 'string'],
-                [/\\./, 'string.escape.invalid'],
-                [/'/, { token: 'string.quote', bracket: '@close', next: '@pop' }]
-            ],
-            whitespace: [
-                [/[ \t\r\n]+/, 'white'],
-                [/\(\*/, 'comment', '@comment'],
-                [/\/\/.*$/, 'comment'],
-            ],
-        },
-    };
+        [/\d*\.\d+([eE][\-+]?\d+)?/, "number.float"],
+        [/\$[0-9a-fA-F]{1,16}/, "number.hex"],
+        [/\d+/, "number"],
+        [/[;,.]/, "delimiter"],
+        [/'([^'\\]|\\.)*$/, "string.invalid"],
+        [/'/, "string", "@string"],
+        [/'[^\\']'/, "string"],
+        [/'/, "string.invalid"],
+        [/\#\d+/, "string"]
+      ],
+      comment: [
+        [/[^\(\*]+/, "comment"],
+        [/\*\)/, "comment", "@pop"],
+        [/\(\*/, "comment"]
+      ],
+      string: [
+        [/[^\\']+/, "string"],
+        [/\\./, "string.escape.invalid"],
+        [/'/, { token: "string.quote", bracket: "@close", next: "@pop" }]
+      ],
+      whitespace: [
+        [/[ \t\r\n]+/, "white"],
+        [/\(\*/, "comment", "@comment"],
+        [/\/\/.*$/, "comment"]
+      ]
+    }
+  };
+  return cameligo_exports;
+})();
+return moduleExports;
 });

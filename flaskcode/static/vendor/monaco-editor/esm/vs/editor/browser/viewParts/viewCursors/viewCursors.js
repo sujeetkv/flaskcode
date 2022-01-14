@@ -2,19 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 import './viewCursors.css';
 import { createFastDomNode } from '../../../../base/browser/fastDomNode.js';
 import { IntervalTimer, TimeoutTimer } from '../../../../base/common/async.js';
@@ -23,119 +10,128 @@ import { ViewCursor } from './viewCursor.js';
 import { TextEditorCursorStyle } from '../../../common/config/editorOptions.js';
 import { editorCursorBackground, editorCursorForeground } from '../../../common/view/editorColorRegistry.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
-var ViewCursors = /** @class */ (function (_super) {
-    __extends(ViewCursors, _super);
-    function ViewCursors(context) {
-        var _this = _super.call(this, context) || this;
-        var options = _this._context.configuration.options;
-        _this._readOnly = options.get(68 /* readOnly */);
-        _this._cursorBlinking = options.get(16 /* cursorBlinking */);
-        _this._cursorStyle = options.get(18 /* cursorStyle */);
-        _this._cursorSmoothCaretAnimation = options.get(17 /* cursorSmoothCaretAnimation */);
-        _this._selectionIsEmpty = true;
-        _this._isVisible = false;
-        _this._primaryCursor = new ViewCursor(_this._context);
-        _this._secondaryCursors = [];
-        _this._renderData = [];
-        _this._domNode = createFastDomNode(document.createElement('div'));
-        _this._domNode.setAttribute('role', 'presentation');
-        _this._domNode.setAttribute('aria-hidden', 'true');
-        _this._updateDomClassName();
-        _this._domNode.appendChild(_this._primaryCursor.getDomNode());
-        _this._startCursorBlinkAnimation = new TimeoutTimer();
-        _this._cursorFlatBlinkInterval = new IntervalTimer();
-        _this._blinkingEnabled = false;
-        _this._editorHasFocus = false;
-        _this._updateBlinking();
-        return _this;
+export class ViewCursors extends ViewPart {
+    constructor(context) {
+        super(context);
+        const options = this._context.configuration.options;
+        this._readOnly = options.get(80 /* readOnly */);
+        this._cursorBlinking = options.get(22 /* cursorBlinking */);
+        this._cursorStyle = options.get(24 /* cursorStyle */);
+        this._cursorSmoothCaretAnimation = options.get(23 /* cursorSmoothCaretAnimation */);
+        this._selectionIsEmpty = true;
+        this._isComposingInput = false;
+        this._isVisible = false;
+        this._primaryCursor = new ViewCursor(this._context);
+        this._secondaryCursors = [];
+        this._renderData = [];
+        this._domNode = createFastDomNode(document.createElement('div'));
+        this._domNode.setAttribute('role', 'presentation');
+        this._domNode.setAttribute('aria-hidden', 'true');
+        this._updateDomClassName();
+        this._domNode.appendChild(this._primaryCursor.getDomNode());
+        this._startCursorBlinkAnimation = new TimeoutTimer();
+        this._cursorFlatBlinkInterval = new IntervalTimer();
+        this._blinkingEnabled = false;
+        this._editorHasFocus = false;
+        this._updateBlinking();
     }
-    ViewCursors.prototype.dispose = function () {
-        _super.prototype.dispose.call(this);
+    dispose() {
+        super.dispose();
         this._startCursorBlinkAnimation.dispose();
         this._cursorFlatBlinkInterval.dispose();
-    };
-    ViewCursors.prototype.getDomNode = function () {
+    }
+    getDomNode() {
         return this._domNode;
-    };
+    }
     // --- begin event handlers
-    ViewCursors.prototype.onConfigurationChanged = function (e) {
-        var options = this._context.configuration.options;
-        this._readOnly = options.get(68 /* readOnly */);
-        this._cursorBlinking = options.get(16 /* cursorBlinking */);
-        this._cursorStyle = options.get(18 /* cursorStyle */);
-        this._cursorSmoothCaretAnimation = options.get(17 /* cursorSmoothCaretAnimation */);
+    onCompositionStart(e) {
+        this._isComposingInput = true;
+        this._updateBlinking();
+        return true;
+    }
+    onCompositionEnd(e) {
+        this._isComposingInput = false;
+        this._updateBlinking();
+        return true;
+    }
+    onConfigurationChanged(e) {
+        const options = this._context.configuration.options;
+        this._readOnly = options.get(80 /* readOnly */);
+        this._cursorBlinking = options.get(22 /* cursorBlinking */);
+        this._cursorStyle = options.get(24 /* cursorStyle */);
+        this._cursorSmoothCaretAnimation = options.get(23 /* cursorSmoothCaretAnimation */);
         this._updateBlinking();
         this._updateDomClassName();
         this._primaryCursor.onConfigurationChanged(e);
-        for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
+        for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
             this._secondaryCursors[i].onConfigurationChanged(e);
         }
         return true;
-    };
-    ViewCursors.prototype._onCursorPositionChanged = function (position, secondaryPositions) {
+    }
+    _onCursorPositionChanged(position, secondaryPositions) {
         this._primaryCursor.onCursorPositionChanged(position);
         this._updateBlinking();
         if (this._secondaryCursors.length < secondaryPositions.length) {
             // Create new cursors
-            var addCnt = secondaryPositions.length - this._secondaryCursors.length;
-            for (var i = 0; i < addCnt; i++) {
-                var newCursor = new ViewCursor(this._context);
+            const addCnt = secondaryPositions.length - this._secondaryCursors.length;
+            for (let i = 0; i < addCnt; i++) {
+                const newCursor = new ViewCursor(this._context);
                 this._domNode.domNode.insertBefore(newCursor.getDomNode().domNode, this._primaryCursor.getDomNode().domNode.nextSibling);
                 this._secondaryCursors.push(newCursor);
             }
         }
         else if (this._secondaryCursors.length > secondaryPositions.length) {
             // Remove some cursors
-            var removeCnt = this._secondaryCursors.length - secondaryPositions.length;
-            for (var i = 0; i < removeCnt; i++) {
+            const removeCnt = this._secondaryCursors.length - secondaryPositions.length;
+            for (let i = 0; i < removeCnt; i++) {
                 this._domNode.removeChild(this._secondaryCursors[0].getDomNode());
                 this._secondaryCursors.splice(0, 1);
             }
         }
-        for (var i = 0; i < secondaryPositions.length; i++) {
+        for (let i = 0; i < secondaryPositions.length; i++) {
             this._secondaryCursors[i].onCursorPositionChanged(secondaryPositions[i]);
         }
-    };
-    ViewCursors.prototype.onCursorStateChanged = function (e) {
-        var positions = [];
-        for (var i = 0, len = e.selections.length; i < len; i++) {
+    }
+    onCursorStateChanged(e) {
+        const positions = [];
+        for (let i = 0, len = e.selections.length; i < len; i++) {
             positions[i] = e.selections[i].getPosition();
         }
         this._onCursorPositionChanged(positions[0], positions.slice(1));
-        var selectionIsEmpty = e.selections[0].isEmpty();
+        const selectionIsEmpty = e.selections[0].isEmpty();
         if (this._selectionIsEmpty !== selectionIsEmpty) {
             this._selectionIsEmpty = selectionIsEmpty;
             this._updateDomClassName();
         }
         return true;
-    };
-    ViewCursors.prototype.onDecorationsChanged = function (e) {
+    }
+    onDecorationsChanged(e) {
         // true for inline decorations that can end up relayouting text
         return true;
-    };
-    ViewCursors.prototype.onFlushed = function (e) {
+    }
+    onFlushed(e) {
         return true;
-    };
-    ViewCursors.prototype.onFocusChanged = function (e) {
+    }
+    onFocusChanged(e) {
         this._editorHasFocus = e.isFocused;
         this._updateBlinking();
         return false;
-    };
-    ViewCursors.prototype.onLinesChanged = function (e) {
+    }
+    onLinesChanged(e) {
         return true;
-    };
-    ViewCursors.prototype.onLinesDeleted = function (e) {
+    }
+    onLinesDeleted(e) {
         return true;
-    };
-    ViewCursors.prototype.onLinesInserted = function (e) {
+    }
+    onLinesInserted(e) {
         return true;
-    };
-    ViewCursors.prototype.onScrollChanged = function (e) {
+    }
+    onScrollChanged(e) {
         return true;
-    };
-    ViewCursors.prototype.onTokensChanged = function (e) {
-        var shouldRender = function (position) {
-            for (var i = 0, len = e.ranges.length; i < len; i++) {
+    }
+    onTokensChanged(e) {
+        const shouldRender = (position) => {
+            for (let i = 0, len = e.ranges.length; i < len; i++) {
                 if (e.ranges[i].fromLineNumber <= position.lineNumber && position.lineNumber <= e.ranges[i].toLineNumber) {
                     return true;
                 }
@@ -145,20 +141,23 @@ var ViewCursors = /** @class */ (function (_super) {
         if (shouldRender(this._primaryCursor.getPosition())) {
             return true;
         }
-        for (var _i = 0, _a = this._secondaryCursors; _i < _a.length; _i++) {
-            var secondaryCursor = _a[_i];
+        for (const secondaryCursor of this._secondaryCursors) {
             if (shouldRender(secondaryCursor.getPosition())) {
                 return true;
             }
         }
         return false;
-    };
-    ViewCursors.prototype.onZonesChanged = function (e) {
+    }
+    onZonesChanged(e) {
         return true;
-    };
+    }
     // --- end event handlers
     // ---- blinking logic
-    ViewCursors.prototype._getCursorBlinking = function () {
+    _getCursorBlinking() {
+        if (this._isComposingInput) {
+            // avoid double cursors
+            return 0 /* Hidden */;
+        }
         if (!this._editorHasFocus) {
             return 0 /* Hidden */;
         }
@@ -166,15 +165,14 @@ var ViewCursors = /** @class */ (function (_super) {
             return 5 /* Solid */;
         }
         return this._cursorBlinking;
-    };
-    ViewCursors.prototype._updateBlinking = function () {
-        var _this = this;
+    }
+    _updateBlinking() {
         this._startCursorBlinkAnimation.cancel();
         this._cursorFlatBlinkInterval.cancel();
-        var blinkingStyle = this._getCursorBlinking();
+        const blinkingStyle = this._getCursorBlinking();
         // hidden and solid are special as they involve no animations
-        var isHidden = (blinkingStyle === 0 /* Hidden */);
-        var isSolid = (blinkingStyle === 5 /* Solid */);
+        const isHidden = (blinkingStyle === 0 /* Hidden */);
+        const isSolid = (blinkingStyle === 5 /* Solid */);
         if (isHidden) {
             this._hide();
         }
@@ -186,29 +184,29 @@ var ViewCursors = /** @class */ (function (_super) {
         if (!isHidden && !isSolid) {
             if (blinkingStyle === 1 /* Blink */) {
                 // flat blinking is handled by JavaScript to save battery life due to Chromium step timing issue https://bugs.chromium.org/p/chromium/issues/detail?id=361587
-                this._cursorFlatBlinkInterval.cancelAndSet(function () {
-                    if (_this._isVisible) {
-                        _this._hide();
+                this._cursorFlatBlinkInterval.cancelAndSet(() => {
+                    if (this._isVisible) {
+                        this._hide();
                     }
                     else {
-                        _this._show();
+                        this._show();
                     }
                 }, ViewCursors.BLINK_INTERVAL);
             }
             else {
-                this._startCursorBlinkAnimation.setIfNotSet(function () {
-                    _this._blinkingEnabled = true;
-                    _this._updateDomClassName();
+                this._startCursorBlinkAnimation.setIfNotSet(() => {
+                    this._blinkingEnabled = true;
+                    this._updateDomClassName();
                 }, ViewCursors.BLINK_INTERVAL);
             }
         }
-    };
+    }
     // --- end blinking logic
-    ViewCursors.prototype._updateDomClassName = function () {
+    _updateDomClassName() {
         this._domNode.setClassName(this._getClassName());
-    };
-    ViewCursors.prototype._getClassName = function () {
-        var result = 'cursors-layer';
+    }
+    _getClassName() {
+        let result = 'cursors-layer';
         if (!this._selectionIsEmpty) {
             result += ' has-selection';
         }
@@ -262,59 +260,57 @@ var ViewCursors = /** @class */ (function (_super) {
             result += ' cursor-smooth-caret-animation';
         }
         return result;
-    };
-    ViewCursors.prototype._show = function () {
+    }
+    _show() {
         this._primaryCursor.show();
-        for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
+        for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
             this._secondaryCursors[i].show();
         }
         this._isVisible = true;
-    };
-    ViewCursors.prototype._hide = function () {
+    }
+    _hide() {
         this._primaryCursor.hide();
-        for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
+        for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
             this._secondaryCursors[i].hide();
         }
         this._isVisible = false;
-    };
+    }
     // ---- IViewPart implementation
-    ViewCursors.prototype.prepareRender = function (ctx) {
+    prepareRender(ctx) {
         this._primaryCursor.prepareRender(ctx);
-        for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
+        for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
             this._secondaryCursors[i].prepareRender(ctx);
         }
-    };
-    ViewCursors.prototype.render = function (ctx) {
-        var renderData = [], renderDataLen = 0;
-        var primaryRenderData = this._primaryCursor.render(ctx);
+    }
+    render(ctx) {
+        let renderData = [], renderDataLen = 0;
+        const primaryRenderData = this._primaryCursor.render(ctx);
         if (primaryRenderData) {
             renderData[renderDataLen++] = primaryRenderData;
         }
-        for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
-            var secondaryRenderData = this._secondaryCursors[i].render(ctx);
+        for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
+            const secondaryRenderData = this._secondaryCursors[i].render(ctx);
             if (secondaryRenderData) {
                 renderData[renderDataLen++] = secondaryRenderData;
             }
         }
         this._renderData = renderData;
-    };
-    ViewCursors.prototype.getLastRenderData = function () {
+    }
+    getLastRenderData() {
         return this._renderData;
-    };
-    ViewCursors.BLINK_INTERVAL = 500;
-    return ViewCursors;
-}(ViewPart));
-export { ViewCursors };
-registerThemingParticipant(function (theme, collector) {
-    var caret = theme.getColor(editorCursorForeground);
+    }
+}
+ViewCursors.BLINK_INTERVAL = 500;
+registerThemingParticipant((theme, collector) => {
+    const caret = theme.getColor(editorCursorForeground);
     if (caret) {
-        var caretBackground = theme.getColor(editorCursorBackground);
+        let caretBackground = theme.getColor(editorCursorBackground);
         if (!caretBackground) {
             caretBackground = caret.opposite();
         }
-        collector.addRule(".monaco-editor .cursor { background-color: " + caret + "; border-color: " + caret + "; color: " + caretBackground + "; }");
+        collector.addRule(`.monaco-editor .cursors-layer .cursor { background-color: ${caret}; border-color: ${caret}; color: ${caretBackground}; }`);
         if (theme.type === 'hc') {
-            collector.addRule(".monaco-editor .cursors-layer.has-selection .cursor { border-left: 1px solid " + caretBackground + "; border-right: 1px solid " + caretBackground + "; }");
+            collector.addRule(`.monaco-editor .cursors-layer.has-selection .cursor { border-left: 1px solid ${caretBackground}; border-right: 1px solid ${caretBackground}; }`);
         }
     }
 });

@@ -2,400 +2,105 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-import './actionbar.css';
-import * as platform from '../../../common/platform.js';
-import * as nls from '../../../../nls.js';
-import { Disposable, dispose } from '../../../common/lifecycle.js';
-import { Action, ActionRunner } from '../../../common/actions.js';
-import * as DOM from '../../dom.js';
-import * as types from '../../../common/types.js';
-import { EventType, Gesture } from '../../touch.js';
-import { StandardKeyboardEvent } from '../../keyboardEvent.js';
-import { Emitter } from '../../../common/event.js';
-import { DataTransfers } from '../../dnd.js';
-import { isFirefox } from '../../browser.js';
-var BaseActionViewItem = /** @class */ (function (_super) {
-    __extends(BaseActionViewItem, _super);
-    function BaseActionViewItem(context, action, options) {
-        var _this = _super.call(this) || this;
-        _this.options = options;
-        _this._context = context || _this;
-        _this._action = action;
-        if (action instanceof Action) {
-            _this._register(action.onDidChange(function (event) {
-                if (!_this.element) {
-                    // we have not been rendered yet, so there
-                    // is no point in updating the UI
-                    return;
-                }
-                _this.handleActionChangeEvent(event);
-            }));
-        }
-        return _this;
-    }
-    BaseActionViewItem.prototype.handleActionChangeEvent = function (event) {
-        if (event.enabled !== undefined) {
-            this.updateEnabled();
-        }
-        if (event.checked !== undefined) {
-            this.updateChecked();
-        }
-        if (event.class !== undefined) {
-            this.updateClass();
-        }
-        if (event.label !== undefined) {
-            this.updateLabel();
-            this.updateTooltip();
-        }
-        if (event.tooltip !== undefined) {
-            this.updateTooltip();
-        }
-    };
-    Object.defineProperty(BaseActionViewItem.prototype, "actionRunner", {
-        get: function () {
-            if (!this._actionRunner) {
-                this._actionRunner = this._register(new ActionRunner());
-            }
-            return this._actionRunner;
-        },
-        set: function (actionRunner) {
-            this._actionRunner = actionRunner;
-        },
-        enumerable: true,
-        configurable: true
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
-    BaseActionViewItem.prototype.getAction = function () {
-        return this._action;
-    };
-    BaseActionViewItem.prototype.isEnabled = function () {
-        return this._action.enabled;
-    };
-    BaseActionViewItem.prototype.setActionContext = function (newContext) {
-        this._context = newContext;
-    };
-    BaseActionViewItem.prototype.render = function (container) {
-        var _this = this;
-        var element = this.element = container;
-        this._register(Gesture.addTarget(container));
-        var enableDragging = this.options && this.options.draggable;
-        if (enableDragging) {
-            container.draggable = true;
-            if (isFirefox) {
-                // Firefox: requires to set a text data transfer to get going
-                this._register(DOM.addDisposableListener(container, DOM.EventType.DRAG_START, function (e) { var _a; return (_a = e.dataTransfer) === null || _a === void 0 ? void 0 : _a.setData(DataTransfers.TEXT, _this._action.label); }));
-            }
-        }
-        this._register(DOM.addDisposableListener(element, EventType.Tap, function (e) { return _this.onClick(e); }));
-        this._register(DOM.addDisposableListener(element, DOM.EventType.MOUSE_DOWN, function (e) {
-            if (!enableDragging) {
-                DOM.EventHelper.stop(e, true); // do not run when dragging is on because that would disable it
-            }
-            if (_this._action.enabled && e.button === 0) {
-                DOM.addClass(element, 'active');
-            }
-        }));
-        this._register(DOM.addDisposableListener(element, DOM.EventType.CLICK, function (e) {
-            DOM.EventHelper.stop(e, true);
-            // See https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Interact_with_the_clipboard
-            // > Writing to the clipboard
-            // > You can use the "cut" and "copy" commands without any special
-            // permission if you are using them in a short-lived event handler
-            // for a user action (for example, a click handler).
-            // => to get the Copy and Paste context menu actions working on Firefox,
-            // there should be no timeout here
-            if (_this.options && _this.options.isMenu) {
-                _this.onClick(e);
-            }
-            else {
-                platform.setImmediate(function () { return _this.onClick(e); });
-            }
-        }));
-        this._register(DOM.addDisposableListener(element, DOM.EventType.DBLCLICK, function (e) {
-            DOM.EventHelper.stop(e, true);
-        }));
-        [DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT].forEach(function (event) {
-            _this._register(DOM.addDisposableListener(element, event, function (e) {
-                DOM.EventHelper.stop(e);
-                DOM.removeClass(element, 'active');
-            }));
-        });
-    };
-    BaseActionViewItem.prototype.onClick = function (event) {
-        DOM.EventHelper.stop(event, true);
-        var context;
-        if (types.isUndefinedOrNull(this._context)) {
-            context = event;
+};
+import * as DOM from '../../dom.js';
+import { StandardKeyboardEvent } from '../../keyboardEvent.js';
+import { ActionViewItem, BaseActionViewItem } from './actionViewItems.js';
+import { ActionRunner } from '../../../common/actions.js';
+import { Emitter } from '../../../common/event.js';
+import { Disposable, dispose } from '../../../common/lifecycle.js';
+import * as types from '../../../common/types.js';
+import './actionbar.css';
+export class ActionBar extends Disposable {
+    constructor(container, options = {}) {
+        var _a, _b, _c, _d, _e, _f;
+        super();
+        // Trigger Key Tracking
+        this.triggerKeyDown = false;
+        this.focusable = true;
+        this._onDidBlur = this._register(new Emitter());
+        this.onDidBlur = this._onDidBlur.event;
+        this._onDidCancel = this._register(new Emitter({ onFirstListenerAdd: () => this.cancelHasListener = true }));
+        this.onDidCancel = this._onDidCancel.event;
+        this.cancelHasListener = false;
+        this._onDidRun = this._register(new Emitter());
+        this.onDidRun = this._onDidRun.event;
+        this._onBeforeRun = this._register(new Emitter());
+        this.onBeforeRun = this._onBeforeRun.event;
+        this.options = options;
+        this._context = (_a = options.context) !== null && _a !== void 0 ? _a : null;
+        this._orientation = (_b = this.options.orientation) !== null && _b !== void 0 ? _b : 0 /* HORIZONTAL */;
+        this._triggerKeys = {
+            keyDown: (_d = (_c = this.options.triggerKeys) === null || _c === void 0 ? void 0 : _c.keyDown) !== null && _d !== void 0 ? _d : false,
+            keys: (_f = (_e = this.options.triggerKeys) === null || _e === void 0 ? void 0 : _e.keys) !== null && _f !== void 0 ? _f : [3 /* Enter */, 10 /* Space */]
+        };
+        if (this.options.actionRunner) {
+            this._actionRunner = this.options.actionRunner;
         }
         else {
-            context = this._context;
-            if (types.isObject(context)) {
-                context.event = event;
+            this._actionRunner = new ActionRunner();
+            this._register(this._actionRunner);
+        }
+        this._register(this._actionRunner.onDidRun(e => this._onDidRun.fire(e)));
+        this._register(this._actionRunner.onBeforeRun(e => this._onBeforeRun.fire(e)));
+        this._actionIds = [];
+        this.viewItems = [];
+        this.focusedItem = undefined;
+        this.domNode = document.createElement('div');
+        this.domNode.className = 'monaco-action-bar';
+        if (options.animated !== false) {
+            this.domNode.classList.add('animated');
+        }
+        let previousKeys;
+        let nextKeys;
+        switch (this._orientation) {
+            case 0 /* HORIZONTAL */:
+                previousKeys = [15 /* LeftArrow */];
+                nextKeys = [17 /* RightArrow */];
+                break;
+            case 1 /* VERTICAL */:
+                previousKeys = [16 /* UpArrow */];
+                nextKeys = [18 /* DownArrow */];
+                this.domNode.className += ' vertical';
+                break;
+        }
+        this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_DOWN, e => {
+            const event = new StandardKeyboardEvent(e);
+            let eventHandled = true;
+            const focusedItem = typeof this.focusedItem === 'number' ? this.viewItems[this.focusedItem] : undefined;
+            if (previousKeys && (event.equals(previousKeys[0]) || event.equals(previousKeys[1]))) {
+                eventHandled = this.focusPrevious();
             }
-        }
-        this.actionRunner.run(this._action, context);
-    };
-    BaseActionViewItem.prototype.focus = function () {
-        if (this.element) {
-            this.element.focus();
-            DOM.addClass(this.element, 'focused');
-        }
-    };
-    BaseActionViewItem.prototype.blur = function () {
-        if (this.element) {
-            this.element.blur();
-            DOM.removeClass(this.element, 'focused');
-        }
-    };
-    BaseActionViewItem.prototype.updateEnabled = function () {
-        // implement in subclass
-    };
-    BaseActionViewItem.prototype.updateLabel = function () {
-        // implement in subclass
-    };
-    BaseActionViewItem.prototype.updateTooltip = function () {
-        // implement in subclass
-    };
-    BaseActionViewItem.prototype.updateClass = function () {
-        // implement in subclass
-    };
-    BaseActionViewItem.prototype.updateChecked = function () {
-        // implement in subclass
-    };
-    BaseActionViewItem.prototype.dispose = function () {
-        if (this.element) {
-            DOM.removeNode(this.element);
-            this.element = undefined;
-        }
-        _super.prototype.dispose.call(this);
-    };
-    return BaseActionViewItem;
-}(Disposable));
-export { BaseActionViewItem };
-var Separator = /** @class */ (function (_super) {
-    __extends(Separator, _super);
-    function Separator(label) {
-        var _this = _super.call(this, Separator.ID, label, label ? 'separator text' : 'separator') || this;
-        _this.checked = false;
-        _this.enabled = false;
-        return _this;
-    }
-    Separator.ID = 'vs.actions.separator';
-    return Separator;
-}(Action));
-export { Separator };
-var ActionViewItem = /** @class */ (function (_super) {
-    __extends(ActionViewItem, _super);
-    function ActionViewItem(context, action, options) {
-        if (options === void 0) { options = {}; }
-        var _this = _super.call(this, context, action, options) || this;
-        _this.options = options;
-        _this.options.icon = options.icon !== undefined ? options.icon : false;
-        _this.options.label = options.label !== undefined ? options.label : true;
-        _this.cssClass = '';
-        return _this;
-    }
-    ActionViewItem.prototype.render = function (container) {
-        _super.prototype.render.call(this, container);
-        if (this.element) {
-            this.label = DOM.append(this.element, DOM.$('a.action-label'));
-        }
-        if (this.label) {
-            if (this._action.id === Separator.ID) {
-                this.label.setAttribute('role', 'presentation'); // A separator is a presentation item
+            else if (nextKeys && (event.equals(nextKeys[0]) || event.equals(nextKeys[1]))) {
+                eventHandled = this.focusNext();
             }
-            else {
-                if (this.options.isMenu) {
-                    this.label.setAttribute('role', 'menuitem');
+            else if (event.equals(9 /* Escape */) && this.cancelHasListener) {
+                this._onDidCancel.fire();
+            }
+            else if (event.equals(14 /* Home */)) {
+                eventHandled = this.focusFirst();
+            }
+            else if (event.equals(13 /* End */)) {
+                eventHandled = this.focusLast();
+            }
+            else if (event.equals(2 /* Tab */) && focusedItem instanceof BaseActionViewItem && focusedItem.trapsArrowNavigation) {
+                eventHandled = this.focusNext();
+            }
+            else if (this.isTriggerKeyEvent(event)) {
+                // Staying out of the else branch even if not triggered
+                if (this._triggerKeys.keyDown) {
+                    this.doTrigger(event);
                 }
                 else {
-                    this.label.setAttribute('role', 'button');
-                }
-            }
-        }
-        if (this.options.label && this.options.keybinding && this.element) {
-            DOM.append(this.element, DOM.$('span.keybinding')).textContent = this.options.keybinding;
-        }
-        this.updateClass();
-        this.updateLabel();
-        this.updateTooltip();
-        this.updateEnabled();
-        this.updateChecked();
-    };
-    ActionViewItem.prototype.focus = function () {
-        _super.prototype.focus.call(this);
-        if (this.label) {
-            this.label.focus();
-        }
-    };
-    ActionViewItem.prototype.updateLabel = function () {
-        if (this.options.label && this.label) {
-            this.label.textContent = this.getAction().label;
-        }
-    };
-    ActionViewItem.prototype.updateTooltip = function () {
-        var title = null;
-        if (this.getAction().tooltip) {
-            title = this.getAction().tooltip;
-        }
-        else if (!this.options.label && this.getAction().label && this.options.icon) {
-            title = this.getAction().label;
-            if (this.options.keybinding) {
-                title = nls.localize({ key: 'titleLabel', comment: ['action title', 'action keybinding'] }, "{0} ({1})", title, this.options.keybinding);
-            }
-        }
-        if (title && this.label) {
-            this.label.title = title;
-        }
-    };
-    ActionViewItem.prototype.updateClass = function () {
-        if (this.cssClass && this.label) {
-            DOM.removeClasses(this.label, this.cssClass);
-        }
-        if (this.options.icon) {
-            this.cssClass = this.getAction().class;
-            if (this.label) {
-                DOM.addClass(this.label, 'codicon');
-                if (this.cssClass) {
-                    DOM.addClasses(this.label, this.cssClass);
-                }
-            }
-            this.updateEnabled();
-        }
-        else {
-            if (this.label) {
-                DOM.removeClass(this.label, 'codicon');
-            }
-        }
-    };
-    ActionViewItem.prototype.updateEnabled = function () {
-        if (this.getAction().enabled) {
-            if (this.label) {
-                this.label.removeAttribute('aria-disabled');
-                DOM.removeClass(this.label, 'disabled');
-                this.label.tabIndex = 0;
-            }
-            if (this.element) {
-                DOM.removeClass(this.element, 'disabled');
-            }
-        }
-        else {
-            if (this.label) {
-                this.label.setAttribute('aria-disabled', 'true');
-                DOM.addClass(this.label, 'disabled');
-                DOM.removeTabIndexAndUpdateFocus(this.label);
-            }
-            if (this.element) {
-                DOM.addClass(this.element, 'disabled');
-            }
-        }
-    };
-    ActionViewItem.prototype.updateChecked = function () {
-        if (this.label) {
-            if (this.getAction().checked) {
-                DOM.addClass(this.label, 'checked');
-            }
-            else {
-                DOM.removeClass(this.label, 'checked');
-            }
-        }
-    };
-    return ActionViewItem;
-}(BaseActionViewItem));
-export { ActionViewItem };
-var defaultOptions = {
-    orientation: 0 /* HORIZONTAL */,
-    context: null,
-    triggerKeys: {
-        keys: [3 /* Enter */, 10 /* Space */],
-        keyDown: false
-    }
-};
-var ActionBar = /** @class */ (function (_super) {
-    __extends(ActionBar, _super);
-    function ActionBar(container, options) {
-        if (options === void 0) { options = defaultOptions; }
-        var _this = _super.call(this) || this;
-        _this._onDidBlur = _this._register(new Emitter());
-        _this.onDidBlur = _this._onDidBlur.event;
-        _this._onDidCancel = _this._register(new Emitter());
-        _this.onDidCancel = _this._onDidCancel.event;
-        _this._onDidRun = _this._register(new Emitter());
-        _this.onDidRun = _this._onDidRun.event;
-        _this._onDidBeforeRun = _this._register(new Emitter());
-        _this.onDidBeforeRun = _this._onDidBeforeRun.event;
-        _this.options = options;
-        _this._context = options.context;
-        if (!_this.options.triggerKeys) {
-            _this.options.triggerKeys = defaultOptions.triggerKeys;
-        }
-        if (_this.options.actionRunner) {
-            _this._actionRunner = _this.options.actionRunner;
-        }
-        else {
-            _this._actionRunner = new ActionRunner();
-            _this._register(_this._actionRunner);
-        }
-        _this._register(_this._actionRunner.onDidRun(function (e) { return _this._onDidRun.fire(e); }));
-        _this._register(_this._actionRunner.onDidBeforeRun(function (e) { return _this._onDidBeforeRun.fire(e); }));
-        _this.viewItems = [];
-        _this.focusedItem = undefined;
-        _this.domNode = document.createElement('div');
-        _this.domNode.className = 'monaco-action-bar';
-        if (options.animated !== false) {
-            DOM.addClass(_this.domNode, 'animated');
-        }
-        var previousKey;
-        var nextKey;
-        switch (_this.options.orientation) {
-            case 0 /* HORIZONTAL */:
-                previousKey = 15 /* LeftArrow */;
-                nextKey = 17 /* RightArrow */;
-                break;
-            case 1 /* HORIZONTAL_REVERSE */:
-                previousKey = 17 /* RightArrow */;
-                nextKey = 15 /* LeftArrow */;
-                _this.domNode.className += ' reverse';
-                break;
-            case 2 /* VERTICAL */:
-                previousKey = 16 /* UpArrow */;
-                nextKey = 18 /* DownArrow */;
-                _this.domNode.className += ' vertical';
-                break;
-            case 3 /* VERTICAL_REVERSE */:
-                previousKey = 18 /* DownArrow */;
-                nextKey = 16 /* UpArrow */;
-                _this.domNode.className += ' vertical reverse';
-                break;
-        }
-        _this._register(DOM.addDisposableListener(_this.domNode, DOM.EventType.KEY_DOWN, function (e) {
-            var event = new StandardKeyboardEvent(e);
-            var eventHandled = true;
-            if (event.equals(previousKey)) {
-                _this.focusPrevious();
-            }
-            else if (event.equals(nextKey)) {
-                _this.focusNext();
-            }
-            else if (event.equals(9 /* Escape */)) {
-                _this.cancel();
-            }
-            else if (_this.isTriggerKeyEvent(event)) {
-                // Staying out of the else branch even if not triggered
-                if (_this.options.triggerKeys && _this.options.triggerKeys.keyDown) {
-                    _this.doTrigger(event);
+                    this.triggerKeyDown = true;
                 }
             }
             else {
@@ -406,116 +111,151 @@ var ActionBar = /** @class */ (function (_super) {
                 event.stopPropagation();
             }
         }));
-        _this._register(DOM.addDisposableListener(_this.domNode, DOM.EventType.KEY_UP, function (e) {
-            var event = new StandardKeyboardEvent(e);
+        this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_UP, e => {
+            const event = new StandardKeyboardEvent(e);
             // Run action on Enter/Space
-            if (_this.isTriggerKeyEvent(event)) {
-                if (_this.options.triggerKeys && !_this.options.triggerKeys.keyDown) {
-                    _this.doTrigger(event);
+            if (this.isTriggerKeyEvent(event)) {
+                if (!this._triggerKeys.keyDown && this.triggerKeyDown) {
+                    this.triggerKeyDown = false;
+                    this.doTrigger(event);
                 }
                 event.preventDefault();
                 event.stopPropagation();
             }
             // Recompute focused item
             else if (event.equals(2 /* Tab */) || event.equals(1024 /* Shift */ | 2 /* Tab */)) {
-                _this.updateFocusedItem();
+                this.updateFocusedItem();
             }
         }));
-        _this.focusTracker = _this._register(DOM.trackFocus(_this.domNode));
-        _this._register(_this.focusTracker.onDidBlur(function () {
-            if (document.activeElement === _this.domNode || !DOM.isAncestor(document.activeElement, _this.domNode)) {
-                _this._onDidBlur.fire();
-                _this.focusedItem = undefined;
+        this.focusTracker = this._register(DOM.trackFocus(this.domNode));
+        this._register(this.focusTracker.onDidBlur(() => {
+            if (DOM.getActiveElement() === this.domNode || !DOM.isAncestor(DOM.getActiveElement(), this.domNode)) {
+                this._onDidBlur.fire();
+                this.focusedItem = undefined;
+                this.previouslyFocusedItem = undefined;
+                this.triggerKeyDown = false;
             }
         }));
-        _this._register(_this.focusTracker.onDidFocus(function () { return _this.updateFocusedItem(); }));
-        _this.actionsList = document.createElement('ul');
-        _this.actionsList.className = 'actions-container';
-        _this.actionsList.setAttribute('role', 'toolbar');
-        if (_this.options.ariaLabel) {
-            _this.actionsList.setAttribute('aria-label', _this.options.ariaLabel);
+        this._register(this.focusTracker.onDidFocus(() => this.updateFocusedItem()));
+        this.actionsList = document.createElement('ul');
+        this.actionsList.className = 'actions-container';
+        this.actionsList.setAttribute('role', 'toolbar');
+        if (this.options.ariaLabel) {
+            this.actionsList.setAttribute('aria-label', this.options.ariaLabel);
         }
-        _this.domNode.appendChild(_this.actionsList);
-        container.appendChild(_this.domNode);
-        return _this;
+        this.domNode.appendChild(this.actionsList);
+        container.appendChild(this.domNode);
     }
-    ActionBar.prototype.isTriggerKeyEvent = function (event) {
-        var ret = false;
-        if (this.options.triggerKeys) {
-            this.options.triggerKeys.keys.forEach(function (keyCode) {
-                ret = ret || event.equals(keyCode);
+    // Some action bars should not be focusable at times
+    // When an action bar is not focusable make sure to make all the elements inside it not focusable
+    // When an action bar is focusable again, make sure the first item can be focused
+    setFocusable(focusable) {
+        this.focusable = focusable;
+        if (this.focusable) {
+            const firstEnabled = this.viewItems.find(vi => vi instanceof BaseActionViewItem && vi.isEnabled());
+            if (firstEnabled instanceof BaseActionViewItem) {
+                firstEnabled.setFocusable(true);
+            }
+        }
+        else {
+            this.viewItems.forEach(vi => {
+                if (vi instanceof BaseActionViewItem) {
+                    vi.setFocusable(false);
+                }
             });
         }
+    }
+    isTriggerKeyEvent(event) {
+        let ret = false;
+        this._triggerKeys.keys.forEach(keyCode => {
+            ret = ret || event.equals(keyCode);
+        });
         return ret;
-    };
-    ActionBar.prototype.updateFocusedItem = function () {
-        for (var i = 0; i < this.actionsList.children.length; i++) {
-            var elem = this.actionsList.children[i];
-            if (DOM.isAncestor(document.activeElement, elem)) {
+    }
+    updateFocusedItem() {
+        for (let i = 0; i < this.actionsList.children.length; i++) {
+            const elem = this.actionsList.children[i];
+            if (DOM.isAncestor(DOM.getActiveElement(), elem)) {
                 this.focusedItem = i;
                 break;
             }
         }
-    };
-    Object.defineProperty(ActionBar.prototype, "context", {
-        get: function () {
-            return this._context;
-        },
-        set: function (context) {
-            this._context = context;
-            this.viewItems.forEach(function (i) { return i.setActionContext(context); });
-        },
-        enumerable: true,
-        configurable: true
-    });
-    ActionBar.prototype.getContainer = function () {
+    }
+    get context() {
+        return this._context;
+    }
+    set context(context) {
+        this._context = context;
+        this.viewItems.forEach(i => i.setActionContext(context));
+    }
+    get actionRunner() {
+        return this._actionRunner;
+    }
+    set actionRunner(actionRunner) {
+        if (actionRunner) {
+            this._actionRunner = actionRunner;
+            this.viewItems.forEach(item => item.actionRunner = actionRunner);
+        }
+    }
+    getContainer() {
         return this.domNode;
-    };
-    ActionBar.prototype.push = function (arg, options) {
-        var _this = this;
-        if (options === void 0) { options = {}; }
-        var actions = Array.isArray(arg) ? arg : [arg];
-        var index = types.isNumber(options.index) ? options.index : null;
-        actions.forEach(function (action) {
-            var actionViewItemElement = document.createElement('li');
+    }
+    push(arg, options = {}) {
+        const actions = Array.isArray(arg) ? arg : [arg];
+        let index = types.isNumber(options.index) ? options.index : null;
+        actions.forEach((action) => {
+            const actionViewItemElement = document.createElement('li');
             actionViewItemElement.className = 'action-item';
             actionViewItemElement.setAttribute('role', 'presentation');
             // Prevent native context menu on actions
-            _this._register(DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }));
-            var item;
-            if (_this.options.actionViewItemProvider) {
-                item = _this.options.actionViewItemProvider(action);
+            if (!this.options.allowContextMenu) {
+                this._register(DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e) => {
+                    DOM.EventHelper.stop(e, true);
+                }));
+            }
+            let item;
+            if (this.options.actionViewItemProvider) {
+                item = this.options.actionViewItemProvider(action);
             }
             if (!item) {
-                item = new ActionViewItem(_this.context, action, options);
+                item = new ActionViewItem(this.context, action, options);
             }
-            item.actionRunner = _this._actionRunner;
-            item.setActionContext(_this.context);
+            item.actionRunner = this._actionRunner;
+            item.setActionContext(this.context);
             item.render(actionViewItemElement);
-            if (index === null || index < 0 || index >= _this.actionsList.children.length) {
-                _this.actionsList.appendChild(actionViewItemElement);
-                _this.viewItems.push(item);
+            if (this.focusable && item instanceof BaseActionViewItem && this.viewItems.length === 0) {
+                // We need to allow for the first enabled item to be focused on using tab navigation #106441
+                item.setFocusable(true);
+            }
+            if (index === null || index < 0 || index >= this.actionsList.children.length) {
+                this.actionsList.appendChild(actionViewItemElement);
+                this.viewItems.push(item);
+                this._actionIds.push(action.id);
             }
             else {
-                _this.actionsList.insertBefore(actionViewItemElement, _this.actionsList.children[index]);
-                _this.viewItems.splice(index, 0, item);
+                this.actionsList.insertBefore(actionViewItemElement, this.actionsList.children[index]);
+                this.viewItems.splice(index, 0, item);
+                this._actionIds.splice(index, 0, action.id);
                 index++;
             }
         });
-    };
-    ActionBar.prototype.clear = function () {
-        this.viewItems = dispose(this.viewItems);
+        if (typeof this.focusedItem === 'number') {
+            // After a clear actions might be re-added to simply toggle some actions. We should preserve focus #97128
+            this.focus(this.focusedItem);
+        }
+    }
+    clear() {
+        dispose(this.viewItems);
+        this.viewItems = [];
+        this._actionIds = [];
         DOM.clearNode(this.actionsList);
-    };
-    ActionBar.prototype.isEmpty = function () {
-        return this.viewItems.length === 0;
-    };
-    ActionBar.prototype.focus = function (arg) {
-        var selectFirst = false;
-        var index = undefined;
+    }
+    length() {
+        return this.viewItems.length;
+    }
+    focus(arg) {
+        let selectFirst = false;
+        let index = undefined;
         if (arg === undefined) {
             selectFirst = true;
         }
@@ -526,100 +266,117 @@ var ActionBar = /** @class */ (function (_super) {
             selectFirst = arg;
         }
         if (selectFirst && typeof this.focusedItem === 'undefined') {
+            const firstEnabled = this.viewItems.findIndex(item => item.isEnabled());
             // Focus the first enabled item
-            this.focusedItem = this.viewItems.length - 1;
-            this.focusNext();
+            this.focusedItem = firstEnabled === -1 ? undefined : firstEnabled;
+            this.updateFocus(undefined, undefined, true);
         }
         else {
             if (index !== undefined) {
                 this.focusedItem = index;
             }
-            this.updateFocus();
+            this.updateFocus(undefined, undefined, true);
         }
-    };
-    ActionBar.prototype.focusNext = function () {
+    }
+    focusFirst() {
+        this.focusedItem = this.length() - 1;
+        return this.focusNext(true);
+    }
+    focusLast() {
+        this.focusedItem = 0;
+        return this.focusPrevious(true);
+    }
+    focusNext(forceLoop) {
         if (typeof this.focusedItem === 'undefined') {
             this.focusedItem = this.viewItems.length - 1;
         }
-        var startIndex = this.focusedItem;
-        var item;
+        else if (this.viewItems.length <= 1) {
+            return false;
+        }
+        const startIndex = this.focusedItem;
+        let item;
         do {
+            if (!forceLoop && this.options.preventLoopNavigation && this.focusedItem + 1 >= this.viewItems.length) {
+                this.focusedItem = startIndex;
+                return false;
+            }
             this.focusedItem = (this.focusedItem + 1) % this.viewItems.length;
             item = this.viewItems[this.focusedItem];
-        } while (this.focusedItem !== startIndex && !item.isEnabled());
-        if (this.focusedItem === startIndex && !item.isEnabled()) {
-            this.focusedItem = undefined;
-        }
+        } while (this.focusedItem !== startIndex && this.options.focusOnlyEnabledItems && !item.isEnabled());
         this.updateFocus();
-    };
-    ActionBar.prototype.focusPrevious = function () {
+        return true;
+    }
+    focusPrevious(forceLoop) {
         if (typeof this.focusedItem === 'undefined') {
             this.focusedItem = 0;
         }
-        var startIndex = this.focusedItem;
-        var item;
+        else if (this.viewItems.length <= 1) {
+            return false;
+        }
+        const startIndex = this.focusedItem;
+        let item;
         do {
             this.focusedItem = this.focusedItem - 1;
             if (this.focusedItem < 0) {
+                if (!forceLoop && this.options.preventLoopNavigation) {
+                    this.focusedItem = startIndex;
+                    return false;
+                }
                 this.focusedItem = this.viewItems.length - 1;
             }
             item = this.viewItems[this.focusedItem];
-        } while (this.focusedItem !== startIndex && !item.isEnabled());
-        if (this.focusedItem === startIndex && !item.isEnabled()) {
-            this.focusedItem = undefined;
-        }
+        } while (this.focusedItem !== startIndex && this.options.focusOnlyEnabledItems && !item.isEnabled());
         this.updateFocus(true);
-    };
-    ActionBar.prototype.updateFocus = function (fromRight, preventScroll) {
+        return true;
+    }
+    updateFocus(fromRight, preventScroll, forceFocus = false) {
+        var _a;
         if (typeof this.focusedItem === 'undefined') {
-            this.actionsList.focus({ preventScroll: preventScroll });
+            this.actionsList.focus({ preventScroll });
         }
-        for (var i = 0; i < this.viewItems.length; i++) {
-            var item = this.viewItems[i];
-            var actionViewItem = item;
-            if (i === this.focusedItem) {
-                if (types.isFunction(actionViewItem.isEnabled)) {
-                    if (actionViewItem.isEnabled() && types.isFunction(actionViewItem.focus)) {
-                        actionViewItem.focus(fromRight);
-                    }
-                    else {
-                        this.actionsList.focus({ preventScroll: preventScroll });
-                    }
-                }
+        if (this.previouslyFocusedItem !== undefined && this.previouslyFocusedItem !== this.focusedItem) {
+            (_a = this.viewItems[this.previouslyFocusedItem]) === null || _a === void 0 ? void 0 : _a.blur();
+        }
+        const actionViewItem = this.focusedItem !== undefined && this.viewItems[this.focusedItem];
+        if (actionViewItem) {
+            let focusItem = true;
+            if (!types.isFunction(actionViewItem.focus)) {
+                focusItem = false;
             }
-            else {
-                if (types.isFunction(actionViewItem.blur)) {
-                    actionViewItem.blur();
-                }
+            if (this.options.focusOnlyEnabledItems && types.isFunction(actionViewItem.isEnabled) && !actionViewItem.isEnabled()) {
+                focusItem = false;
+            }
+            if (!focusItem) {
+                this.actionsList.focus({ preventScroll });
+                this.previouslyFocusedItem = undefined;
+            }
+            else if (forceFocus || this.previouslyFocusedItem !== this.focusedItem) {
+                actionViewItem.focus(fromRight);
+                this.previouslyFocusedItem = this.focusedItem;
             }
         }
-    };
-    ActionBar.prototype.doTrigger = function (event) {
+    }
+    doTrigger(event) {
         if (typeof this.focusedItem === 'undefined') {
             return; //nothing to focus
         }
         // trigger action
-        var actionViewItem = this.viewItems[this.focusedItem];
+        const actionViewItem = this.viewItems[this.focusedItem];
         if (actionViewItem instanceof BaseActionViewItem) {
-            var context = (actionViewItem._context === null || actionViewItem._context === undefined) ? event : actionViewItem._context;
+            const context = (actionViewItem._context === null || actionViewItem._context === undefined) ? event : actionViewItem._context;
             this.run(actionViewItem._action, context);
         }
-    };
-    ActionBar.prototype.cancel = function () {
-        if (document.activeElement instanceof HTMLElement) {
-            document.activeElement.blur(); // remove focus from focused action
-        }
-        this._onDidCancel.fire();
-    };
-    ActionBar.prototype.run = function (action, context) {
-        return this._actionRunner.run(action, context);
-    };
-    ActionBar.prototype.dispose = function () {
+    }
+    run(action, context) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this._actionRunner.run(action, context);
+        });
+    }
+    dispose() {
         dispose(this.viewItems);
         this.viewItems = [];
-        DOM.removeNode(this.getContainer());
-        _super.prototype.dispose.call(this);
-    };
-    return ActionBar;
-}(Disposable));
-export { ActionBar };
+        this._actionIds = [];
+        this.getContainer().remove();
+        super.dispose();
+    }
+}

@@ -6,22 +6,23 @@ import './standalone-tokens.css';
 import { ICodeEditorService } from '../../browser/services/codeEditorService.js';
 import { OpenerService } from '../../browser/services/openerService.js';
 import { DiffNavigator } from '../../browser/widget/diffNavigator.js';
-import { EditorOptions, ConfigurationChangedEvent } from '../../common/config/editorOptions.js';
+import { EditorOptions, ConfigurationChangedEvent, ApplyUpdateResult } from '../../common/config/editorOptions.js';
 import { BareFontInfo, FontInfo } from '../../common/config/fontInfo.js';
 import { EditorType } from '../../common/editorCommon.js';
 import { FindMatch, TextModelResolvedOptions } from '../../common/model.js';
 import * as modes from '../../common/modes.js';
 import { NULL_STATE, nullTokenize } from '../../common/modes/nullMode.js';
 import { IEditorWorkerService } from '../../common/services/editorWorkerService.js';
+import { IModeService } from '../../common/services/modeService.js';
 import { ITextModelService } from '../../common/services/resolverService.js';
 import { createWebWorker as actualCreateWebWorker } from '../../common/services/webWorker.js';
 import * as standaloneEnums from '../../common/standalone/standaloneEnums.js';
 import { Colorizer } from './colorizer.js';
 import { SimpleEditorModelResolverService } from './simpleServices.js';
-import { StandaloneDiffEditor, StandaloneEditor } from './standaloneCodeEditor.js';
+import { StandaloneDiffEditor, StandaloneEditor, createTextModel } from './standaloneCodeEditor.js';
 import { DynamicStandaloneServices, StaticServices } from './standaloneServices.js';
 import { IStandaloneThemeService } from '../common/standaloneThemeService.js';
-import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService, IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
@@ -32,9 +33,12 @@ import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 import { clearAllFontInfos } from '../../browser/config/configuration.js';
 import { IEditorProgressService } from '../../../platform/progress/common/progress.js';
+import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
+import { splitLines } from '../../../base/common/strings.js';
+import { IModelService } from '../../common/services/modelService.js';
 function withAllStandaloneServices(domElement, override, callback) {
-    var services = new DynamicStandaloneServices(domElement, override);
-    var simpleEditorModelResolverService = null;
+    let services = new DynamicStandaloneServices(domElement, override);
+    let simpleEditorModelResolverService = null;
     if (!services.has(ITextModelService)) {
         simpleEditorModelResolverService = new SimpleEditorModelResolverService(StaticServices.modelService.get());
         services.set(ITextModelService, simpleEditorModelResolverService);
@@ -42,7 +46,7 @@ function withAllStandaloneServices(domElement, override, callback) {
     if (!services.has(IOpenerService)) {
         services.set(IOpenerService, new OpenerService(services.get(ICodeEditorService), services.get(ICommandService)));
     }
-    var result = callback(services);
+    let result = callback(services);
     if (simpleEditorModelResolverService) {
         simpleEditorModelResolverService.setEditor(result);
     }
@@ -54,8 +58,8 @@ function withAllStandaloneServices(domElement, override, callback) {
  * The editor will read the size of `domElement`.
  */
 export function create(domElement, options, override) {
-    return withAllStandaloneServices(domElement, override || {}, function (services) {
-        return new StandaloneEditor(domElement, options, services, services.get(IInstantiationService), services.get(ICodeEditorService), services.get(ICommandService), services.get(IContextKeyService), services.get(IKeybindingService), services.get(IContextViewService), services.get(IStandaloneThemeService), services.get(INotificationService), services.get(IConfigurationService), services.get(IAccessibilityService));
+    return withAllStandaloneServices(domElement, override || {}, (services) => {
+        return new StandaloneEditor(domElement, options, services, services.get(IInstantiationService), services.get(ICodeEditorService), services.get(ICommandService), services.get(IContextKeyService), services.get(IKeybindingService), services.get(IContextViewService), services.get(IStandaloneThemeService), services.get(INotificationService), services.get(IConfigurationService), services.get(IAccessibilityService), services.get(IModelService), services.get(IModeService));
     });
 }
 /**
@@ -64,7 +68,7 @@ export function create(domElement, options, override) {
  * @event
  */
 export function onDidCreateEditor(listener) {
-    return StaticServices.codeEditorService.get().onCodeEditorAdd(function (editor) {
+    return StaticServices.codeEditorService.get().onCodeEditorAdd((editor) => {
         listener(editor);
     });
 }
@@ -74,31 +78,19 @@ export function onDidCreateEditor(listener) {
  * The editor will read the size of `domElement`.
  */
 export function createDiffEditor(domElement, options, override) {
-    return withAllStandaloneServices(domElement, override || {}, function (services) {
-        return new StandaloneDiffEditor(domElement, options, services, services.get(IInstantiationService), services.get(IContextKeyService), services.get(IKeybindingService), services.get(IContextViewService), services.get(IEditorWorkerService), services.get(ICodeEditorService), services.get(IStandaloneThemeService), services.get(INotificationService), services.get(IConfigurationService), services.get(IContextMenuService), services.get(IEditorProgressService), null);
+    return withAllStandaloneServices(domElement, override || {}, (services) => {
+        return new StandaloneDiffEditor(domElement, options, services, services.get(IInstantiationService), services.get(IContextKeyService), services.get(IKeybindingService), services.get(IContextViewService), services.get(IEditorWorkerService), services.get(ICodeEditorService), services.get(IStandaloneThemeService), services.get(INotificationService), services.get(IConfigurationService), services.get(IContextMenuService), services.get(IEditorProgressService), services.get(IClipboardService));
     });
 }
 export function createDiffNavigator(diffEditor, opts) {
     return new DiffNavigator(diffEditor, opts);
-}
-function doCreateModel(value, languageSelection, uri) {
-    return StaticServices.modelService.get().createModel(value, languageSelection, uri);
 }
 /**
  * Create a new editor model.
  * You can specify the language that should be set for this model or let the language be inferred from the `uri`.
  */
 export function createModel(value, language, uri) {
-    value = value || '';
-    if (!language) {
-        var firstLF = value.indexOf('\n');
-        var firstLine = value;
-        if (firstLF !== -1) {
-            firstLine = value.substring(0, firstLF);
-        }
-        return doCreateModel(value, StaticServices.modeService.get().createByFilepathOrFirstLine(uri || null, firstLine), uri);
-    }
-    return doCreateModel(value, StaticServices.modeService.get().create(language), uri);
+    return createTextModel(StaticServices.modelService.get(), StaticServices.modeService.get(), value, language, uri);
 }
 /**
  * Change the language for a model.
@@ -121,6 +113,13 @@ export function setModelMarkers(model, owner, markers) {
  */
 export function getModelMarkers(filter) {
     return StaticServices.markerService.get().read(filter);
+}
+/**
+ * Emitted when markers change for a model.
+ * @event
+ */
+export function onDidChangeMarkers(listener) {
+    return StaticServices.markerService.get().onMarkerChanged(listener);
 }
 /**
  * Get the model that has `uri` if it exists.
@@ -153,7 +152,7 @@ export function onWillDisposeModel(listener) {
  * @event
  */
 export function onDidChangeModelLanguage(listener) {
-    return StaticServices.modelService.get().onModelModeChanged(function (e) {
+    return StaticServices.modelService.get().onModelModeChanged((e) => {
         listener({
             model: e.model,
             oldLanguage: e.oldModeId
@@ -171,48 +170,53 @@ export function createWebWorker(opts) {
  * Colorize the contents of `domNode` using attribute `data-lang`.
  */
 export function colorizeElement(domNode, options) {
-    return Colorizer.colorizeElement(StaticServices.standaloneThemeService.get(), StaticServices.modeService.get(), domNode, options);
+    const themeService = StaticServices.standaloneThemeService.get();
+    themeService.registerEditorContainer(domNode);
+    return Colorizer.colorizeElement(themeService, StaticServices.modeService.get(), domNode, options);
 }
 /**
  * Colorize `text` using language `languageId`.
  */
 export function colorize(text, languageId, options) {
+    const themeService = StaticServices.standaloneThemeService.get();
+    themeService.registerEditorContainer(document.body);
     return Colorizer.colorize(StaticServices.modeService.get(), text, languageId, options);
 }
 /**
  * Colorize a line in a model.
  */
-export function colorizeModelLine(model, lineNumber, tabSize) {
-    if (tabSize === void 0) { tabSize = 4; }
+export function colorizeModelLine(model, lineNumber, tabSize = 4) {
+    const themeService = StaticServices.standaloneThemeService.get();
+    themeService.registerEditorContainer(document.body);
     return Colorizer.colorizeModelLine(model, lineNumber, tabSize);
 }
 /**
  * @internal
  */
 function getSafeTokenizationSupport(language) {
-    var tokenizationSupport = modes.TokenizationRegistry.get(language);
+    let tokenizationSupport = modes.TokenizationRegistry.get(language);
     if (tokenizationSupport) {
         return tokenizationSupport;
     }
     return {
-        getInitialState: function () { return NULL_STATE; },
-        tokenize: function (line, state, deltaOffset) { return nullTokenize(language, line, state, deltaOffset); }
+        getInitialState: () => NULL_STATE,
+        tokenize: (line, hasEOL, state, deltaOffset) => nullTokenize(language, line, state, deltaOffset)
     };
 }
 /**
  * Tokenize `text` using language `languageId`
  */
 export function tokenize(text, languageId) {
-    var modeService = StaticServices.modeService.get();
+    let modeService = StaticServices.modeService.get();
     // Needed in order to get the mode registered for subsequent look-ups
     modeService.triggerMode(languageId);
-    var tokenizationSupport = getSafeTokenizationSupport(languageId);
-    var lines = text.split(/\r\n|\r|\n/);
-    var result = [];
-    var state = tokenizationSupport.getInitialState();
-    for (var i = 0, len = lines.length; i < len; i++) {
-        var line = lines[i];
-        var tokenizationResult = tokenizationSupport.tokenize(line, state, 0);
+    let tokenizationSupport = getSafeTokenizationSupport(languageId);
+    let lines = splitLines(text);
+    let result = [];
+    let state = tokenizationSupport.getInitialState();
+    for (let i = 0, len = lines.length; i < len; i++) {
+        let line = lines[i];
+        let tokenizationResult = tokenizationSupport.tokenize(line, true, state, 0);
         result[i] = tokenizationResult.tokens;
         state = tokenizationResult.endState;
     }
@@ -237,6 +241,12 @@ export function remeasureFonts() {
     clearAllFontInfos();
 }
 /**
+ * Register a command.
+ */
+export function registerCommand(id, handler) {
+    return CommandsRegistry.registerCommand({ id, handler });
+}
+/**
  * @internal
  */
 export function createMonacoEditorAPI() {
@@ -250,6 +260,7 @@ export function createMonacoEditorAPI() {
         setModelLanguage: setModelLanguage,
         setModelMarkers: setModelMarkers,
         getModelMarkers: getModelMarkers,
+        onDidChangeMarkers: onDidChangeMarkers,
         getModels: getModels,
         getModel: getModel,
         onDidCreateModel: onDidCreateModel,
@@ -263,6 +274,7 @@ export function createMonacoEditorAPI() {
         defineTheme: defineTheme,
         setTheme: setTheme,
         remeasureFonts: remeasureFonts,
+        registerCommand: registerCommand,
         // enums
         AccessibilitySupport: standaloneEnums.AccessibilitySupport,
         ContentWidgetPositionPreference: standaloneEnums.ContentWidgetPositionPreference,
@@ -290,6 +302,7 @@ export function createMonacoEditorAPI() {
         FontInfo: FontInfo,
         TextModelResolvedOptions: TextModelResolvedOptions,
         FindMatch: FindMatch,
+        ApplyUpdateResult: ApplyUpdateResult,
         // vars
         EditorType: EditorType,
         EditorOptions: EditorOptions

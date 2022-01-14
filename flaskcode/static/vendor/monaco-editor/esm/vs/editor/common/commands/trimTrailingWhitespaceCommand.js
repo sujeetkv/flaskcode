@@ -5,52 +5,50 @@
 import * as strings from '../../../base/common/strings.js';
 import { EditOperation } from '../core/editOperation.js';
 import { Range } from '../core/range.js';
-var TrimTrailingWhitespaceCommand = /** @class */ (function () {
-    function TrimTrailingWhitespaceCommand(selection, cursors) {
+export class TrimTrailingWhitespaceCommand {
+    constructor(selection, cursors) {
         this._selection = selection;
         this._cursors = cursors;
         this._selectionId = null;
     }
-    TrimTrailingWhitespaceCommand.prototype.getEditOperations = function (model, builder) {
-        var ops = trimTrailingWhitespace(model, this._cursors);
-        for (var i = 0, len = ops.length; i < len; i++) {
-            var op = ops[i];
+    getEditOperations(model, builder) {
+        let ops = trimTrailingWhitespace(model, this._cursors);
+        for (let i = 0, len = ops.length; i < len; i++) {
+            let op = ops[i];
             builder.addEditOperation(op.range, op.text);
         }
         this._selectionId = builder.trackSelection(this._selection);
-    };
-    TrimTrailingWhitespaceCommand.prototype.computeCursorState = function (model, helper) {
+    }
+    computeCursorState(model, helper) {
         return helper.getTrackedSelection(this._selectionId);
-    };
-    return TrimTrailingWhitespaceCommand;
-}());
-export { TrimTrailingWhitespaceCommand };
+    }
+}
 /**
  * Generate commands for trimming trailing whitespace on a model and ignore lines on which cursors are sitting.
  */
 export function trimTrailingWhitespace(model, cursors) {
     // Sort cursors ascending
-    cursors.sort(function (a, b) {
+    cursors.sort((a, b) => {
         if (a.lineNumber === b.lineNumber) {
             return a.column - b.column;
         }
         return a.lineNumber - b.lineNumber;
     });
     // Reduce multiple cursors on the same line and only keep the last one on the line
-    for (var i = cursors.length - 2; i >= 0; i--) {
+    for (let i = cursors.length - 2; i >= 0; i--) {
         if (cursors[i].lineNumber === cursors[i + 1].lineNumber) {
             // Remove cursor at `i`
             cursors.splice(i, 1);
         }
     }
-    var r = [];
-    var rLen = 0;
-    var cursorIndex = 0;
-    var cursorLen = cursors.length;
-    for (var lineNumber = 1, lineCount = model.getLineCount(); lineNumber <= lineCount; lineNumber++) {
-        var lineContent = model.getLineContent(lineNumber);
-        var maxLineColumn = lineContent.length + 1;
-        var minEditColumn = 0;
+    let r = [];
+    let rLen = 0;
+    let cursorIndex = 0;
+    let cursorLen = cursors.length;
+    for (let lineNumber = 1, lineCount = model.getLineCount(); lineNumber <= lineCount; lineNumber++) {
+        let lineContent = model.getLineContent(lineNumber);
+        let maxLineColumn = lineContent.length + 1;
+        let minEditColumn = 0;
         if (cursorIndex < cursorLen && cursors[cursorIndex].lineNumber === lineNumber) {
             minEditColumn = cursors[cursorIndex].column;
             cursorIndex++;
@@ -62,8 +60,8 @@ export function trimTrailingWhitespace(model, cursors) {
         if (lineContent.length === 0) {
             continue;
         }
-        var lastNonWhitespaceIndex = strings.lastNonWhitespaceIndex(lineContent);
-        var fromColumn = 0;
+        let lastNonWhitespaceIndex = strings.lastNonWhitespaceIndex(lineContent);
+        let fromColumn = 0;
         if (lastNonWhitespaceIndex === -1) {
             // Entire line is whitespace
             fromColumn = 1;

@@ -6,7 +6,7 @@
 /* Find widget */
 .monaco-editor .find-widget {
 	position: absolute;
-	z-index: 10;
+	z-index: 35;
 	height: 33px;
 	overflow: hidden;
 	line-height: 19px;
@@ -60,14 +60,14 @@
 }
 
 
-.monaco-editor .find-widget > .replace-part .monaco-inputbox > .wrapper > .mirror {
+.monaco-editor .find-widget > .replace-part .monaco-inputbox > .ibwrapper > .mirror {
 	padding-right: 22px;
 }
 
-.monaco-editor .find-widget > .find-part .monaco-inputbox > .wrapper > .input,
-.monaco-editor .find-widget > .find-part .monaco-inputbox > .wrapper > .mirror,
-.monaco-editor .find-widget > .replace-part .monaco-inputbox > .wrapper > .input,
-.monaco-editor .find-widget > .replace-part .monaco-inputbox > .wrapper > .mirror {
+.monaco-editor .find-widget > .find-part .monaco-inputbox > .ibwrapper > .input,
+.monaco-editor .find-widget > .find-part .monaco-inputbox > .ibwrapper > .mirror,
+.monaco-editor .find-widget > .replace-part .monaco-inputbox > .ibwrapper > .input,
+.monaco-editor .find-widget > .replace-part .monaco-inputbox > .ibwrapper > .mirror {
 	padding-top: 2px;
 	padding-bottom: 2px;
 }
@@ -113,8 +113,10 @@
 }
 
 .monaco-editor .find-widget .button {
-	width: 20px;
-	height: 20px;
+	width: 16px;
+	height: 16px;
+	padding: 3px;
+	border-radius: 5px;
 	display: flex;
 	flex: initial;
 	margin-left: 3px;
@@ -126,8 +128,12 @@
 	justify-content: center;
 }
 
-.monaco-editor .find-widget .button:not(.disabled):hover {
-	background-color: rgba(0, 0, 0, 0.1);
+/* find in selection button */
+.monaco-editor .find-widget .codicon-find-selection {
+	width: 22px;
+	height: 22px;
+	padding: 3px;
+	border-radius: 5px;
 }
 
 .monaco-editor .find-widget .button.left {
@@ -147,6 +153,7 @@
 	left: 3px;
 	width: 18px;
 	height: 100%;
+	border-radius: 0;
 	box-sizing: border-box;
 }
 
@@ -207,13 +214,7 @@
 }
 
 .monaco-editor .find-widget .monaco-sash {
-	width: 2px !important;
-	margin-left: -4px;
-}
-
-.monaco-editor.hc-black .find-widget .button:not(.disabled):hover,
-.monaco-editor.vs-dark .find-widget .button:not(.disabled):hover {
-	background-color: rgba(255, 255, 255, 0.1);
+	left: 0 !important;
 }
 
 .monaco-editor.hc-black .find-widget .button:before {

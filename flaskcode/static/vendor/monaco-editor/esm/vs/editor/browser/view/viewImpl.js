@@ -2,26 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 import * as dom from '../../../base/browser/dom.js';
+import * as browser from '../../../base/browser/browser.js';
+import { Selection } from '../../common/core/selection.js';
 import { createFastDomNode } from '../../../base/browser/fastDomNode.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { PointerHandler } from '../controller/pointerHandler.js';
 import { TextAreaHandler } from '../controller/textAreaHandler.js';
 import { ViewController } from './viewController.js';
-import { ViewOutgoingEvents } from './viewOutgoingEvents.js';
+import { ViewUserInputEvents } from './viewUserInputEvents.js';
 import { ContentViewOverlays, MarginViewOverlays } from './viewOverlays.js';
 import { PartFingerprints } from './viewPart.js';
 import { ViewContentWidgets } from '../viewParts/contentWidgets/contentWidgets.js';
@@ -48,333 +37,310 @@ import { Position } from '../../common/core/position.js';
 import { Range } from '../../common/core/range.js';
 import { RenderingContext } from '../../common/view/renderingContext.js';
 import { ViewContext } from '../../common/view/viewContext.js';
-import { ViewEventDispatcher } from '../../common/view/viewEventDispatcher.js';
-import * as viewEvents from '../../common/view/viewEvents.js';
 import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import { ViewEventHandler } from '../../common/viewModel/viewEventHandler.js';
 import { getThemeTypeSelector } from '../../../platform/theme/common/themeService.js';
 import { PointerHandlerLastRenderData } from '../controller/mouseTarget.js';
-var View = /** @class */ (function (_super) {
-    __extends(View, _super);
-    function View(commandDelegate, configuration, themeService, model, cursor, outgoingEvents) {
-        var _this = _super.call(this) || this;
-        _this._cursor = cursor;
-        _this._renderAnimationFrame = null;
-        _this.outgoingEvents = outgoingEvents;
-        var viewController = new ViewController(configuration, model, _this.outgoingEvents, commandDelegate);
-        // The event dispatcher will always go through _renderOnce before dispatching any events
-        _this.eventDispatcher = new ViewEventDispatcher(function (callback) { return _this._renderOnce(callback); });
-        // Ensure the view is the first event handler in order to update the layout
-        _this.eventDispatcher.addEventHandler(_this);
+export class View extends ViewEventHandler {
+    constructor(commandDelegate, configuration, themeService, model, userInputEvents, overflowWidgetsDomNode) {
+        super();
+        this._selections = [new Selection(1, 1, 1, 1)];
+        this._renderAnimationFrame = null;
+        const viewController = new ViewController(configuration, model, userInputEvents, commandDelegate);
         // The view context is passed on to most classes (basically to reduce param. counts in ctors)
-        _this._context = new ViewContext(configuration, themeService.getTheme(), model, _this.eventDispatcher);
-        _this._register(themeService.onThemeChange(function (theme) {
-            _this._context.theme = theme;
-            _this.eventDispatcher.emit(new viewEvents.ViewThemeChangedEvent());
-            _this.render(true, false);
+        this._context = new ViewContext(configuration, themeService.getColorTheme(), model);
+        this._configPixelRatio = this._context.configuration.options.get(128 /* pixelRatio */);
+        // Ensure the view is the first event handler in order to update the layout
+        this._context.addEventHandler(this);
+        this._register(themeService.onDidColorThemeChange(theme => {
+            this._context.theme.update(theme);
+            this._context.model.onDidColorThemeChange();
+            this.render(true, false);
         }));
-        _this.viewParts = [];
+        this._viewParts = [];
         // Keyboard handler
-        _this._textAreaHandler = new TextAreaHandler(_this._context, viewController, _this.createTextAreaHandlerHelper());
-        _this.viewParts.push(_this._textAreaHandler);
+        this._textAreaHandler = new TextAreaHandler(this._context, viewController, this._createTextAreaHandlerHelper());
+        this._viewParts.push(this._textAreaHandler);
         // These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
-        _this.linesContent = createFastDomNode(document.createElement('div'));
-        _this.linesContent.setClassName('lines-content' + ' monaco-editor-background');
-        _this.linesContent.setPosition('absolute');
-        _this.domNode = createFastDomNode(document.createElement('div'));
-        _this.domNode.setClassName(_this.getEditorClassName());
-        _this.overflowGuardContainer = createFastDomNode(document.createElement('div'));
-        PartFingerprints.write(_this.overflowGuardContainer, 3 /* OverflowGuard */);
-        _this.overflowGuardContainer.setClassName('overflow-guard');
-        _this._scrollbar = new EditorScrollbar(_this._context, _this.linesContent, _this.domNode, _this.overflowGuardContainer);
-        _this.viewParts.push(_this._scrollbar);
+        this._linesContent = createFastDomNode(document.createElement('div'));
+        this._linesContent.setClassName('lines-content' + ' monaco-editor-background');
+        this._linesContent.setPosition('absolute');
+        this.domNode = createFastDomNode(document.createElement('div'));
+        this.domNode.setClassName(this._getEditorClassName());
+        // Set role 'code' for better screen reader support https://github.com/microsoft/vscode/issues/93438
+        this.domNode.setAttribute('role', 'code');
+        this._overflowGuardContainer = createFastDomNode(document.createElement('div'));
+        PartFingerprints.write(this._overflowGuardContainer, 3 /* OverflowGuard */);
+        this._overflowGuardContainer.setClassName('overflow-guard');
+        this._scrollbar = new EditorScrollbar(this._context, this._linesContent, this.domNode, this._overflowGuardContainer);
+        this._viewParts.push(this._scrollbar);
         // View Lines
-        _this.viewLines = new ViewLines(_this._context, _this.linesContent);
+        this._viewLines = new ViewLines(this._context, this._linesContent);
         // View Zones
-        _this.viewZones = new ViewZones(_this._context);
-        _this.viewParts.push(_this.viewZones);
+        this._viewZones = new ViewZones(this._context);
+        this._viewParts.push(this._viewZones);
         // Decorations overview ruler
-        var decorationsOverviewRuler = new DecorationsOverviewRuler(_this._context);
-        _this.viewParts.push(decorationsOverviewRuler);
-        var scrollDecoration = new ScrollDecorationViewPart(_this._context);
-        _this.viewParts.push(scrollDecoration);
-        var contentViewOverlays = new ContentViewOverlays(_this._context);
-        _this.viewParts.push(contentViewOverlays);
-        contentViewOverlays.addDynamicOverlay(new CurrentLineHighlightOverlay(_this._context));
-        contentViewOverlays.addDynamicOverlay(new SelectionsOverlay(_this._context));
-        contentViewOverlays.addDynamicOverlay(new IndentGuidesOverlay(_this._context));
-        contentViewOverlays.addDynamicOverlay(new DecorationsOverlay(_this._context));
-        var marginViewOverlays = new MarginViewOverlays(_this._context);
-        _this.viewParts.push(marginViewOverlays);
-        marginViewOverlays.addDynamicOverlay(new CurrentLineMarginHighlightOverlay(_this._context));
-        marginViewOverlays.addDynamicOverlay(new GlyphMarginOverlay(_this._context));
-        marginViewOverlays.addDynamicOverlay(new MarginViewLineDecorationsOverlay(_this._context));
-        marginViewOverlays.addDynamicOverlay(new LinesDecorationsOverlay(_this._context));
-        marginViewOverlays.addDynamicOverlay(new LineNumbersOverlay(_this._context));
-        var margin = new Margin(_this._context);
-        margin.getDomNode().appendChild(_this.viewZones.marginDomNode);
+        const decorationsOverviewRuler = new DecorationsOverviewRuler(this._context);
+        this._viewParts.push(decorationsOverviewRuler);
+        const scrollDecoration = new ScrollDecorationViewPart(this._context);
+        this._viewParts.push(scrollDecoration);
+        const contentViewOverlays = new ContentViewOverlays(this._context);
+        this._viewParts.push(contentViewOverlays);
+        contentViewOverlays.addDynamicOverlay(new CurrentLineHighlightOverlay(this._context));
+        contentViewOverlays.addDynamicOverlay(new SelectionsOverlay(this._context));
+        contentViewOverlays.addDynamicOverlay(new IndentGuidesOverlay(this._context));
+        contentViewOverlays.addDynamicOverlay(new DecorationsOverlay(this._context));
+        const marginViewOverlays = new MarginViewOverlays(this._context);
+        this._viewParts.push(marginViewOverlays);
+        marginViewOverlays.addDynamicOverlay(new CurrentLineMarginHighlightOverlay(this._context));
+        marginViewOverlays.addDynamicOverlay(new GlyphMarginOverlay(this._context));
+        marginViewOverlays.addDynamicOverlay(new MarginViewLineDecorationsOverlay(this._context));
+        marginViewOverlays.addDynamicOverlay(new LinesDecorationsOverlay(this._context));
+        marginViewOverlays.addDynamicOverlay(new LineNumbersOverlay(this._context));
+        const margin = new Margin(this._context);
+        margin.getDomNode().appendChild(this._viewZones.marginDomNode);
         margin.getDomNode().appendChild(marginViewOverlays.getDomNode());
-        _this.viewParts.push(margin);
+        this._viewParts.push(margin);
         // Content widgets
-        _this.contentWidgets = new ViewContentWidgets(_this._context, _this.domNode);
-        _this.viewParts.push(_this.contentWidgets);
-        _this.viewCursors = new ViewCursors(_this._context);
-        _this.viewParts.push(_this.viewCursors);
+        this._contentWidgets = new ViewContentWidgets(this._context, this.domNode);
+        this._viewParts.push(this._contentWidgets);
+        this._viewCursors = new ViewCursors(this._context);
+        this._viewParts.push(this._viewCursors);
         // Overlay widgets
-        _this.overlayWidgets = new ViewOverlayWidgets(_this._context);
-        _this.viewParts.push(_this.overlayWidgets);
-        var rulers = new Rulers(_this._context);
-        _this.viewParts.push(rulers);
-        var minimap = new Minimap(_this._context);
-        _this.viewParts.push(minimap);
+        this._overlayWidgets = new ViewOverlayWidgets(this._context);
+        this._viewParts.push(this._overlayWidgets);
+        const rulers = new Rulers(this._context);
+        this._viewParts.push(rulers);
+        const minimap = new Minimap(this._context);
+        this._viewParts.push(minimap);
         // -------------- Wire dom nodes up
         if (decorationsOverviewRuler) {
-            var overviewRulerData = _this._scrollbar.getOverviewRulerLayoutInfo();
+            const overviewRulerData = this._scrollbar.getOverviewRulerLayoutInfo();
             overviewRulerData.parent.insertBefore(decorationsOverviewRuler.getDomNode(), overviewRulerData.insertBefore);
         }
-        _this.linesContent.appendChild(contentViewOverlays.getDomNode());
-        _this.linesContent.appendChild(rulers.domNode);
-        _this.linesContent.appendChild(_this.viewZones.domNode);
-        _this.linesContent.appendChild(_this.viewLines.getDomNode());
-        _this.linesContent.appendChild(_this.contentWidgets.domNode);
-        _this.linesContent.appendChild(_this.viewCursors.getDomNode());
-        _this.overflowGuardContainer.appendChild(margin.getDomNode());
-        _this.overflowGuardContainer.appendChild(_this._scrollbar.getDomNode());
-        _this.overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
-        _this.overflowGuardContainer.appendChild(_this._textAreaHandler.textArea);
-        _this.overflowGuardContainer.appendChild(_this._textAreaHandler.textAreaCover);
-        _this.overflowGuardContainer.appendChild(_this.overlayWidgets.getDomNode());
-        _this.overflowGuardContainer.appendChild(minimap.getDomNode());
-        _this.domNode.appendChild(_this.overflowGuardContainer);
-        _this.domNode.appendChild(_this.contentWidgets.overflowingContentWidgetsDomNode);
-        _this._applyLayout();
-        // Pointer handler
-        _this.pointerHandler = _this._register(new PointerHandler(_this._context, viewController, _this.createPointerHandlerHelper()));
-        _this._register(model.addEventListener(function (events) {
-            _this.eventDispatcher.emitMany(events);
-        }));
-        _this._register(_this._cursor.addEventListener(function (events) {
-            _this.eventDispatcher.emitMany(events);
-        }));
-        return _this;
-    }
-    View.prototype._flushAccumulatedAndRenderNow = function () {
-        this._renderNow();
-    };
-    View.prototype.createPointerHandlerHelper = function () {
-        var _this = this;
-        return {
-            viewDomNode: this.domNode.domNode,
-            linesContentDomNode: this.linesContent.domNode,
-            focusTextArea: function () {
-                _this.focus();
-            },
-            getLastRenderData: function () {
-                var lastViewCursorsRenderData = _this.viewCursors.getLastRenderData() || [];
-                var lastTextareaPosition = _this._textAreaHandler.getLastRenderData();
-                return new PointerHandlerLastRenderData(lastViewCursorsRenderData, lastTextareaPosition);
-            },
-            shouldSuppressMouseDownOnViewZone: function (viewZoneId) {
-                return _this.viewZones.shouldSuppressMouseDownOnViewZone(viewZoneId);
-            },
-            shouldSuppressMouseDownOnWidget: function (widgetId) {
-                return _this.contentWidgets.shouldSuppressMouseDownOnWidget(widgetId);
-            },
-            getPositionFromDOMInfo: function (spanNode, offset) {
-                _this._flushAccumulatedAndRenderNow();
-                return _this.viewLines.getPositionFromDOMInfo(spanNode, offset);
-            },
-            visibleRangeForPosition: function (lineNumber, column) {
-                _this._flushAccumulatedAndRenderNow();
-                return _this.viewLines.visibleRangeForPosition(new Position(lineNumber, column));
-            },
-            getLineWidth: function (lineNumber) {
-                _this._flushAccumulatedAndRenderNow();
-                return _this.viewLines.getLineWidth(lineNumber);
-            }
-        };
-    };
-    View.prototype.createTextAreaHandlerHelper = function () {
-        var _this = this;
-        return {
-            visibleRangeForPositionRelativeToEditor: function (lineNumber, column) {
-                _this._flushAccumulatedAndRenderNow();
-                return _this.viewLines.visibleRangeForPosition(new Position(lineNumber, column));
-            }
-        };
-    };
-    View.prototype._applyLayout = function () {
-        var options = this._context.configuration.options;
-        var layoutInfo = options.get(107 /* layoutInfo */);
-        this.domNode.setWidth(layoutInfo.width);
-        this.domNode.setHeight(layoutInfo.height);
-        this.overflowGuardContainer.setWidth(layoutInfo.width);
-        this.overflowGuardContainer.setHeight(layoutInfo.height);
-        this.linesContent.setWidth(1000000);
-        this.linesContent.setHeight(1000000);
-    };
-    View.prototype.getEditorClassName = function () {
-        var focused = this._textAreaHandler.isFocused() ? ' focused' : '';
-        return this._context.configuration.options.get(104 /* editorClassName */) + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
-    };
-    // --- begin event handlers
-    View.prototype.onConfigurationChanged = function (e) {
-        this.domNode.setClassName(this.getEditorClassName());
-        this._applyLayout();
-        return false;
-    };
-    View.prototype.onContentSizeChanged = function (e) {
-        this.outgoingEvents.emitContentSizeChange(e);
-        return false;
-    };
-    View.prototype.onFocusChanged = function (e) {
-        this.domNode.setClassName(this.getEditorClassName());
-        this._context.model.setHasFocus(e.isFocused);
-        if (e.isFocused) {
-            this.outgoingEvents.emitViewFocusGained();
+        this._linesContent.appendChild(contentViewOverlays.getDomNode());
+        this._linesContent.appendChild(rulers.domNode);
+        this._linesContent.appendChild(this._viewZones.domNode);
+        this._linesContent.appendChild(this._viewLines.getDomNode());
+        this._linesContent.appendChild(this._contentWidgets.domNode);
+        this._linesContent.appendChild(this._viewCursors.getDomNode());
+        this._overflowGuardContainer.appendChild(margin.getDomNode());
+        this._overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
+        this._overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
+        this._overflowGuardContainer.appendChild(this._textAreaHandler.textArea);
+        this._overflowGuardContainer.appendChild(this._textAreaHandler.textAreaCover);
+        this._overflowGuardContainer.appendChild(this._overlayWidgets.getDomNode());
+        this._overflowGuardContainer.appendChild(minimap.getDomNode());
+        this.domNode.appendChild(this._overflowGuardContainer);
+        if (overflowWidgetsDomNode) {
+            overflowWidgetsDomNode.appendChild(this._contentWidgets.overflowingContentWidgetsDomNode.domNode);
         }
         else {
-            this.outgoingEvents.emitViewFocusLost();
+            this.domNode.appendChild(this._contentWidgets.overflowingContentWidgetsDomNode);
         }
+        this._applyLayout();
+        // Pointer handler
+        this._pointerHandler = this._register(new PointerHandler(this._context, viewController, this._createPointerHandlerHelper()));
+    }
+    _flushAccumulatedAndRenderNow() {
+        this._renderNow();
+    }
+    _createPointerHandlerHelper() {
+        return {
+            viewDomNode: this.domNode.domNode,
+            linesContentDomNode: this._linesContent.domNode,
+            focusTextArea: () => {
+                this.focus();
+            },
+            dispatchTextAreaEvent: (event) => {
+                this._textAreaHandler.textArea.domNode.dispatchEvent(event);
+            },
+            getLastRenderData: () => {
+                const lastViewCursorsRenderData = this._viewCursors.getLastRenderData() || [];
+                const lastTextareaPosition = this._textAreaHandler.getLastRenderData();
+                return new PointerHandlerLastRenderData(lastViewCursorsRenderData, lastTextareaPosition);
+            },
+            shouldSuppressMouseDownOnViewZone: (viewZoneId) => {
+                return this._viewZones.shouldSuppressMouseDownOnViewZone(viewZoneId);
+            },
+            shouldSuppressMouseDownOnWidget: (widgetId) => {
+                return this._contentWidgets.shouldSuppressMouseDownOnWidget(widgetId);
+            },
+            getPositionFromDOMInfo: (spanNode, offset) => {
+                this._flushAccumulatedAndRenderNow();
+                return this._viewLines.getPositionFromDOMInfo(spanNode, offset);
+            },
+            visibleRangeForPosition: (lineNumber, column) => {
+                this._flushAccumulatedAndRenderNow();
+                return this._viewLines.visibleRangeForPosition(new Position(lineNumber, column));
+            },
+            getLineWidth: (lineNumber) => {
+                this._flushAccumulatedAndRenderNow();
+                return this._viewLines.getLineWidth(lineNumber);
+            }
+        };
+    }
+    _createTextAreaHandlerHelper() {
+        return {
+            visibleRangeForPositionRelativeToEditor: (lineNumber, column) => {
+                this._flushAccumulatedAndRenderNow();
+                return this._viewLines.visibleRangeForPosition(new Position(lineNumber, column));
+            }
+        };
+    }
+    _applyLayout() {
+        const options = this._context.configuration.options;
+        const layoutInfo = options.get(130 /* layoutInfo */);
+        this.domNode.setWidth(layoutInfo.width);
+        this.domNode.setHeight(layoutInfo.height);
+        this._overflowGuardContainer.setWidth(layoutInfo.width);
+        this._overflowGuardContainer.setHeight(layoutInfo.height);
+        this._linesContent.setWidth(1000000);
+        this._linesContent.setHeight(1000000);
+    }
+    _getEditorClassName() {
+        const focused = this._textAreaHandler.isFocused() ? ' focused' : '';
+        return this._context.configuration.options.get(127 /* editorClassName */) + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
+    }
+    // --- begin event handlers
+    handleEvents(events) {
+        super.handleEvents(events);
+        this._scheduleRender();
+    }
+    onConfigurationChanged(e) {
+        this._configPixelRatio = this._context.configuration.options.get(128 /* pixelRatio */);
+        this.domNode.setClassName(this._getEditorClassName());
+        this._applyLayout();
         return false;
-    };
-    View.prototype.onScrollChanged = function (e) {
-        this.outgoingEvents.emitScrollChanged(e);
+    }
+    onCursorStateChanged(e) {
+        this._selections = e.selections;
         return false;
-    };
-    View.prototype.onThemeChanged = function (e) {
-        this.domNode.setClassName(this.getEditorClassName());
+    }
+    onFocusChanged(e) {
+        this.domNode.setClassName(this._getEditorClassName());
         return false;
-    };
+    }
+    onThemeChanged(e) {
+        this.domNode.setClassName(this._getEditorClassName());
+        return false;
+    }
     // --- end event handlers
-    View.prototype.dispose = function () {
+    dispose() {
         if (this._renderAnimationFrame !== null) {
             this._renderAnimationFrame.dispose();
             this._renderAnimationFrame = null;
         }
-        this.eventDispatcher.removeEventHandler(this);
-        this.outgoingEvents.dispose();
-        this.viewLines.dispose();
+        this._contentWidgets.overflowingContentWidgetsDomNode.domNode.remove();
+        this._context.removeEventHandler(this);
+        this._viewLines.dispose();
         // Destroy view parts
-        for (var i = 0, len = this.viewParts.length; i < len; i++) {
-            this.viewParts[i].dispose();
+        for (const viewPart of this._viewParts) {
+            viewPart.dispose();
         }
-        this.viewParts = [];
-        _super.prototype.dispose.call(this);
-    };
-    View.prototype._renderOnce = function (callback) {
-        var r = safeInvokeNoArg(callback);
-        this._scheduleRender();
-        return r;
-    };
-    View.prototype._scheduleRender = function () {
+        super.dispose();
+    }
+    _scheduleRender() {
         if (this._renderAnimationFrame === null) {
             this._renderAnimationFrame = dom.runAtThisOrScheduleAtNextAnimationFrame(this._onRenderScheduled.bind(this), 100);
         }
-    };
-    View.prototype._onRenderScheduled = function () {
+    }
+    _onRenderScheduled() {
         this._renderAnimationFrame = null;
         this._flushAccumulatedAndRenderNow();
-    };
-    View.prototype._renderNow = function () {
-        var _this = this;
-        safeInvokeNoArg(function () { return _this._actualRender(); });
-    };
-    View.prototype._getViewPartsToRender = function () {
-        var result = [], resultLen = 0;
-        for (var i = 0, len = this.viewParts.length; i < len; i++) {
-            var viewPart = this.viewParts[i];
+    }
+    _renderNow() {
+        safeInvokeNoArg(() => this._actualRender());
+    }
+    _getViewPartsToRender() {
+        let result = [], resultLen = 0;
+        for (const viewPart of this._viewParts) {
             if (viewPart.shouldRender()) {
                 result[resultLen++] = viewPart;
             }
         }
         return result;
-    };
-    View.prototype._actualRender = function () {
+    }
+    _actualRender() {
         if (!dom.isInDOM(this.domNode.domNode)) {
             return;
         }
-        var viewPartsToRender = this._getViewPartsToRender();
-        if (!this.viewLines.shouldRender() && viewPartsToRender.length === 0) {
+        let viewPartsToRender = this._getViewPartsToRender();
+        if (!this._viewLines.shouldRender() && viewPartsToRender.length === 0) {
             // Nothing to render
             return;
         }
-        var partialViewportData = this._context.viewLayout.getLinesViewportData();
+        const partialViewportData = this._context.viewLayout.getLinesViewportData();
         this._context.model.setViewport(partialViewportData.startLineNumber, partialViewportData.endLineNumber, partialViewportData.centeredLineNumber);
-        var viewportData = new ViewportData(this._cursor.getViewSelections(), partialViewportData, this._context.viewLayout.getWhitespaceViewportData(), this._context.model);
-        if (this.contentWidgets.shouldRender()) {
+        const viewportData = new ViewportData(this._selections, partialViewportData, this._context.viewLayout.getWhitespaceViewportData(), this._context.model);
+        if (this._contentWidgets.shouldRender()) {
             // Give the content widgets a chance to set their max width before a possible synchronous layout
-            this.contentWidgets.onBeforeRender(viewportData);
+            this._contentWidgets.onBeforeRender(viewportData);
         }
-        if (this.viewLines.shouldRender()) {
-            this.viewLines.renderText(viewportData);
-            this.viewLines.onDidRender();
+        if (this._viewLines.shouldRender()) {
+            this._viewLines.renderText(viewportData);
+            this._viewLines.onDidRender();
             // Rendering of viewLines might cause scroll events to occur, so collect view parts to render again
             viewPartsToRender = this._getViewPartsToRender();
         }
-        var renderingContext = new RenderingContext(this._context.viewLayout, viewportData, this.viewLines);
+        const renderingContext = new RenderingContext(this._context.viewLayout, viewportData, this._viewLines);
         // Render the rest of the parts
-        for (var i = 0, len = viewPartsToRender.length; i < len; i++) {
-            var viewPart = viewPartsToRender[i];
+        for (const viewPart of viewPartsToRender) {
             viewPart.prepareRender(renderingContext);
         }
-        for (var i = 0, len = viewPartsToRender.length; i < len; i++) {
-            var viewPart = viewPartsToRender[i];
+        for (const viewPart of viewPartsToRender) {
             viewPart.render(renderingContext);
             viewPart.onDidRender();
         }
-    };
+        // Try to detect browser zooming and paint again if necessary
+        if (Math.abs(browser.getPixelRatio() - this._configPixelRatio) > 0.001) {
+            // looks like the pixel ratio has changed
+            this._context.configuration.updatePixelRatio();
+        }
+    }
     // --- BEGIN CodeEditor helpers
-    View.prototype.delegateVerticalScrollbarMouseDown = function (browserEvent) {
+    delegateVerticalScrollbarMouseDown(browserEvent) {
         this._scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
-    };
-    View.prototype.restoreState = function (scrollPosition) {
-        this._context.viewLayout.setScrollPositionNow({ scrollTop: scrollPosition.scrollTop });
+    }
+    restoreState(scrollPosition) {
+        this._context.model.setScrollPosition({ scrollTop: scrollPosition.scrollTop }, 1 /* Immediate */);
         this._context.model.tokenizeViewport();
         this._renderNow();
-        this.viewLines.updateLineWidths();
-        this._context.viewLayout.setScrollPositionNow({ scrollLeft: scrollPosition.scrollLeft });
-    };
-    View.prototype.getOffsetForColumn = function (modelLineNumber, modelColumn) {
-        var modelPosition = this._context.model.validateModelPosition({
+        this._viewLines.updateLineWidths();
+        this._context.model.setScrollPosition({ scrollLeft: scrollPosition.scrollLeft }, 1 /* Immediate */);
+    }
+    getOffsetForColumn(modelLineNumber, modelColumn) {
+        const modelPosition = this._context.model.validateModelPosition({
             lineNumber: modelLineNumber,
             column: modelColumn
         });
-        var viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
+        const viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
         this._flushAccumulatedAndRenderNow();
-        var visibleRange = this.viewLines.visibleRangeForPosition(new Position(viewPosition.lineNumber, viewPosition.column));
+        const visibleRange = this._viewLines.visibleRangeForPosition(new Position(viewPosition.lineNumber, viewPosition.column));
         if (!visibleRange) {
             return -1;
         }
         return visibleRange.left;
-    };
-    View.prototype.getTargetAtClientPoint = function (clientX, clientY) {
-        var mouseTarget = this.pointerHandler.getTargetAtClientPoint(clientX, clientY);
+    }
+    getTargetAtClientPoint(clientX, clientY) {
+        const mouseTarget = this._pointerHandler.getTargetAtClientPoint(clientX, clientY);
         if (!mouseTarget) {
             return null;
         }
-        return ViewOutgoingEvents.convertViewToModelMouseTarget(mouseTarget, this._context.model.coordinatesConverter);
-    };
-    View.prototype.createOverviewRuler = function (cssClassName) {
+        return ViewUserInputEvents.convertViewToModelMouseTarget(mouseTarget, this._context.model.coordinatesConverter);
+    }
+    createOverviewRuler(cssClassName) {
         return new OverviewRuler(this._context, cssClassName);
-    };
-    View.prototype.change = function (callback) {
-        var _this = this;
-        return this._renderOnce(function () {
-            var zonesHaveChanged = _this.viewZones.changeViewZones(callback);
-            if (zonesHaveChanged) {
-                _this._context.viewLayout.onHeightMaybeChanged();
-                _this._context.privateViewEventBus.emit(new viewEvents.ViewZonesChangedEvent());
-            }
-            return zonesHaveChanged;
-        });
-    };
-    View.prototype.render = function (now, everything) {
+    }
+    change(callback) {
+        this._viewZones.changeViewZones(callback);
+        this._scheduleRender();
+    }
+    render(now, everything) {
         if (everything) {
             // Force everything to render...
-            this.viewLines.forceShouldRender();
-            for (var i = 0, len = this.viewParts.length; i < len; i++) {
-                var viewPart = this.viewParts[i];
+            this._viewLines.forceShouldRender();
+            for (const viewPart of this._viewParts) {
                 viewPart.forceShouldRender();
             }
         }
@@ -384,56 +350,54 @@ var View = /** @class */ (function (_super) {
         else {
             this._scheduleRender();
         }
-    };
-    View.prototype.focus = function () {
+    }
+    focus() {
         this._textAreaHandler.focusTextArea();
-    };
-    View.prototype.isFocused = function () {
+    }
+    isFocused() {
         return this._textAreaHandler.isFocused();
-    };
-    View.prototype.setAriaOptions = function (options) {
+    }
+    setAriaOptions(options) {
         this._textAreaHandler.setAriaOptions(options);
-    };
-    View.prototype.addContentWidget = function (widgetData) {
-        this.contentWidgets.addWidget(widgetData.widget);
+    }
+    addContentWidget(widgetData) {
+        this._contentWidgets.addWidget(widgetData.widget);
         this.layoutContentWidget(widgetData);
         this._scheduleRender();
-    };
-    View.prototype.layoutContentWidget = function (widgetData) {
-        var newRange = widgetData.position ? widgetData.position.range || null : null;
+    }
+    layoutContentWidget(widgetData) {
+        let newRange = widgetData.position ? widgetData.position.range || null : null;
         if (newRange === null) {
-            var newPosition = widgetData.position ? widgetData.position.position : null;
+            const newPosition = widgetData.position ? widgetData.position.position : null;
             if (newPosition !== null) {
                 newRange = new Range(newPosition.lineNumber, newPosition.column, newPosition.lineNumber, newPosition.column);
             }
         }
-        var newPreference = widgetData.position ? widgetData.position.preference : null;
-        this.contentWidgets.setWidgetPosition(widgetData.widget, newRange, newPreference);
+        const newPreference = widgetData.position ? widgetData.position.preference : null;
+        this._contentWidgets.setWidgetPosition(widgetData.widget, newRange, newPreference);
         this._scheduleRender();
-    };
-    View.prototype.removeContentWidget = function (widgetData) {
-        this.contentWidgets.removeWidget(widgetData.widget);
+    }
+    removeContentWidget(widgetData) {
+        this._contentWidgets.removeWidget(widgetData.widget);
         this._scheduleRender();
-    };
-    View.prototype.addOverlayWidget = function (widgetData) {
-        this.overlayWidgets.addWidget(widgetData.widget);
+    }
+    addOverlayWidget(widgetData) {
+        this._overlayWidgets.addWidget(widgetData.widget);
         this.layoutOverlayWidget(widgetData);
         this._scheduleRender();
-    };
-    View.prototype.layoutOverlayWidget = function (widgetData) {
-        var newPreference = widgetData.position ? widgetData.position.preference : null;
-        var shouldRender = this.overlayWidgets.setWidgetPosition(widgetData.widget, newPreference);
+    }
+    layoutOverlayWidget(widgetData) {
+        const newPreference = widgetData.position ? widgetData.position.preference : null;
+        const shouldRender = this._overlayWidgets.setWidgetPosition(widgetData.widget, newPreference);
         if (shouldRender) {
             this._scheduleRender();
         }
-    };
-    View.prototype.removeOverlayWidget = function (widgetData) {
-        this.overlayWidgets.removeWidget(widgetData.widget);
+    }
+    removeOverlayWidget(widgetData) {
+        this._overlayWidgets.removeWidget(widgetData.widget);
         this._scheduleRender();
-    };
-    return View;
-}(ViewEventHandler));
-export { View };
+    }
+}
 function safeInvokeNoArg(func) {
     try {
         return func();

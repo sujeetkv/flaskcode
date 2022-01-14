@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var SpacesDiffResult = /** @class */ (function () {
-    function SpacesDiffResult() {
+class SpacesDiffResult {
+    constructor() {
         this.spacesDiff = 0;
         this.looksLikeAlignment = false;
     }
-    return SpacesDiffResult;
-}());
+}
 /**
  * Compute the diff in spaces between two line's indentation.
  */
@@ -19,17 +18,17 @@ function spacesDiff(a, aLength, b, bLength, result) {
     //  - a: "\t"
     //  - b: "\t    "
     //  => This should count 1 tab and 4 spaces
-    var i;
+    let i;
     for (i = 0; i < aLength && i < bLength; i++) {
-        var aCharCode = a.charCodeAt(i);
-        var bCharCode = b.charCodeAt(i);
+        let aCharCode = a.charCodeAt(i);
+        let bCharCode = b.charCodeAt(i);
         if (aCharCode !== bCharCode) {
             break;
         }
     }
-    var aSpacesCnt = 0, aTabsCount = 0;
-    for (var j = i; j < aLength; j++) {
-        var aCharCode = a.charCodeAt(j);
+    let aSpacesCnt = 0, aTabsCount = 0;
+    for (let j = i; j < aLength; j++) {
+        let aCharCode = a.charCodeAt(j);
         if (aCharCode === 32 /* Space */) {
             aSpacesCnt++;
         }
@@ -37,9 +36,9 @@ function spacesDiff(a, aLength, b, bLength, result) {
             aTabsCount++;
         }
     }
-    var bSpacesCnt = 0, bTabsCount = 0;
-    for (var j = i; j < bLength; j++) {
-        var bCharCode = b.charCodeAt(j);
+    let bSpacesCnt = 0, bTabsCount = 0;
+    for (let j = i; j < bLength; j++) {
+        let bCharCode = b.charCodeAt(j);
         if (bCharCode === 32 /* Space */) {
             bSpacesCnt++;
         }
@@ -53,8 +52,8 @@ function spacesDiff(a, aLength, b, bLength, result) {
     if (bSpacesCnt > 0 && bTabsCount > 0) {
         return;
     }
-    var tabsDiff = Math.abs(aTabsCount - bTabsCount);
-    var spacesDiff = Math.abs(aSpacesCnt - bSpacesCnt);
+    let tabsDiff = Math.abs(aTabsCount - bTabsCount);
+    let spacesDiff = Math.abs(aSpacesCnt - bSpacesCnt);
     if (tabsDiff === 0) {
         // check if the indentation difference might be caused by alignment reasons
         // sometime folks like to align their code, but this should not be used as a hint
@@ -78,27 +77,27 @@ function spacesDiff(a, aLength, b, bLength, result) {
 }
 export function guessIndentation(source, defaultTabSize, defaultInsertSpaces) {
     // Look at most at the first 10k lines
-    var linesCount = Math.min(source.getLineCount(), 10000);
-    var linesIndentedWithTabsCount = 0; // number of lines that contain at least one tab in indentation
-    var linesIndentedWithSpacesCount = 0; // number of lines that contain only spaces in indentation
-    var previousLineText = ''; // content of latest line that contained non-whitespace chars
-    var previousLineIndentation = 0; // index at which latest line contained the first non-whitespace char
-    var ALLOWED_TAB_SIZE_GUESSES = [2, 4, 6, 8, 3, 5, 7]; // prefer even guesses for `tabSize`, limit to [2, 8].
-    var MAX_ALLOWED_TAB_SIZE_GUESS = 8; // max(ALLOWED_TAB_SIZE_GUESSES) = 8
-    var spacesDiffCount = [0, 0, 0, 0, 0, 0, 0, 0, 0]; // `tabSize` scores
-    var tmp = new SpacesDiffResult();
-    for (var lineNumber = 1; lineNumber <= linesCount; lineNumber++) {
-        var currentLineLength = source.getLineLength(lineNumber);
-        var currentLineText = source.getLineContent(lineNumber);
+    const linesCount = Math.min(source.getLineCount(), 10000);
+    let linesIndentedWithTabsCount = 0; // number of lines that contain at least one tab in indentation
+    let linesIndentedWithSpacesCount = 0; // number of lines that contain only spaces in indentation
+    let previousLineText = ''; // content of latest line that contained non-whitespace chars
+    let previousLineIndentation = 0; // index at which latest line contained the first non-whitespace char
+    const ALLOWED_TAB_SIZE_GUESSES = [2, 4, 6, 8, 3, 5, 7]; // prefer even guesses for `tabSize`, limit to [2, 8].
+    const MAX_ALLOWED_TAB_SIZE_GUESS = 8; // max(ALLOWED_TAB_SIZE_GUESSES) = 8
+    let spacesDiffCount = [0, 0, 0, 0, 0, 0, 0, 0, 0]; // `tabSize` scores
+    let tmp = new SpacesDiffResult();
+    for (let lineNumber = 1; lineNumber <= linesCount; lineNumber++) {
+        let currentLineLength = source.getLineLength(lineNumber);
+        let currentLineText = source.getLineContent(lineNumber);
         // if the text buffer is chunk based, so long lines are cons-string, v8 will flattern the string when we check charCode.
         // checking charCode on chunks directly is cheaper.
-        var useCurrentLineText = (currentLineLength <= 65536);
-        var currentLineHasContent = false; // does `currentLineText` contain non-whitespace chars
-        var currentLineIndentation = 0; // index at which `currentLineText` contains the first non-whitespace char
-        var currentLineSpacesCount = 0; // count of spaces found in `currentLineText` indentation
-        var currentLineTabsCount = 0; // count of tabs found in `currentLineText` indentation
-        for (var j = 0, lenJ = currentLineLength; j < lenJ; j++) {
-            var charCode = (useCurrentLineText ? currentLineText.charCodeAt(j) : source.getLineCharCode(lineNumber, j));
+        const useCurrentLineText = (currentLineLength <= 65536);
+        let currentLineHasContent = false; // does `currentLineText` contain non-whitespace chars
+        let currentLineIndentation = 0; // index at which `currentLineText` contains the first non-whitespace char
+        let currentLineSpacesCount = 0; // count of spaces found in `currentLineText` indentation
+        let currentLineTabsCount = 0; // count of tabs found in `currentLineText` indentation
+        for (let j = 0, lenJ = currentLineLength; j < lenJ; j++) {
+            let charCode = (useCurrentLineText ? currentLineText.charCodeAt(j) : source.getLineCharCode(lineNumber, j));
             if (charCode === 9 /* Tab */) {
                 currentLineTabsCount++;
             }
@@ -137,26 +136,26 @@ export function guessIndentation(source, defaultTabSize, defaultInsertSpaces) {
                 continue;
             }
         }
-        var currentSpacesDiff = tmp.spacesDiff;
+        let currentSpacesDiff = tmp.spacesDiff;
         if (currentSpacesDiff <= MAX_ALLOWED_TAB_SIZE_GUESS) {
             spacesDiffCount[currentSpacesDiff]++;
         }
         previousLineText = currentLineText;
         previousLineIndentation = currentLineIndentation;
     }
-    var insertSpaces = defaultInsertSpaces;
+    let insertSpaces = defaultInsertSpaces;
     if (linesIndentedWithTabsCount !== linesIndentedWithSpacesCount) {
         insertSpaces = (linesIndentedWithTabsCount < linesIndentedWithSpacesCount);
     }
-    var tabSize = defaultTabSize;
+    let tabSize = defaultTabSize;
     // Guess tabSize only if inserting spaces...
     if (insertSpaces) {
-        var tabSizeScore_1 = (insertSpaces ? 0 : 0.1 * linesCount);
+        let tabSizeScore = (insertSpaces ? 0 : 0.1 * linesCount);
         // console.log("score threshold: " + tabSizeScore);
-        ALLOWED_TAB_SIZE_GUESSES.forEach(function (possibleTabSize) {
-            var possibleTabSizeScore = spacesDiffCount[possibleTabSize];
-            if (possibleTabSizeScore > tabSizeScore_1) {
-                tabSizeScore_1 = possibleTabSizeScore;
+        ALLOWED_TAB_SIZE_GUESSES.forEach((possibleTabSize) => {
+            let possibleTabSizeScore = spacesDiffCount[possibleTabSize];
+            if (possibleTabSizeScore > tabSizeScore) {
+                tabSizeScore = possibleTabSizeScore;
                 tabSize = possibleTabSize;
             }
         });

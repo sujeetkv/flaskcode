@@ -2,17 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Selection } from '../../common/core/selection.js';
 import { Range } from '../../common/core/range.js';
-var DragAndDropCommand = /** @class */ (function () {
-    function DragAndDropCommand(selection, targetPosition, copy) {
+import { Selection } from '../../common/core/selection.js';
+export class DragAndDropCommand {
+    constructor(selection, targetPosition, copy) {
         this.selection = selection;
         this.targetPosition = targetPosition;
         this.copy = copy;
         this.targetSelection = null;
     }
-    DragAndDropCommand.prototype.getEditOperations = function (model, builder) {
-        var text = model.getValueInRange(this.selection);
+    getEditOperations(model, builder) {
+        let text = model.getValueInRange(this.selection);
         if (!this.copy) {
             builder.addEditOperation(this.selection, null);
         }
@@ -55,10 +55,8 @@ var DragAndDropCommand = /** @class */ (function () {
             // The target position is before the selection's end position. Since the selection doesn't contain the target position, the selection is one-line and target position is before this selection.
             this.targetSelection = new Selection(this.targetPosition.lineNumber - this.selection.endLineNumber + this.selection.startLineNumber, this.targetPosition.column, this.targetPosition.lineNumber, this.targetPosition.column + this.selection.endColumn - this.selection.startColumn);
         }
-    };
-    DragAndDropCommand.prototype.computeCursorState = function (model, helper) {
+    }
+    computeCursorState(model, helper) {
         return this.targetSelection;
-    };
-    return DragAndDropCommand;
-}());
-export { DragAndDropCommand };
+    }
+}

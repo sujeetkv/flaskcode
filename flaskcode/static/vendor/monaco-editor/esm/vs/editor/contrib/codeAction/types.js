@@ -2,41 +2,38 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { startsWith } from '../../../base/common/strings.js';
-var CodeActionKind = /** @class */ (function () {
-    function CodeActionKind(value) {
+export class CodeActionKind {
+    constructor(value) {
         this.value = value;
     }
-    CodeActionKind.prototype.equals = function (other) {
+    equals(other) {
         return this.value === other.value;
-    };
-    CodeActionKind.prototype.contains = function (other) {
-        return this.equals(other) || this.value === '' || startsWith(other.value, this.value + CodeActionKind.sep);
-    };
-    CodeActionKind.prototype.intersects = function (other) {
+    }
+    contains(other) {
+        return this.equals(other) || this.value === '' || other.value.startsWith(this.value + CodeActionKind.sep);
+    }
+    intersects(other) {
         return this.contains(other) || other.contains(this);
-    };
-    CodeActionKind.prototype.append = function (part) {
+    }
+    append(part) {
         return new CodeActionKind(this.value + CodeActionKind.sep + part);
-    };
-    CodeActionKind.sep = '.';
-    CodeActionKind.None = new CodeActionKind('@@none@@'); // Special code action that contains nothing
-    CodeActionKind.Empty = new CodeActionKind('');
-    CodeActionKind.QuickFix = new CodeActionKind('quickfix');
-    CodeActionKind.Refactor = new CodeActionKind('refactor');
-    CodeActionKind.Source = new CodeActionKind('source');
-    CodeActionKind.SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
-    CodeActionKind.SourceFixAll = CodeActionKind.Source.append('fixAll');
-    return CodeActionKind;
-}());
-export { CodeActionKind };
+    }
+}
+CodeActionKind.sep = '.';
+CodeActionKind.None = new CodeActionKind('@@none@@'); // Special code action that contains nothing
+CodeActionKind.Empty = new CodeActionKind('');
+CodeActionKind.QuickFix = new CodeActionKind('quickfix');
+CodeActionKind.Refactor = new CodeActionKind('refactor');
+CodeActionKind.Source = new CodeActionKind('source');
+CodeActionKind.SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
+CodeActionKind.SourceFixAll = CodeActionKind.Source.append('fixAll');
 export function mayIncludeActionsOfKind(filter, providedKind) {
     // A provided kind may be a subset or superset of our filtered kind.
     if (filter.include && !filter.include.intersects(providedKind)) {
         return false;
     }
     if (filter.excludes) {
-        if (filter.excludes.some(function (exclude) { return excludesAction(providedKind, exclude, filter.include); })) {
+        if (filter.excludes.some(exclude => excludesAction(providedKind, exclude, filter.include))) {
             return false;
         }
     }
@@ -47,7 +44,7 @@ export function mayIncludeActionsOfKind(filter, providedKind) {
     return true;
 }
 export function filtersAction(filter, action) {
-    var actionKind = action.kind ? new CodeActionKind(action.kind) : undefined;
+    const actionKind = action.kind ? new CodeActionKind(action.kind) : undefined;
     // Filter out actions by kind
     if (filter.include) {
         if (!actionKind || !filter.include.contains(actionKind)) {
@@ -55,7 +52,7 @@ export function filtersAction(filter, action) {
         }
     }
     if (filter.excludes) {
-        if (actionKind && filter.excludes.some(function (exclude) { return excludesAction(actionKind, exclude, filter.include); })) {
+        if (actionKind && filter.excludes.some(exclude => excludesAction(actionKind, exclude, filter.include))) {
             return false;
         }
     }
@@ -82,36 +79,34 @@ function excludesAction(providedKind, exclude, include) {
     }
     return true;
 }
-var CodeActionCommandArgs = /** @class */ (function () {
-    function CodeActionCommandArgs(kind, apply, preferred) {
+export class CodeActionCommandArgs {
+    constructor(kind, apply, preferred) {
         this.kind = kind;
         this.apply = apply;
         this.preferred = preferred;
     }
-    CodeActionCommandArgs.fromUser = function (arg, defaults) {
+    static fromUser(arg, defaults) {
         if (!arg || typeof arg !== 'object') {
             return new CodeActionCommandArgs(defaults.kind, defaults.apply, false);
         }
         return new CodeActionCommandArgs(CodeActionCommandArgs.getKindFromUser(arg, defaults.kind), CodeActionCommandArgs.getApplyFromUser(arg, defaults.apply), CodeActionCommandArgs.getPreferredUser(arg));
-    };
-    CodeActionCommandArgs.getApplyFromUser = function (arg, defaultAutoApply) {
+    }
+    static getApplyFromUser(arg, defaultAutoApply) {
         switch (typeof arg.apply === 'string' ? arg.apply.toLowerCase() : '') {
             case 'first': return "first" /* First */;
             case 'never': return "never" /* Never */;
             case 'ifsingle': return "ifSingle" /* IfSingle */;
             default: return defaultAutoApply;
         }
-    };
-    CodeActionCommandArgs.getKindFromUser = function (arg, defaultKind) {
+    }
+    static getKindFromUser(arg, defaultKind) {
         return typeof arg.kind === 'string'
             ? new CodeActionKind(arg.kind)
             : defaultKind;
-    };
-    CodeActionCommandArgs.getPreferredUser = function (arg) {
+    }
+    static getPreferredUser(arg) {
         return typeof arg.preferred === 'boolean'
             ? arg.preferred
             : false;
-    };
-    return CodeActionCommandArgs;
-}());
-export { CodeActionCommandArgs };
+    }
+}

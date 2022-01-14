@@ -2,226 +2,37 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
-var __spreadArrays = (this && this.__spreadArrays) || function () {
-    for (var s = 0, i = 0, il = arguments.length; i < il; i++) s += arguments[i].length;
-    for (var r = Array(s), k = 0, i = 0; i < il; i++)
-        for (var a = arguments[i], j = 0, jl = a.length; j < jl; j++, k++)
-            r[k] = a[j];
-    return r;
-};
 import * as browser from './browser.js';
-import { domEvent } from './event.js';
+import { BrowserFeatures } from './canIUse.js';
 import { StandardKeyboardEvent } from './keyboardEvent.js';
 import { StandardMouseEvent } from './mouseEvent.js';
 import { TimeoutTimer } from '../common/async.js';
 import { onUnexpectedError } from '../common/errors.js';
 import { Emitter } from '../common/event.js';
-import { Disposable, toDisposable } from '../common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../common/lifecycle.js';
+import { FileAccess, RemoteAuthorities } from '../common/network.js';
 import * as platform from '../common/platform.js';
-import { coalesce } from '../common/arrays.js';
-import { Schemas, RemoteAuthorities } from '../common/network.js';
-import { BrowserFeatures } from './canIUse.js';
 export function clearNode(node) {
     while (node.firstChild) {
-        node.removeChild(node.firstChild);
+        node.firstChild.remove();
     }
 }
-export function removeNode(node) {
-    if (node.parentNode) {
-        node.parentNode.removeChild(node);
-    }
-}
+/**
+ * @deprecated Use node.isConnected directly
+ */
 export function isInDOM(node) {
-    while (node) {
-        if (node === document.body) {
-            return true;
-        }
-        node = node.parentNode || node.host;
-    }
-    return false;
+    var _a;
+    return (_a = node === null || node === void 0 ? void 0 : node.isConnected) !== null && _a !== void 0 ? _a : false;
 }
-var _manualClassList = new /** @class */ (function () {
-    function class_1() {
-        this._lastStart = -1;
-        this._lastEnd = -1;
-    }
-    class_1.prototype._findClassName = function (node, className) {
-        var classes = node.className;
-        if (!classes) {
-            this._lastStart = -1;
-            return;
-        }
-        className = className.trim();
-        var classesLen = classes.length, classLen = className.length;
-        if (classLen === 0) {
-            this._lastStart = -1;
-            return;
-        }
-        if (classesLen < classLen) {
-            this._lastStart = -1;
-            return;
-        }
-        if (classes === className) {
-            this._lastStart = 0;
-            this._lastEnd = classesLen;
-            return;
-        }
-        var idx = -1, idxEnd;
-        while ((idx = classes.indexOf(className, idx + 1)) >= 0) {
-            idxEnd = idx + classLen;
-            // a class that is followed by another class
-            if ((idx === 0 || classes.charCodeAt(idx - 1) === 32 /* Space */) && classes.charCodeAt(idxEnd) === 32 /* Space */) {
-                this._lastStart = idx;
-                this._lastEnd = idxEnd + 1;
-                return;
-            }
-            // last class
-            if (idx > 0 && classes.charCodeAt(idx - 1) === 32 /* Space */ && idxEnd === classesLen) {
-                this._lastStart = idx - 1;
-                this._lastEnd = idxEnd;
-                return;
-            }
-            // equal - duplicate of cmp above
-            if (idx === 0 && idxEnd === classesLen) {
-                this._lastStart = 0;
-                this._lastEnd = idxEnd;
-                return;
-            }
-        }
-        this._lastStart = -1;
-    };
-    class_1.prototype.hasClass = function (node, className) {
-        this._findClassName(node, className);
-        return this._lastStart !== -1;
-    };
-    class_1.prototype.addClasses = function (node) {
-        var _this = this;
-        var classNames = [];
-        for (var _i = 1; _i < arguments.length; _i++) {
-            classNames[_i - 1] = arguments[_i];
-        }
-        classNames.forEach(function (nameValue) { return nameValue.split(' ').forEach(function (name) { return _this.addClass(node, name); }); });
-    };
-    class_1.prototype.addClass = function (node, className) {
-        if (!node.className) { // doesn't have it for sure
-            node.className = className;
-        }
-        else {
-            this._findClassName(node, className); // see if it's already there
-            if (this._lastStart === -1) {
-                node.className = node.className + ' ' + className;
-            }
-        }
-    };
-    class_1.prototype.removeClass = function (node, className) {
-        this._findClassName(node, className);
-        if (this._lastStart === -1) {
-            return; // Prevent styles invalidation if not necessary
-        }
-        else {
-            node.className = node.className.substring(0, this._lastStart) + node.className.substring(this._lastEnd);
-        }
-    };
-    class_1.prototype.removeClasses = function (node) {
-        var _this = this;
-        var classNames = [];
-        for (var _i = 1; _i < arguments.length; _i++) {
-            classNames[_i - 1] = arguments[_i];
-        }
-        classNames.forEach(function (nameValue) { return nameValue.split(' ').forEach(function (name) { return _this.removeClass(node, name); }); });
-    };
-    class_1.prototype.toggleClass = function (node, className, shouldHaveIt) {
-        this._findClassName(node, className);
-        if (this._lastStart !== -1 && (shouldHaveIt === undefined || !shouldHaveIt)) {
-            this.removeClass(node, className);
-        }
-        if (this._lastStart === -1 && (shouldHaveIt === undefined || shouldHaveIt)) {
-            this.addClass(node, className);
-        }
-    };
-    return class_1;
-}());
-var _nativeClassList = new /** @class */ (function () {
-    function class_2() {
-    }
-    class_2.prototype.hasClass = function (node, className) {
-        return Boolean(className) && node.classList && node.classList.contains(className);
-    };
-    class_2.prototype.addClasses = function (node) {
-        var _this = this;
-        var classNames = [];
-        for (var _i = 1; _i < arguments.length; _i++) {
-            classNames[_i - 1] = arguments[_i];
-        }
-        classNames.forEach(function (nameValue) { return nameValue.split(' ').forEach(function (name) { return _this.addClass(node, name); }); });
-    };
-    class_2.prototype.addClass = function (node, className) {
-        if (className && node.classList) {
-            node.classList.add(className);
-        }
-    };
-    class_2.prototype.removeClass = function (node, className) {
-        if (className && node.classList) {
-            node.classList.remove(className);
-        }
-    };
-    class_2.prototype.removeClasses = function (node) {
-        var _this = this;
-        var classNames = [];
-        for (var _i = 1; _i < arguments.length; _i++) {
-            classNames[_i - 1] = arguments[_i];
-        }
-        classNames.forEach(function (nameValue) { return nameValue.split(' ').forEach(function (name) { return _this.removeClass(node, name); }); });
-    };
-    class_2.prototype.toggleClass = function (node, className, shouldHaveIt) {
-        if (node.classList) {
-            node.classList.toggle(className, shouldHaveIt);
-        }
-    };
-    return class_2;
-}());
-// In IE11 there is only partial support for `classList` which makes us keep our
-// custom implementation. Otherwise use the native implementation, see: http://caniuse.com/#search=classlist
-var _classList = browser.isIE ? _manualClassList : _nativeClassList;
-export var hasClass = _classList.hasClass.bind(_classList);
-export var addClass = _classList.addClass.bind(_classList);
-export var addClasses = _classList.addClasses.bind(_classList);
-export var removeClass = _classList.removeClass.bind(_classList);
-export var removeClasses = _classList.removeClasses.bind(_classList);
-export var toggleClass = _classList.toggleClass.bind(_classList);
-var DomListener = /** @class */ (function () {
-    function DomListener(node, type, handler, options) {
+class DomListener {
+    constructor(node, type, handler, options) {
         this._node = node;
         this._type = type;
         this._handler = handler;
         this._options = (options || false);
         this._node.addEventListener(this._type, this._handler, this._options);
     }
-    DomListener.prototype.dispose = function () {
+    dispose() {
         if (!this._handler) {
             // Already disposed
             return;
@@ -230,9 +41,8 @@ var DomListener = /** @class */ (function () {
         // Prevent leakers from holding on to the dom or handler func
         this._node = null;
         this._handler = null;
-    };
-    return DomListener;
-}());
+    }
+}
 export function addDisposableListener(node, type, handler, useCaptureOrOptions) {
     return new DomListener(node, type, handler, useCaptureOrOptions);
 }
@@ -246,8 +56,8 @@ function _wrapAsStandardKeyboardEvent(handler) {
         return handler(new StandardKeyboardEvent(e));
     };
 }
-export var addStandardDisposableListener = function addStandardDisposableListener(node, type, handler, useCapture) {
-    var wrapHandler = handler;
+export let addStandardDisposableListener = function addStandardDisposableListener(node, type, handler, useCapture) {
+    let wrapHandler = handler;
     if (type === 'click' || type === 'mousedown') {
         wrapHandler = _wrapAsStandardMouseEvent(handler);
     }
@@ -256,9 +66,13 @@ export var addStandardDisposableListener = function addStandardDisposableListene
     }
     return addDisposableListener(node, type, wrapHandler, useCapture);
 };
-export var addStandardDisposableGenericMouseDownListner = function addStandardDisposableListener(node, handler, useCapture) {
-    var wrapHandler = _wrapAsStandardMouseEvent(handler);
+export let addStandardDisposableGenericMouseDownListner = function addStandardDisposableListener(node, handler, useCapture) {
+    let wrapHandler = _wrapAsStandardMouseEvent(handler);
     return addDisposableGenericMouseDownListner(node, wrapHandler, useCapture);
+};
+export let addStandardDisposableGenericMouseUpListner = function addStandardDisposableListener(node, handler, useCapture) {
+    let wrapHandler = _wrapAsStandardMouseEvent(handler);
+    return addDisposableGenericMouseUpListner(node, wrapHandler, useCapture);
 };
 export function addDisposableGenericMouseDownListner(node, handler, useCapture) {
     return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_DOWN : EventType.MOUSE_DOWN, handler, useCapture);
@@ -267,9 +81,9 @@ export function addDisposableGenericMouseUpListner(node, handler, useCapture) {
     return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_UP : EventType.MOUSE_UP, handler, useCapture);
 }
 export function addDisposableNonBubblingMouseOutListener(node, handler) {
-    return addDisposableListener(node, 'mouseout', function (e) {
+    return addDisposableListener(node, 'mouseout', (e) => {
         // Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-        var toElement = (e.relatedTarget);
+        let toElement = (e.relatedTarget);
         while (toElement && toElement !== node) {
             toElement = toElement.parentNode;
         }
@@ -280,9 +94,9 @@ export function addDisposableNonBubblingMouseOutListener(node, handler) {
     });
 }
 export function addDisposableNonBubblingPointerOutListener(node, handler) {
-    return addDisposableListener(node, 'pointerout', function (e) {
+    return addDisposableListener(node, 'pointerout', (e) => {
         // Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-        var toElement = (e.relatedTarget);
+        let toElement = (e.relatedTarget);
         while (toElement && toElement !== node) {
             toElement = toElement.parentNode;
         }
@@ -292,11 +106,28 @@ export function addDisposableNonBubblingPointerOutListener(node, handler) {
         handler(e);
     });
 }
-var _animationFrame = null;
+export function createEventEmitter(target, type, options) {
+    let domListener = null;
+    const handler = (e) => result.fire(e);
+    const onFirstListenerAdd = () => {
+        if (!domListener) {
+            domListener = new DomListener(target, type, handler, options);
+        }
+    };
+    const onLastListenerRemove = () => {
+        if (domListener) {
+            domListener.dispose();
+            domListener = null;
+        }
+    };
+    const result = new Emitter({ onFirstListenerAdd, onLastListenerRemove });
+    return result;
+}
+let _animationFrame = null;
 function doRequestAnimationFrame(callback) {
     if (!_animationFrame) {
-        var emulatedRequestAnimationFrame = function (callback) {
-            return setTimeout(function () { return callback(new Date().getTime()); }, 0);
+        const emulatedRequestAnimationFrame = (callback) => {
+            return setTimeout(() => callback(new Date().getTime()), 0);
         };
         _animationFrame = (self.requestAnimationFrame
             || self.msRequestAnimationFrame
@@ -313,25 +144,24 @@ function doRequestAnimationFrame(callback) {
  * If currently in an animation frame, `runner` will be executed immediately.
  * @return token that can be used to cancel the scheduled runner (only if `runner` was not executed immediately).
  */
-export var runAtThisOrScheduleAtNextAnimationFrame;
+export let runAtThisOrScheduleAtNextAnimationFrame;
 /**
  * Schedule a callback to be run at the next animation frame.
  * This allows multiple parties to register callbacks that should run at the next animation frame.
  * If currently in an animation frame, `runner` will be executed at the next animation frame.
  * @return token that can be used to cancel the scheduled runner.
  */
-export var scheduleAtNextAnimationFrame;
-var AnimationFrameQueueItem = /** @class */ (function () {
-    function AnimationFrameQueueItem(runner, priority) {
-        if (priority === void 0) { priority = 0; }
+export let scheduleAtNextAnimationFrame;
+class AnimationFrameQueueItem {
+    constructor(runner, priority = 0) {
         this._runner = runner;
         this.priority = priority;
         this._canceled = false;
     }
-    AnimationFrameQueueItem.prototype.dispose = function () {
+    dispose() {
         this._canceled = true;
-    };
-    AnimationFrameQueueItem.prototype.execute = function () {
+    }
+    execute() {
         if (this._canceled) {
             return;
         }
@@ -341,45 +171,43 @@ var AnimationFrameQueueItem = /** @class */ (function () {
         catch (e) {
             onUnexpectedError(e);
         }
-    };
+    }
     // Sort by priority (largest to lowest)
-    AnimationFrameQueueItem.sort = function (a, b) {
+    static sort(a, b) {
         return b.priority - a.priority;
-    };
-    return AnimationFrameQueueItem;
-}());
+    }
+}
 (function () {
     /**
      * The runners scheduled at the next animation frame
      */
-    var NEXT_QUEUE = [];
+    let NEXT_QUEUE = [];
     /**
      * The runners scheduled at the current animation frame
      */
-    var CURRENT_QUEUE = null;
+    let CURRENT_QUEUE = null;
     /**
      * A flag to keep track if the native requestAnimationFrame was already called
      */
-    var animFrameRequested = false;
+    let animFrameRequested = false;
     /**
      * A flag to indicate if currently handling a native requestAnimationFrame callback
      */
-    var inAnimationFrameRunner = false;
-    var animationFrameRunner = function () {
+    let inAnimationFrameRunner = false;
+    let animationFrameRunner = () => {
         animFrameRequested = false;
         CURRENT_QUEUE = NEXT_QUEUE;
         NEXT_QUEUE = [];
         inAnimationFrameRunner = true;
         while (CURRENT_QUEUE.length > 0) {
             CURRENT_QUEUE.sort(AnimationFrameQueueItem.sort);
-            var top_1 = CURRENT_QUEUE.shift();
-            top_1.execute();
+            let top = CURRENT_QUEUE.shift();
+            top.execute();
         }
         inAnimationFrameRunner = false;
     };
-    scheduleAtNextAnimationFrame = function (runner, priority) {
-        if (priority === void 0) { priority = 0; }
-        var item = new AnimationFrameQueueItem(runner, priority);
+    scheduleAtNextAnimationFrame = (runner, priority = 0) => {
+        let item = new AnimationFrameQueueItem(runner, priority);
         NEXT_QUEUE.push(item);
         if (!animFrameRequested) {
             animFrameRequested = true;
@@ -387,9 +215,9 @@ var AnimationFrameQueueItem = /** @class */ (function () {
         }
         return item;
     };
-    runAtThisOrScheduleAtNextAnimationFrame = function (runner, priority) {
+    runAtThisOrScheduleAtNextAnimationFrame = (runner, priority) => {
         if (inAnimationFrameRunner) {
-            var item = new AnimationFrameQueueItem(runner, priority);
+            let item = new AnimationFrameQueueItem(runner, priority);
             CURRENT_QUEUE.push(item);
             return item;
         }
@@ -398,27 +226,24 @@ var AnimationFrameQueueItem = /** @class */ (function () {
         }
     };
 })();
-var MINIMUM_TIME_MS = 16;
-var DEFAULT_EVENT_MERGER = function (lastEvent, currentEvent) {
+const MINIMUM_TIME_MS = 8;
+const DEFAULT_EVENT_MERGER = function (lastEvent, currentEvent) {
     return currentEvent;
 };
-var TimeoutThrottledDomListener = /** @class */ (function (_super) {
-    __extends(TimeoutThrottledDomListener, _super);
-    function TimeoutThrottledDomListener(node, type, handler, eventMerger, minimumTimeMs) {
-        if (eventMerger === void 0) { eventMerger = DEFAULT_EVENT_MERGER; }
-        if (minimumTimeMs === void 0) { minimumTimeMs = MINIMUM_TIME_MS; }
-        var _this = _super.call(this) || this;
-        var lastEvent = null;
-        var lastHandlerTime = 0;
-        var timeout = _this._register(new TimeoutTimer());
-        var invokeHandler = function () {
+class TimeoutThrottledDomListener extends Disposable {
+    constructor(node, type, handler, eventMerger = DEFAULT_EVENT_MERGER, minimumTimeMs = MINIMUM_TIME_MS) {
+        super();
+        let lastEvent = null;
+        let lastHandlerTime = 0;
+        let timeout = this._register(new TimeoutTimer());
+        let invokeHandler = () => {
             lastHandlerTime = (new Date()).getTime();
             handler(lastEvent);
             lastEvent = null;
         };
-        _this._register(addDisposableListener(node, type, function (e) {
+        this._register(addDisposableListener(node, type, (e) => {
             lastEvent = eventMerger(lastEvent, e);
-            var elapsedTime = (new Date()).getTime() - lastHandlerTime;
+            let elapsedTime = (new Date()).getTime() - lastHandlerTime;
             if (elapsedTime >= minimumTimeMs) {
                 timeout.cancel();
                 invokeHandler();
@@ -427,10 +252,8 @@ var TimeoutThrottledDomListener = /** @class */ (function (_super) {
                 timeout.setIfNotSet(invokeHandler, minimumTimeMs - elapsedTime);
             }
         }));
-        return _this;
     }
-    return TimeoutThrottledDomListener;
-}(Disposable));
+}
 export function addDisposableThrottledListener(node, type, handler, eventMerger, minimumTimeMs) {
     return new TimeoutThrottledDomListener(node, type, handler, eventMerger, minimumTimeMs);
 }
@@ -444,14 +267,7 @@ export function getClientArea(element) {
     }
     // If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
     if (platform.isIOS && window.visualViewport) {
-        var width = window.visualViewport.width;
-        var height = window.visualViewport.height - (browser.isStandalone
-            // in PWA mode, the visual viewport always includes the safe-area-inset-bottom (which is for the home indicator)
-            // even when you are using the onscreen monitor, the visual viewport will include the area between system statusbar and the onscreen keyboard
-            // plus the area between onscreen keyboard and the bottom bezel, which is 20px on iOS.
-            ? (20 + 4) // + 4px for body margin
-            : 0);
-        return new Dimension(width, height);
+        return new Dimension(window.visualViewport.width, window.visualViewport.height);
     }
     // Try innerWidth / innerHeight
     if (window.innerWidth && window.innerHeight) {
@@ -467,17 +283,15 @@ export function getClientArea(element) {
     }
     throw new Error('Unable to figure out browser width and height');
 }
-var SizeUtils = /** @class */ (function () {
-    function SizeUtils() {
-    }
+class SizeUtils {
     // Adapted from WinJS
     // Converts a CSS positioning string for the specified element to pixels.
-    SizeUtils.convertToPixels = function (element, value) {
+    static convertToPixels(element, value) {
         return parseFloat(value) || 0;
-    };
-    SizeUtils.getDimension = function (element, cssPropertyName, jsPropertyName) {
-        var computedStyle = getComputedStyle(element);
-        var value = '0';
+    }
+    static getDimension(element, cssPropertyName, jsPropertyName) {
+        let computedStyle = getComputedStyle(element);
+        let value = '0';
         if (computedStyle) {
             if (computedStyle.getPropertyValue) {
                 value = computedStyle.getPropertyValue(cssPropertyName);
@@ -488,66 +302,89 @@ var SizeUtils = /** @class */ (function () {
             }
         }
         return SizeUtils.convertToPixels(element, value);
-    };
-    SizeUtils.getBorderLeftWidth = function (element) {
+    }
+    static getBorderLeftWidth(element) {
         return SizeUtils.getDimension(element, 'border-left-width', 'borderLeftWidth');
-    };
-    SizeUtils.getBorderRightWidth = function (element) {
+    }
+    static getBorderRightWidth(element) {
         return SizeUtils.getDimension(element, 'border-right-width', 'borderRightWidth');
-    };
-    SizeUtils.getBorderTopWidth = function (element) {
+    }
+    static getBorderTopWidth(element) {
         return SizeUtils.getDimension(element, 'border-top-width', 'borderTopWidth');
-    };
-    SizeUtils.getBorderBottomWidth = function (element) {
+    }
+    static getBorderBottomWidth(element) {
         return SizeUtils.getDimension(element, 'border-bottom-width', 'borderBottomWidth');
-    };
-    SizeUtils.getPaddingLeft = function (element) {
+    }
+    static getPaddingLeft(element) {
         return SizeUtils.getDimension(element, 'padding-left', 'paddingLeft');
-    };
-    SizeUtils.getPaddingRight = function (element) {
+    }
+    static getPaddingRight(element) {
         return SizeUtils.getDimension(element, 'padding-right', 'paddingRight');
-    };
-    SizeUtils.getPaddingTop = function (element) {
+    }
+    static getPaddingTop(element) {
         return SizeUtils.getDimension(element, 'padding-top', 'paddingTop');
-    };
-    SizeUtils.getPaddingBottom = function (element) {
+    }
+    static getPaddingBottom(element) {
         return SizeUtils.getDimension(element, 'padding-bottom', 'paddingBottom');
-    };
-    SizeUtils.getMarginLeft = function (element) {
+    }
+    static getMarginLeft(element) {
         return SizeUtils.getDimension(element, 'margin-left', 'marginLeft');
-    };
-    SizeUtils.getMarginTop = function (element) {
+    }
+    static getMarginTop(element) {
         return SizeUtils.getDimension(element, 'margin-top', 'marginTop');
-    };
-    SizeUtils.getMarginRight = function (element) {
+    }
+    static getMarginRight(element) {
         return SizeUtils.getDimension(element, 'margin-right', 'marginRight');
-    };
-    SizeUtils.getMarginBottom = function (element) {
+    }
+    static getMarginBottom(element) {
         return SizeUtils.getDimension(element, 'margin-bottom', 'marginBottom');
-    };
-    return SizeUtils;
-}());
-// ----------------------------------------------------------------------------------------
-// Position & Dimension
-var Dimension = /** @class */ (function () {
-    function Dimension(width, height) {
+    }
+}
+export class Dimension {
+    constructor(width, height) {
         this.width = width;
         this.height = height;
     }
-    return Dimension;
-}());
-export { Dimension };
+    with(width = this.width, height = this.height) {
+        if (width !== this.width || height !== this.height) {
+            return new Dimension(width, height);
+        }
+        else {
+            return this;
+        }
+    }
+    static is(obj) {
+        return typeof obj === 'object' && typeof obj.height === 'number' && typeof obj.width === 'number';
+    }
+    static lift(obj) {
+        if (obj instanceof Dimension) {
+            return obj;
+        }
+        else {
+            return new Dimension(obj.width, obj.height);
+        }
+    }
+    static equals(a, b) {
+        if (a === b) {
+            return true;
+        }
+        if (!a || !b) {
+            return false;
+        }
+        return a.width === b.width && a.height === b.height;
+    }
+}
 export function getTopLeftOffset(element) {
     // Adapted from WinJS.Utilities.getPosition
     // and added borders to the mix
-    var offsetParent = element.offsetParent;
-    var top = element.offsetTop;
-    var left = element.offsetLeft;
+    let offsetParent = element.offsetParent;
+    let top = element.offsetTop;
+    let left = element.offsetLeft;
     while ((element = element.parentNode) !== null
         && element !== document.body
         && element !== document.documentElement) {
         top -= element.scrollTop;
-        var c = isShadowRoot(element) ? null : getComputedStyle(element);
+        const c = isShadowRoot(element) ? null : getComputedStyle(element);
         if (c) {
             left -= c.direction !== 'rtl' ? element.scrollLeft : -element.scrollLeft;
         }
@@ -564,11 +401,19 @@ export function getTopLeftOffset(element) {
         top: top
     };
 }
+export function size(element, width, height) {
+    if (typeof width === 'number') {
+        element.style.width = `${width}px`;
+    }
+    if (typeof height === 'number') {
+        element.style.height = `${height}px`;
+    }
+}
 /**
  * Returns the position of a dom node relative to the entire page.
  */
 export function getDomNodePagePosition(domNode) {
-    var bb = domNode.getBoundingClientRect();
+    let bb = domNode.getBoundingClientRect();
     return {
         left: bb.left + StandardWindow.scrollX,
         top: bb.top + StandardWindow.scrollY,
@@ -576,59 +421,48 @@ export function getDomNodePagePosition(domNode) {
         height: bb.height
     };
 }
-export var StandardWindow = new /** @class */ (function () {
-    function class_3() {
+export const StandardWindow = new class {
+    get scrollX() {
+        if (typeof window.scrollX === 'number') {
+            // modern browsers
+            return window.scrollX;
+        }
+        else {
+            return document.body.scrollLeft + document.documentElement.scrollLeft;
+        }
     }
-    Object.defineProperty(class_3.prototype, "scrollX", {
-        get: function () {
-            if (typeof window.scrollX === 'number') {
-                // modern browsers
-                return window.scrollX;
-            }
-            else {
-                return document.body.scrollLeft + document.documentElement.scrollLeft;
-            }
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(class_3.prototype, "scrollY", {
-        get: function () {
-            if (typeof window.scrollY === 'number') {
-                // modern browsers
-                return window.scrollY;
-            }
-            else {
-                return document.body.scrollTop + document.documentElement.scrollTop;
-            }
-        },
-        enumerable: true,
-        configurable: true
-    });
-    return class_3;
-}());
+    get scrollY() {
+        if (typeof window.scrollY === 'number') {
+            // modern browsers
+            return window.scrollY;
+        }
+        else {
+            return document.body.scrollTop + document.documentElement.scrollTop;
+        }
+    }
+};
 // Adapted from WinJS
 // Gets the width of the element, including margins.
 export function getTotalWidth(element) {
-    var margin = SizeUtils.getMarginLeft(element) + SizeUtils.getMarginRight(element);
+    let margin = SizeUtils.getMarginLeft(element) + SizeUtils.getMarginRight(element);
     return element.offsetWidth + margin;
 }
 export function getContentWidth(element) {
-    var border = SizeUtils.getBorderLeftWidth(element) + SizeUtils.getBorderRightWidth(element);
-    var padding = SizeUtils.getPaddingLeft(element) + SizeUtils.getPaddingRight(element);
+    let border = SizeUtils.getBorderLeftWidth(element) + SizeUtils.getBorderRightWidth(element);
+    let padding = SizeUtils.getPaddingLeft(element) + SizeUtils.getPaddingRight(element);
     return element.offsetWidth - border - padding;
 }
 // Adapted from WinJS
 // Gets the height of the content of the specified element. The content height does not include borders or padding.
 export function getContentHeight(element) {
-    var border = SizeUtils.getBorderTopWidth(element) + SizeUtils.getBorderBottomWidth(element);
-    var padding = SizeUtils.getPaddingTop(element) + SizeUtils.getPaddingBottom(element);
+    let border = SizeUtils.getBorderTopWidth(element) + SizeUtils.getBorderBottomWidth(element);
+    let padding = SizeUtils.getPaddingTop(element) + SizeUtils.getPaddingBottom(element);
     return element.offsetHeight - border - padding;
 }
 // Adapted from WinJS
 // Gets the height of the element, including its margins.
 export function getTotalHeight(element) {
-    var margin = SizeUtils.getMarginTop(element) + SizeUtils.getMarginBottom(element);
+    let margin = SizeUtils.getMarginTop(element) + SizeUtils.getMarginBottom(element);
     return element.offsetHeight + margin;
 }
 // ----------------------------------------------------------------------------------------
@@ -643,12 +477,12 @@ export function isAncestor(testChild, testAncestor) {
 }
 export function findParentWithClass(node, clazz, stopAtClazzOrNode) {
     while (node && node.nodeType === node.ELEMENT_NODE) {
-        if (hasClass(node, clazz)) {
+        if (node.classList.contains(clazz)) {
             return node;
         }
         if (stopAtClazzOrNode) {
             if (typeof stopAtClazzOrNode === 'string') {
-                if (hasClass(node, stopAtClazzOrNode)) {
+                if (node.classList.contains(stopAtClazzOrNode)) {
                     return null;
                 }
             }
@@ -661,6 +495,9 @@ export function findParentWithClass(node, clazz, stopAtClazzOrNode) {
         node = node.parentNode;
     }
     return null;
+}
+export function hasParentWithClass(node, clazz, stopAtClazzOrNode) {
+    return !!findParentWithClass(node, clazz, stopAtClazzOrNode);
 }
 export function isShadowRoot(node) {
     return (node && !!node.host && !!node.mode);
@@ -678,15 +515,21 @@ export function getShadowRoot(domNode) {
     }
     return isShadowRoot(domNode) ? domNode : null;
 }
-export function createStyleSheet(container) {
-    if (container === void 0) { container = document.getElementsByTagName('head')[0]; }
-    var style = document.createElement('style');
+export function getActiveElement() {
+    let result = document.activeElement;
+    while (result === null || result === void 0 ? void 0 : result.shadowRoot) {
+        result = result.shadowRoot.activeElement;
+    }
+    return result;
+}
+export function createStyleSheet(container = document.getElementsByTagName('head')[0]) {
+    let style = document.createElement('style');
     style.type = 'text/css';
     style.media = 'screen';
     container.appendChild(style);
     return style;
 }
-var _sharedStyleSheet = null;
+let _sharedStyleSheet = null;
 function getSharedStyleSheet() {
     if (!_sharedStyleSheet) {
         _sharedStyleSheet = createStyleSheet();
@@ -694,37 +537,36 @@ function getSharedStyleSheet() {
     return _sharedStyleSheet;
 }
 function getDynamicStyleSheetRules(style) {
-    if (style && style.sheet && style.sheet.rules) {
+    var _a, _b;
+    if ((_a = style === null || style === void 0 ? void 0 : style.sheet) === null || _a === void 0 ? void 0 : _a.rules) {
         // Chrome, IE
         return style.sheet.rules;
     }
-    if (style && style.sheet && style.sheet.cssRules) {
+    if ((_b = style === null || style === void 0 ? void 0 : style.sheet) === null || _b === void 0 ? void 0 : _b.cssRules) {
         // FF
         return style.sheet.cssRules;
     }
     return [];
 }
-export function createCSSRule(selector, cssText, style) {
-    if (style === void 0) { style = getSharedStyleSheet(); }
+export function createCSSRule(selector, cssText, style = getSharedStyleSheet()) {
     if (!style || !cssText) {
         return;
     }
     style.sheet.insertRule(selector + '{' + cssText + '}', 0);
 }
-export function removeCSSRulesContainingSelector(ruleName, style) {
-    if (style === void 0) { style = getSharedStyleSheet(); }
+export function removeCSSRulesContainingSelector(ruleName, style = getSharedStyleSheet()) {
     if (!style) {
         return;
     }
-    var rules = getDynamicStyleSheetRules(style);
-    var toDelete = [];
-    for (var i = 0; i < rules.length; i++) {
-        var rule = rules[i];
+    let rules = getDynamicStyleSheetRules(style);
+    let toDelete = [];
+    for (let i = 0; i < rules.length; i++) {
+        let rule = rules[i];
         if (rule.selectorText.indexOf(ruleName) !== -1) {
             toDelete.push(i);
         }
     }
-    for (var i = toDelete.length - 1; i >= 0; i--) {
+    for (let i = toDelete.length - 1; i >= 0; i--) {
         style.sheet.deleteRule(toDelete[i]);
     }
 }
@@ -734,9 +576,10 @@ export function isHTMLElement(o) {
     }
     return o && typeof o === 'object' && o.nodeType === 1 && typeof o.nodeName === 'string';
 }
-export var EventType = {
+export const EventType = {
     // Mouse
     CLICK: 'click',
+    AUXCLICK: 'auxclick',
     DBLCLICK: 'dblclick',
     MOUSE_UP: 'mouseup',
     MOUSE_DOWN: 'mousedown',
@@ -745,6 +588,7 @@ export var EventType = {
     MOUSE_OUT: 'mouseout',
     MOUSE_ENTER: 'mouseenter',
     MOUSE_LEAVE: 'mouseleave',
+    MOUSE_WHEEL: 'wheel',
     POINTER_UP: 'pointerup',
     POINTER_DOWN: 'pointerdown',
     POINTER_MOVE: 'pointermove',
@@ -758,6 +602,8 @@ export var EventType = {
     LOAD: 'load',
     BEFORE_UNLOAD: 'beforeunload',
     UNLOAD: 'unload',
+    PAGE_SHOW: 'pageshow',
+    PAGE_HIDE: 'pagehide',
     ABORT: 'abort',
     ERROR: 'error',
     RESIZE: 'resize',
@@ -789,7 +635,7 @@ export var EventType = {
     ANIMATION_END: browser.isWebKit ? 'webkitAnimationEnd' : 'animationend',
     ANIMATION_ITERATION: browser.isWebKit ? 'webkitAnimationIteration' : 'animationiteration'
 };
-export var EventHelper = {
+export const EventHelper = {
     stop: function (e, cancelBubble) {
         if (e.preventDefault) {
             e.preventDefault();
@@ -810,52 +656,51 @@ export var EventHelper = {
     }
 };
 export function saveParentsScrollTop(node) {
-    var r = [];
-    for (var i = 0; node && node.nodeType === node.ELEMENT_NODE; i++) {
+    let r = [];
+    for (let i = 0; node && node.nodeType === node.ELEMENT_NODE; i++) {
         r[i] = node.scrollTop;
         node = node.parentNode;
     }
     return r;
 }
 export function restoreParentsScrollTop(node, state) {
-    for (var i = 0; node && node.nodeType === node.ELEMENT_NODE; i++) {
+    for (let i = 0; node && node.nodeType === node.ELEMENT_NODE; i++) {
         if (node.scrollTop !== state[i]) {
             node.scrollTop = state[i];
         }
         node = node.parentNode;
     }
 }
-var FocusTracker = /** @class */ (function (_super) {
-    __extends(FocusTracker, _super);
-    function FocusTracker(element) {
-        var _this = _super.call(this) || this;
-        _this._onDidFocus = _this._register(new Emitter());
-        _this.onDidFocus = _this._onDidFocus.event;
-        _this._onDidBlur = _this._register(new Emitter());
-        _this.onDidBlur = _this._onDidBlur.event;
-        var hasFocus = isAncestor(document.activeElement, element);
-        var loosingFocus = false;
-        var onFocus = function () {
+class FocusTracker extends Disposable {
+    constructor(element) {
+        super();
+        this._onDidFocus = this._register(new Emitter());
+        this.onDidFocus = this._onDidFocus.event;
+        this._onDidBlur = this._register(new Emitter());
+        this.onDidBlur = this._onDidBlur.event;
+        let hasFocus = FocusTracker.hasFocusWithin(element);
+        let loosingFocus = false;
+        const onFocus = () => {
             loosingFocus = false;
             if (!hasFocus) {
                 hasFocus = true;
-                _this._onDidFocus.fire();
+                this._onDidFocus.fire();
             }
         };
-        var onBlur = function () {
+        const onBlur = () => {
             if (hasFocus) {
                 loosingFocus = true;
-                window.setTimeout(function () {
+                window.setTimeout(() => {
                     if (loosingFocus) {
                         loosingFocus = false;
                         hasFocus = false;
-                        _this._onDidBlur.fire();
+                        this._onDidBlur.fire();
                     }
                 }, 0);
             }
         };
-        _this._refreshStateHandler = function () {
-            var currentNodeHasFocus = isAncestor(document.activeElement, element);
+        this._refreshStateHandler = () => {
+            let currentNodeHasFocus = FocusTracker.hasFocusWithin(element);
             if (currentNodeHasFocus !== hasFocus) {
                 if (hasFocus) {
                     onBlur();
@@ -865,41 +710,51 @@ var FocusTracker = /** @class */ (function (_super) {
                 }
             }
         };
-        _this._register(domEvent(element, EventType.FOCUS, true)(onFocus));
-        _this._register(domEvent(element, EventType.BLUR, true)(onBlur));
-        return _this;
+        this._register(addDisposableListener(element, EventType.FOCUS, onFocus, true));
+        this._register(addDisposableListener(element, EventType.BLUR, onBlur, true));
+        this._register(addDisposableListener(element, EventType.FOCUS_IN, () => this._refreshStateHandler()));
+        this._register(addDisposableListener(element, EventType.FOCUS_OUT, () => this._refreshStateHandler()));
     }
-    return FocusTracker;
-}(Disposable));
+    static hasFocusWithin(element) {
+        const shadowRoot = getShadowRoot(element);
+        const activeElement = (shadowRoot ? shadowRoot.activeElement : document.activeElement);
+        return isAncestor(activeElement, element);
+    }
+}
 export function trackFocus(element) {
     return new FocusTracker(element);
 }
-export function append(parent) {
-    var children = [];
-    for (var _i = 1; _i < arguments.length; _i++) {
-        children[_i - 1] = arguments[_i];
+export function append(parent, ...children) {
+    parent.append(...children);
+    if (children.length === 1 && typeof children[0] !== 'string') {
+        return children[0];
     }
-    children.forEach(function (child) { return parent.appendChild(child); });
-    return children[children.length - 1];
 }
-var SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((.([\w\-]+))*)/;
+export function prepend(parent, child) {
+    parent.insertBefore(child, parent.firstChild);
+    return child;
+}
+/**
+ * Removes all children from `parent` and appends `children`
+ */
+export function reset(parent, ...children) {
+    parent.innerText = '';
+    append(parent, ...children);
+}
+const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((\.([\w\-]+))*)/;
 export var Namespace;
 (function (Namespace) {
     Namespace["HTML"] = "http://www.w3.org/1999/xhtml";
     Namespace["SVG"] = "http://www.w3.org/2000/svg";
 })(Namespace || (Namespace = {}));
-function _$(namespace, description, attrs) {
-    var children = [];
-    for (var _i = 3; _i < arguments.length; _i++) {
-        children[_i - 3] = arguments[_i];
-    }
-    var match = SELECTOR_REGEX.exec(description);
+function _$(namespace, description, attrs, ...children) {
+    let match = SELECTOR_REGEX.exec(description);
     if (!match) {
         throw new Error('Bad use of emmet');
     }
-    attrs = __assign({}, (attrs || {}));
-    var tagName = match[1] || 'div';
-    var result;
+    attrs = Object.assign({}, (attrs || {}));
+    let tagName = match[1] || 'div';
+    let result;
     if (namespace !== Namespace.HTML) {
         result = document.createElementNS(namespace, tagName);
     }
@@ -912,8 +767,8 @@ function _$(namespace, description, attrs) {
     if (match[4]) {
         result.className = match[4].replace(/\./g, ' ').trim();
     }
-    Object.keys(attrs).forEach(function (name) {
-        var value = attrs[name];
+    Object.keys(attrs).forEach(name => {
+        const value = attrs[name];
         if (typeof value === 'undefined') {
             return;
         }
@@ -929,77 +784,26 @@ function _$(namespace, description, attrs) {
             result.setAttribute(name, value);
         }
     });
-    coalesce(children)
-        .forEach(function (child) {
-        if (child instanceof Node) {
-            result.appendChild(child);
-        }
-        else {
-            result.appendChild(document.createTextNode(child));
-        }
-    });
+    result.append(...children);
     return result;
 }
-export function $(description, attrs) {
-    var children = [];
-    for (var _i = 2; _i < arguments.length; _i++) {
-        children[_i - 2] = arguments[_i];
-    }
-    return _$.apply(void 0, __spreadArrays([Namespace.HTML, description, attrs], children));
+export function $(description, attrs, ...children) {
+    return _$(Namespace.HTML, description, attrs, ...children);
 }
-$.SVG = function (description, attrs) {
-    var children = [];
-    for (var _i = 2; _i < arguments.length; _i++) {
-        children[_i - 2] = arguments[_i];
-    }
-    return _$.apply(void 0, __spreadArrays([Namespace.SVG, description, attrs], children));
+$.SVG = function (description, attrs, ...children) {
+    return _$(Namespace.SVG, description, attrs, ...children);
 };
-export function show() {
-    var elements = [];
-    for (var _i = 0; _i < arguments.length; _i++) {
-        elements[_i] = arguments[_i];
-    }
-    for (var _a = 0, elements_1 = elements; _a < elements_1.length; _a++) {
-        var element = elements_1[_a];
+export function show(...elements) {
+    for (let element of elements) {
         element.style.display = '';
         element.removeAttribute('aria-hidden');
     }
 }
-export function hide() {
-    var elements = [];
-    for (var _i = 0; _i < arguments.length; _i++) {
-        elements[_i] = arguments[_i];
-    }
-    for (var _a = 0, elements_2 = elements; _a < elements_2.length; _a++) {
-        var element = elements_2[_a];
+export function hide(...elements) {
+    for (let element of elements) {
         element.style.display = 'none';
         element.setAttribute('aria-hidden', 'true');
     }
-}
-function findParentWithAttribute(node, attribute) {
-    while (node && node.nodeType === node.ELEMENT_NODE) {
-        if (node instanceof HTMLElement && node.hasAttribute(attribute)) {
-            return node;
-        }
-        node = node.parentNode;
-    }
-    return null;
-}
-export function removeTabIndexAndUpdateFocus(node) {
-    if (!node || !node.hasAttribute('tabIndex')) {
-        return;
-    }
-    // If we are the currently focused element and tabIndex is removed,
-    // standard DOM behavior is to move focus to the <body> element. We
-    // typically never want that, rather put focus to the closest element
-    // in the hierarchy of the parent DOM nodes.
-    if (document.activeElement === node) {
-        var parentFocusable = findParentWithAttribute(node.parentElement, 'tabIndex');
-        if (parentFocusable) {
-            parentFocusable.focus();
-        }
-    }
-    node.removeAttribute('tabindex');
 }
 export function getElementsByTagName(tag) {
     return Array.prototype.slice.call(document.getElementsByTagName(tag), 0);
@@ -1013,54 +817,179 @@ export function getElementsByTagName(tag) {
  * with the screen pixels, it will sometimes be rendered with 2 screen pixels, and sometimes with 3 screen pixels.
  */
 export function computeScreenAwareSize(cssPx) {
-    var screenPx = window.devicePixelRatio * cssPx;
+    const screenPx = window.devicePixelRatio * cssPx;
     return Math.max(1, Math.floor(screenPx)) / window.devicePixelRatio;
 }
 /**
- * See https://github.com/Microsoft/monaco-editor/issues/601
+ * Open safely a new window. This is the best way to do so, but you cannot tell
+ * if the window was opened or if it was blocked by the browser's popup blocker.
+ * If you want to tell if the browser blocked the new window, use {@link windowOpenWithSuccess}.
+ *
+ * See https://github.com/microsoft/monaco-editor/issues/601
  * To protect against malicious code in the linked site, particularly phishing attempts,
  * the window.opener should be set to null to prevent the linked site from having access
  * to change the location of the current page.
  * See https://mathiasbynens.github.io/rel-noopener/
  */
 export function windowOpenNoOpener(url) {
-    if (platform.isNative || browser.isEdgeWebView) {
-        // In VSCode, window.open() always returns null...
-        // The same is true for a WebView (see https://github.com/Microsoft/monaco-editor/issues/628)
-        window.open(url);
-    }
-    else {
-        var newTab = window.open();
-        if (newTab) {
-            newTab.opener = null;
-            newTab.location.href = url;
-        }
-    }
+    // By using 'noopener' in the `windowFeatures` argument, the newly created window will
+    // not be able to use `window.opener` to reach back to the current page.
+    // See https://stackoverflow.com/a/46958731
+    // See https://developer.mozilla.org/en-US/docs/Web/API/Window/open#noopener
+    // However, this also doesn't allow us to realize if the browser blocked
+    // the creation of the window.
+    window.open(url, '_blank', 'noopener');
 }
 export function animate(fn) {
-    var step = function () {
+    const step = () => {
         fn();
         stepDisposable = scheduleAtNextAnimationFrame(step);
     };
-    var stepDisposable = scheduleAtNextAnimationFrame(step);
-    return toDisposable(function () { return stepDisposable.dispose(); });
+    let stepDisposable = scheduleAtNextAnimationFrame(step);
+    return toDisposable(() => stepDisposable.dispose());
 }
 RemoteAuthorities.setPreferredWebSchema(/^https:/.test(window.location.href) ? 'https' : 'http');
-export function asDomUri(uri) {
-    if (!uri) {
-        return uri;
-    }
-    if (Schemas.vscodeRemote === uri.scheme) {
-        return RemoteAuthorities.rewrite(uri);
-    }
-    return uri;
-}
 /**
  * returns url('...')
  */
 export function asCSSUrl(uri) {
     if (!uri) {
-        return "url('')";
+        return `url('')`;
     }
-    return "url('" + asDomUri(uri).toString(true).replace(/'/g, '%27') + "')";
+    return `url('${FileAccess.asBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
+}
+export function asCSSPropertyValue(value) {
+    return `'${value.replace(/'/g, '%27')}'`;
+}
+export class ModifierKeyEmitter extends Emitter {
+    constructor() {
+        super();
+        this._subscriptions = new DisposableStore();
+        this._keyStatus = {
+            altKey: false,
+            shiftKey: false,
+            ctrlKey: false,
+            metaKey: false
+        };
+        this._subscriptions.add(addDisposableListener(window, 'keydown', e => {
+            if (e.defaultPrevented) {
+                return;
+            }
+            const event = new StandardKeyboardEvent(e);
+            // If Alt-key keydown event is repeated, ignore it #112347
+            // Only known to be necessary for Alt-Key at the moment #115810
+            if (event.keyCode === 6 /* Alt */ && e.repeat) {
+                return;
+            }
+            if (e.altKey && !this._keyStatus.altKey) {
+                this._keyStatus.lastKeyPressed = 'alt';
+            }
+            else if (e.ctrlKey && !this._keyStatus.ctrlKey) {
+                this._keyStatus.lastKeyPressed = 'ctrl';
+            }
+            else if (e.metaKey && !this._keyStatus.metaKey) {
+                this._keyStatus.lastKeyPressed = 'meta';
+            }
+            else if (e.shiftKey && !this._keyStatus.shiftKey) {
+                this._keyStatus.lastKeyPressed = 'shift';
+            }
+            else if (event.keyCode !== 6 /* Alt */) {
+                this._keyStatus.lastKeyPressed = undefined;
+            }
+            else {
+                return;
+            }
+            this._keyStatus.altKey = e.altKey;
+            this._keyStatus.ctrlKey = e.ctrlKey;
+            this._keyStatus.metaKey = e.metaKey;
+            this._keyStatus.shiftKey = e.shiftKey;
+            if (this._keyStatus.lastKeyPressed) {
+                this._keyStatus.event = e;
+                this.fire(this._keyStatus);
+            }
+        }, true));
+        this._subscriptions.add(addDisposableListener(window, 'keyup', e => {
+            if (e.defaultPrevented) {
+                return;
+            }
+            if (!e.altKey && this._keyStatus.altKey) {
+                this._keyStatus.lastKeyReleased = 'alt';
+            }
+            else if (!e.ctrlKey && this._keyStatus.ctrlKey) {
+                this._keyStatus.lastKeyReleased = 'ctrl';
+            }
+            else if (!e.metaKey && this._keyStatus.metaKey) {
+                this._keyStatus.lastKeyReleased = 'meta';
+            }
+            else if (!e.shiftKey && this._keyStatus.shiftKey) {
+                this._keyStatus.lastKeyReleased = 'shift';
+            }
+            else {
+                this._keyStatus.lastKeyReleased = undefined;
+            }
+            if (this._keyStatus.lastKeyPressed !== this._keyStatus.lastKeyReleased) {
+                this._keyStatus.lastKeyPressed = undefined;
+            }
+            this._keyStatus.altKey = e.altKey;
+            this._keyStatus.ctrlKey = e.ctrlKey;
+            this._keyStatus.metaKey = e.metaKey;
+            this._keyStatus.shiftKey = e.shiftKey;
+            if (this._keyStatus.lastKeyReleased) {
+                this._keyStatus.event = e;
+                this.fire(this._keyStatus);
+            }
+        }, true));
+        this._subscriptions.add(addDisposableListener(document.body, 'mousedown', () => {
+            this._keyStatus.lastKeyPressed = undefined;
+        }, true));
+        this._subscriptions.add(addDisposableListener(document.body, 'mouseup', () => {
+            this._keyStatus.lastKeyPressed = undefined;
+        }, true));
+        this._subscriptions.add(addDisposableListener(document.body, 'mousemove', e => {
+            if (e.buttons) {
+                this._keyStatus.lastKeyPressed = undefined;
+            }
+        }, true));
+        this._subscriptions.add(addDisposableListener(window, 'blur', () => {
+            this.resetKeyStatus();
+        }));
+    }
+    get keyStatus() {
+        return this._keyStatus;
+    }
+    /**
+     * Allows to explicitly reset the key status based on more knowledge (#109062)
+     */
+    resetKeyStatus() {
+        this.doResetKeyStatus();
+        this.fire(this._keyStatus);
+    }
+    doResetKeyStatus() {
+        this._keyStatus = {
+            altKey: false,
+            shiftKey: false,
+            ctrlKey: false,
+            metaKey: false
+        };
+    }
+    static getInstance() {
+        if (!ModifierKeyEmitter.instance) {
+            ModifierKeyEmitter.instance = new ModifierKeyEmitter();
+        }
+        return ModifierKeyEmitter.instance;
+    }
+    dispose() {
+        super.dispose();
+        this._subscriptions.dispose();
+    }
+}
+export function addMatchMediaChangeListener(query, callback) {
+    const mediaQueryList = window.matchMedia(query);
+    if (typeof mediaQueryList.addEventListener === 'function') {
+        mediaQueryList.addEventListener('change', callback);
+    }
+    else {
+        // Safari 13.x
+        mediaQueryList.addListener(callback);
+    }
 }

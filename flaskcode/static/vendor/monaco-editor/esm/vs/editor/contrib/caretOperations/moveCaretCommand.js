@@ -3,57 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Range } from '../../common/core/range.js';
-var MoveCaretCommand = /** @class */ (function () {
-    function MoveCaretCommand(selection, isMovingLeft) {
+import { Selection } from '../../common/core/selection.js';
+export class MoveCaretCommand {
+    constructor(selection, isMovingLeft) {
         this._selection = selection;
         this._isMovingLeft = isMovingLeft;
-        this._cutStartIndex = -1;
-        this._cutEndIndex = -1;
-        this._moved = false;
-        this._selectionId = null;
     }
-    MoveCaretCommand.prototype.getEditOperations = function (model, builder) {
-        var s = this._selection;
-        this._selectionId = builder.trackSelection(s);
-        if (s.startLineNumber !== s.endLineNumber) {
+    getEditOperations(model, builder) {
+        if (this._selection.startLineNumber !== this._selection.endLineNumber || this._selection.isEmpty()) {
             return;
         }
-        if (this._isMovingLeft && s.startColumn === 0) {
+        const lineNumber = this._selection.startLineNumber;
+        const startColumn = this._selection.startColumn;
+        const endColumn = this._selection.endColumn;
+        if (this._isMovingLeft && startColumn === 1) {
             return;
         }
-        else if (!this._isMovingLeft && s.endColumn === model.getLineMaxColumn(s.startLineNumber)) {
+        if (!this._isMovingLeft && endColumn === model.getLineMaxColumn(lineNumber)) {
             return;
         }
-        var lineNumber = s.selectionStartLineNumber;
-        var lineContent = model.getLineContent(lineNumber);
-        var left;
-        var middle;
-        var right;
         if (this._isMovingLeft) {
-            left = lineContent.substring(0, s.startColumn - 2);
-            middle = lineContent.substring(s.startColumn - 1, s.endColumn - 1);
-            right = lineContent.substring(s.startColumn - 2, s.startColumn - 1) + lineContent.substring(s.endColumn - 1);
+            const rangeBefore = new Range(lineNumber, startColumn - 1, lineNumber, startColumn);
+            const charBefore = model.getValueInRange(rangeBefore);
+            builder.addEditOperation(rangeBefore, null);
+            builder.addEditOperation(new Range(lineNumber, endColumn, lineNumber, endColumn), charBefore);
         }
         else {
-            left = lineContent.substring(0, s.startColumn - 1) + lineContent.substring(s.endColumn - 1, s.endColumn);
-            middle = lineContent.substring(s.startColumn - 1, s.endColumn - 1);
-            right = lineContent.substring(s.endColumn);
+            const rangeAfter = new Range(lineNumber, endColumn, lineNumber, endColumn + 1);
+            const charAfter = model.getValueInRange(rangeAfter);
+            builder.addEditOperation(rangeAfter, null);
+            builder.addEditOperation(new Range(lineNumber, startColumn, lineNumber, startColumn), charAfter);
         }
-        var newLineContent = left + middle + right;
-        builder.addEditOperation(new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)), null);
-        builder.addEditOperation(new Range(lineNumber, 1, lineNumber, 1), newLineContent);
-        this._cutStartIndex = s.startColumn + (this._isMovingLeft ? -1 : 1);
-        this._cutEndIndex = this._cutStartIndex + s.endColumn - s.startColumn;
-        this._moved = true;
-    };
-    MoveCaretCommand.prototype.computeCursorState = function (model, helper) {
-        var result = helper.getTrackedSelection(this._selectionId);
-        if (this._moved) {
-            result = result.setStartPosition(result.startLineNumber, this._cutStartIndex);
-            result = result.setEndPosition(result.startLineNumber, this._cutEndIndex);
+    }
+    computeCursorState(model, helper) {
+        if (this._isMovingLeft) {
+            return new Selection(this._selection.startLineNumber, this._selection.startColumn - 1, this._selection.endLineNumber, this._selection.endColumn - 1);
         }
-        return result;
-    };
-    return MoveCaretCommand;
-}());
-export { MoveCaretCommand };
+        else {
+            return new Selection(this._selection.startLineNumber, this._selection.startColumn + 1, this._selection.endLineNumber, this._selection.endColumn + 1);
+        }
+    }
+}

@@ -2,89 +2,74 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 import './decorations.css';
 import { DynamicViewOverlay } from '../../view/dynamicViewOverlay.js';
 import { Range } from '../../../common/core/range.js';
 import { HorizontalRange } from '../../../common/view/renderingContext.js';
-var DecorationsOverlay = /** @class */ (function (_super) {
-    __extends(DecorationsOverlay, _super);
-    function DecorationsOverlay(context) {
-        var _this = _super.call(this) || this;
-        _this._context = context;
-        var options = _this._context.configuration.options;
-        _this._lineHeight = options.get(49 /* lineHeight */);
-        _this._typicalHalfwidthCharacterWidth = options.get(34 /* fontInfo */).typicalHalfwidthCharacterWidth;
-        _this._renderResult = null;
-        _this._context.addEventHandler(_this);
-        return _this;
+export class DecorationsOverlay extends DynamicViewOverlay {
+    constructor(context) {
+        super();
+        this._context = context;
+        const options = this._context.configuration.options;
+        this._lineHeight = options.get(58 /* lineHeight */);
+        this._typicalHalfwidthCharacterWidth = options.get(43 /* fontInfo */).typicalHalfwidthCharacterWidth;
+        this._renderResult = null;
+        this._context.addEventHandler(this);
     }
-    DecorationsOverlay.prototype.dispose = function () {
+    dispose() {
         this._context.removeEventHandler(this);
         this._renderResult = null;
-        _super.prototype.dispose.call(this);
-    };
+        super.dispose();
+    }
     // --- begin event handlers
-    DecorationsOverlay.prototype.onConfigurationChanged = function (e) {
-        var options = this._context.configuration.options;
-        this._lineHeight = options.get(49 /* lineHeight */);
-        this._typicalHalfwidthCharacterWidth = options.get(34 /* fontInfo */).typicalHalfwidthCharacterWidth;
+    onConfigurationChanged(e) {
+        const options = this._context.configuration.options;
+        this._lineHeight = options.get(58 /* lineHeight */);
+        this._typicalHalfwidthCharacterWidth = options.get(43 /* fontInfo */).typicalHalfwidthCharacterWidth;
         return true;
-    };
-    DecorationsOverlay.prototype.onDecorationsChanged = function (e) {
+    }
+    onDecorationsChanged(e) {
         return true;
-    };
-    DecorationsOverlay.prototype.onFlushed = function (e) {
+    }
+    onFlushed(e) {
         return true;
-    };
-    DecorationsOverlay.prototype.onLinesChanged = function (e) {
+    }
+    onLinesChanged(e) {
         return true;
-    };
-    DecorationsOverlay.prototype.onLinesDeleted = function (e) {
+    }
+    onLinesDeleted(e) {
         return true;
-    };
-    DecorationsOverlay.prototype.onLinesInserted = function (e) {
+    }
+    onLinesInserted(e) {
         return true;
-    };
-    DecorationsOverlay.prototype.onScrollChanged = function (e) {
+    }
+    onScrollChanged(e) {
         return e.scrollTopChanged || e.scrollWidthChanged;
-    };
-    DecorationsOverlay.prototype.onZonesChanged = function (e) {
+    }
+    onZonesChanged(e) {
         return true;
-    };
+    }
     // --- end event handlers
-    DecorationsOverlay.prototype.prepareRender = function (ctx) {
-        var _decorations = ctx.getDecorationsInViewport();
+    prepareRender(ctx) {
+        const _decorations = ctx.getDecorationsInViewport();
         // Keep only decorations with `className`
-        var decorations = [], decorationsLen = 0;
-        for (var i = 0, len = _decorations.length; i < len; i++) {
-            var d = _decorations[i];
+        let decorations = [], decorationsLen = 0;
+        for (let i = 0, len = _decorations.length; i < len; i++) {
+            const d = _decorations[i];
             if (d.options.className) {
                 decorations[decorationsLen++] = d;
             }
         }
         // Sort decorations for consistent render output
-        decorations = decorations.sort(function (a, b) {
+        decorations = decorations.sort((a, b) => {
             if (a.options.zIndex < b.options.zIndex) {
                 return -1;
             }
             if (a.options.zIndex > b.options.zIndex) {
                 return 1;
             }
-            var aClassName = a.options.className;
-            var bClassName = b.options.className;
+            const aClassName = a.options.className;
+            const bClassName = b.options.className;
             if (aClassName < bClassName) {
                 return -1;
             }
@@ -93,54 +78,54 @@ var DecorationsOverlay = /** @class */ (function (_super) {
             }
             return Range.compareRangesUsingStarts(a.range, b.range);
         });
-        var visibleStartLineNumber = ctx.visibleRange.startLineNumber;
-        var visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-        var output = [];
-        for (var lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
-            var lineIndex = lineNumber - visibleStartLineNumber;
+        const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+        const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
+        const output = [];
+        for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
+            const lineIndex = lineNumber - visibleStartLineNumber;
             output[lineIndex] = '';
         }
         // Render first whole line decorations and then regular decorations
         this._renderWholeLineDecorations(ctx, decorations, output);
         this._renderNormalDecorations(ctx, decorations, output);
         this._renderResult = output;
-    };
-    DecorationsOverlay.prototype._renderWholeLineDecorations = function (ctx, decorations, output) {
-        var lineHeight = String(this._lineHeight);
-        var visibleStartLineNumber = ctx.visibleRange.startLineNumber;
-        var visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-        for (var i = 0, lenI = decorations.length; i < lenI; i++) {
-            var d = decorations[i];
+    }
+    _renderWholeLineDecorations(ctx, decorations, output) {
+        const lineHeight = String(this._lineHeight);
+        const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+        const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
+        for (let i = 0, lenI = decorations.length; i < lenI; i++) {
+            const d = decorations[i];
             if (!d.options.isWholeLine) {
                 continue;
             }
-            var decorationOutput = ('<div class="cdr '
+            const decorationOutput = ('<div class="cdr '
                 + d.options.className
                 + '" style="left:0;width:100%;height:'
                 + lineHeight
                 + 'px;"></div>');
-            var startLineNumber = Math.max(d.range.startLineNumber, visibleStartLineNumber);
-            var endLineNumber = Math.min(d.range.endLineNumber, visibleEndLineNumber);
-            for (var j = startLineNumber; j <= endLineNumber; j++) {
-                var lineIndex = j - visibleStartLineNumber;
+            const startLineNumber = Math.max(d.range.startLineNumber, visibleStartLineNumber);
+            const endLineNumber = Math.min(d.range.endLineNumber, visibleEndLineNumber);
+            for (let j = startLineNumber; j <= endLineNumber; j++) {
+                const lineIndex = j - visibleStartLineNumber;
                 output[lineIndex] += decorationOutput;
             }
         }
-    };
-    DecorationsOverlay.prototype._renderNormalDecorations = function (ctx, decorations, output) {
-        var lineHeight = String(this._lineHeight);
-        var visibleStartLineNumber = ctx.visibleRange.startLineNumber;
-        var prevClassName = null;
-        var prevShowIfCollapsed = false;
-        var prevRange = null;
-        for (var i = 0, lenI = decorations.length; i < lenI; i++) {
-            var d = decorations[i];
+    }
+    _renderNormalDecorations(ctx, decorations, output) {
+        const lineHeight = String(this._lineHeight);
+        const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+        let prevClassName = null;
+        let prevShowIfCollapsed = false;
+        let prevRange = null;
+        for (let i = 0, lenI = decorations.length; i < lenI; i++) {
+            const d = decorations[i];
             if (d.options.isWholeLine) {
                 continue;
             }
-            var className = d.options.className;
-            var showIfCollapsed = Boolean(d.options.showIfCollapsed);
-            var range = d.range;
+            const className = d.options.className;
+            const showIfCollapsed = Boolean(d.options.showIfCollapsed);
+            let range = d.range;
             if (showIfCollapsed && range.endColumn === 1 && range.endLineNumber !== range.startLineNumber) {
                 range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber - 1, this._context.model.getLineMaxColumn(range.endLineNumber - 1));
             }
@@ -160,28 +145,31 @@ var DecorationsOverlay = /** @class */ (function (_super) {
         if (prevClassName !== null) {
             this._renderNormalDecoration(ctx, prevRange, prevClassName, prevShowIfCollapsed, lineHeight, visibleStartLineNumber, output);
         }
-    };
-    DecorationsOverlay.prototype._renderNormalDecoration = function (ctx, range, className, showIfCollapsed, lineHeight, visibleStartLineNumber, output) {
-        var linesVisibleRanges = ctx.linesVisibleRangesForRange(range, /*TODO@Alex*/ className === 'findMatch');
+    }
+    _renderNormalDecoration(ctx, range, className, showIfCollapsed, lineHeight, visibleStartLineNumber, output) {
+        const linesVisibleRanges = ctx.linesVisibleRangesForRange(range, /*TODO@Alex*/ className === 'findMatch');
         if (!linesVisibleRanges) {
             return;
         }
-        for (var j = 0, lenJ = linesVisibleRanges.length; j < lenJ; j++) {
-            var lineVisibleRanges = linesVisibleRanges[j];
+        for (let j = 0, lenJ = linesVisibleRanges.length; j < lenJ; j++) {
+            const lineVisibleRanges = linesVisibleRanges[j];
             if (lineVisibleRanges.outsideRenderedLine) {
                 continue;
             }
-            var lineIndex = lineVisibleRanges.lineNumber - visibleStartLineNumber;
+            const lineIndex = lineVisibleRanges.lineNumber - visibleStartLineNumber;
             if (showIfCollapsed && lineVisibleRanges.ranges.length === 1) {
-                var singleVisibleRange = lineVisibleRanges.ranges[0];
-                if (singleVisibleRange.width === 0) {
-                    // collapsed range case => make the decoration visible by faking its width
-                    lineVisibleRanges.ranges[0] = new HorizontalRange(singleVisibleRange.left, this._typicalHalfwidthCharacterWidth);
+                const singleVisibleRange = lineVisibleRanges.ranges[0];
+                if (singleVisibleRange.width < this._typicalHalfwidthCharacterWidth) {
+                    // collapsed/very small range case => make the decoration visible by expanding its width
+                    // expand its size on both sides (both to the left and to the right, keeping it centered)
+                    const center = Math.round(singleVisibleRange.left + singleVisibleRange.width / 2);
+                    const left = Math.max(0, Math.round(center - this._typicalHalfwidthCharacterWidth / 2));
+                    lineVisibleRanges.ranges[0] = new HorizontalRange(left, this._typicalHalfwidthCharacterWidth);
                 }
             }
-            for (var k = 0, lenK = lineVisibleRanges.ranges.length; k < lenK; k++) {
-                var visibleRange = lineVisibleRanges.ranges[k];
-                var decorationOutput = ('<div class="cdr '
+            for (let k = 0, lenK = lineVisibleRanges.ranges.length; k < lenK; k++) {
+                const visibleRange = lineVisibleRanges.ranges[k];
+                const decorationOutput = ('<div class="cdr '
                     + className
                     + '" style="left:'
                     + String(visibleRange.left)
@@ -193,17 +181,15 @@ var DecorationsOverlay = /** @class */ (function (_super) {
                 output[lineIndex] += decorationOutput;
             }
         }
-    };
-    DecorationsOverlay.prototype.render = function (startLineNumber, lineNumber) {
+    }
+    render(startLineNumber, lineNumber) {
         if (!this._renderResult) {
             return '';
         }
-        var lineIndex = lineNumber - startLineNumber;
+        const lineIndex = lineNumber - startLineNumber;
         if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
             return '';
         }
         return this._renderResult[lineIndex];
-    };
-    return DecorationsOverlay;
-}(DynamicViewOverlay));
-export { DecorationsOverlay };
+    }
+}

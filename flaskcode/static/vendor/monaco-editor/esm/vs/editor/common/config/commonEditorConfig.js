@@ -2,208 +2,192 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
 import * as nls from '../../../nls.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import * as objects from '../../../base/common/objects.js';
 import * as arrays from '../../../base/common/arrays.js';
-import { editorOptionsRegistry, ValidatedEditorOptions, ConfigurationChangedEvent, EDITOR_MODEL_DEFAULTS } from './editorOptions.js';
+import { editorOptionsRegistry, ValidatedEditorOptions, ConfigurationChangedEvent, EDITOR_MODEL_DEFAULTS, ComputeOptionsMemory } from './editorOptions.js';
 import { EditorZoom } from './editorZoom.js';
 import { BareFontInfo } from './fontInfo.js';
 import { Extensions } from '../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { forEach } from '../../../base/common/collections.js';
-export var TabFocus = new /** @class */ (function () {
-    function class_1() {
+export const TabFocus = new class {
+    constructor() {
         this._tabFocus = false;
         this._onDidChangeTabFocus = new Emitter();
         this.onDidChangeTabFocus = this._onDidChangeTabFocus.event;
     }
-    class_1.prototype.getTabFocusMode = function () {
+    getTabFocusMode() {
         return this._tabFocus;
-    };
-    class_1.prototype.setTabFocusMode = function (tabFocusMode) {
+    }
+    setTabFocusMode(tabFocusMode) {
         if (this._tabFocus === tabFocusMode) {
             return;
         }
         this._tabFocus = tabFocusMode;
         this._onDidChangeTabFocus.fire(this._tabFocus);
-    };
-    return class_1;
-}());
-var hasOwnProperty = Object.hasOwnProperty;
-var ComputedEditorOptions = /** @class */ (function () {
-    function ComputedEditorOptions() {
+    }
+};
+const hasOwnProperty = Object.hasOwnProperty;
+export class ComputedEditorOptions {
+    constructor() {
         this._values = [];
     }
-    ComputedEditorOptions.prototype._read = function (id) {
+    _read(id) {
         return this._values[id];
-    };
-    ComputedEditorOptions.prototype.get = function (id) {
+    }
+    get(id) {
         return this._values[id];
-    };
-    ComputedEditorOptions.prototype._write = function (id, value) {
+    }
+    _write(id, value) {
         this._values[id] = value;
-    };
-    return ComputedEditorOptions;
-}());
-export { ComputedEditorOptions };
-var RawEditorOptions = /** @class */ (function () {
-    function RawEditorOptions() {
+    }
+}
+class RawEditorOptions {
+    constructor() {
         this._values = [];
     }
-    RawEditorOptions.prototype._read = function (id) {
+    _read(id) {
         return this._values[id];
-    };
-    RawEditorOptions.prototype._write = function (id, value) {
-        this._values[id] = value;
-    };
-    return RawEditorOptions;
-}());
-var EditorConfiguration2 = /** @class */ (function () {
-    function EditorConfiguration2() {
     }
-    EditorConfiguration2.readOptions = function (_options) {
-        var options = _options;
-        var result = new RawEditorOptions();
-        for (var _i = 0, editorOptionsRegistry_2 = editorOptionsRegistry; _i < editorOptionsRegistry_2.length; _i++) {
-            var editorOption = editorOptionsRegistry_2[_i];
-            var value = (editorOption.name === '_never_' ? undefined : options[editorOption.name]);
+    _write(id, value) {
+        this._values[id] = value;
+    }
+}
+class EditorConfiguration2 {
+    static readOptions(_options) {
+        const options = _options;
+        const result = new RawEditorOptions();
+        for (const editorOption of editorOptionsRegistry) {
+            const value = (editorOption.name === '_never_' ? undefined : options[editorOption.name]);
             result._write(editorOption.id, value);
         }
         return result;
-    };
-    EditorConfiguration2.validateOptions = function (options) {
-        var result = new ValidatedEditorOptions();
-        for (var _i = 0, editorOptionsRegistry_3 = editorOptionsRegistry; _i < editorOptionsRegistry_3.length; _i++) {
-            var editorOption = editorOptionsRegistry_3[_i];
+    }
+    static validateOptions(options) {
+        const result = new ValidatedEditorOptions();
+        for (const editorOption of editorOptionsRegistry) {
             result._write(editorOption.id, editorOption.validate(options._read(editorOption.id)));
         }
         return result;
-    };
-    EditorConfiguration2.computeOptions = function (options, env) {
-        var result = new ComputedEditorOptions();
-        for (var _i = 0, editorOptionsRegistry_4 = editorOptionsRegistry; _i < editorOptionsRegistry_4.length; _i++) {
-            var editorOption = editorOptionsRegistry_4[_i];
+    }
+    static computeOptions(options, env) {
+        const result = new ComputedEditorOptions();
+        for (const editorOption of editorOptionsRegistry) {
             result._write(editorOption.id, editorOption.compute(env, result, options._read(editorOption.id)));
         }
         return result;
-    };
-    EditorConfiguration2._deepEquals = function (a, b) {
-        if (typeof a !== 'object' || typeof b !== 'object') {
-            return (a === b);
+    }
+    static _deepEquals(a, b) {
+        if (typeof a !== 'object' || typeof b !== 'object' || !a || !b) {
+            return a === b;
         }
         if (Array.isArray(a) || Array.isArray(b)) {
             return (Array.isArray(a) && Array.isArray(b) ? arrays.equals(a, b) : false);
         }
-        for (var key in a) {
+        if (Object.keys(a).length !== Object.keys(b).length) {
+            return false;
+        }
+        for (let key in a) {
             if (!EditorConfiguration2._deepEquals(a[key], b[key])) {
                 return false;
             }
         }
         return true;
-    };
-    EditorConfiguration2.checkEquals = function (a, b) {
-        var result = [];
-        var somethingChanged = false;
-        for (var _i = 0, editorOptionsRegistry_5 = editorOptionsRegistry; _i < editorOptionsRegistry_5.length; _i++) {
-            var editorOption = editorOptionsRegistry_5[_i];
-            var changed = !EditorConfiguration2._deepEquals(a._read(editorOption.id), b._read(editorOption.id));
+    }
+    static checkEquals(a, b) {
+        const result = [];
+        let somethingChanged = false;
+        for (const editorOption of editorOptionsRegistry) {
+            const changed = !EditorConfiguration2._deepEquals(a._read(editorOption.id), b._read(editorOption.id));
             result[editorOption.id] = changed;
             if (changed) {
                 somethingChanged = true;
             }
         }
         return (somethingChanged ? new ConfigurationChangedEvent(result) : null);
-    };
-    return EditorConfiguration2;
-}());
+    }
+    /**
+     * Returns true if something changed.
+     * Modifies `options`.
+    */
+    static applyUpdate(options, update) {
+        let changed = false;
+        for (const editorOption of editorOptionsRegistry) {
+            if (update.hasOwnProperty(editorOption.name)) {
+                const result = editorOption.applyUpdate(options[editorOption.name], update[editorOption.name]);
+                options[editorOption.name] = result.newValue;
+                changed = changed || result.didChange;
+            }
+        }
+        return changed;
+    }
+}
 /**
  * Compatibility with old options
  */
 function migrateOptions(options) {
-    var wordWrap = options.wordWrap;
+    const wordWrap = options.wordWrap;
     if (wordWrap === true) {
         options.wordWrap = 'on';
     }
     else if (wordWrap === false) {
         options.wordWrap = 'off';
     }
-    var lineNumbers = options.lineNumbers;
+    const lineNumbers = options.lineNumbers;
     if (lineNumbers === true) {
         options.lineNumbers = 'on';
     }
     else if (lineNumbers === false) {
         options.lineNumbers = 'off';
     }
-    var autoClosingBrackets = options.autoClosingBrackets;
+    const autoClosingBrackets = options.autoClosingBrackets;
     if (autoClosingBrackets === false) {
         options.autoClosingBrackets = 'never';
         options.autoClosingQuotes = 'never';
         options.autoSurround = 'never';
     }
-    var cursorBlinking = options.cursorBlinking;
+    const cursorBlinking = options.cursorBlinking;
     if (cursorBlinking === 'visible') {
         options.cursorBlinking = 'solid';
     }
-    var renderWhitespace = options.renderWhitespace;
+    const renderWhitespace = options.renderWhitespace;
     if (renderWhitespace === true) {
         options.renderWhitespace = 'boundary';
     }
     else if (renderWhitespace === false) {
         options.renderWhitespace = 'none';
     }
-    var renderLineHighlight = options.renderLineHighlight;
+    const renderLineHighlight = options.renderLineHighlight;
     if (renderLineHighlight === true) {
         options.renderLineHighlight = 'line';
     }
     else if (renderLineHighlight === false) {
         options.renderLineHighlight = 'none';
     }
-    var acceptSuggestionOnEnter = options.acceptSuggestionOnEnter;
+    const acceptSuggestionOnEnter = options.acceptSuggestionOnEnter;
     if (acceptSuggestionOnEnter === true) {
         options.acceptSuggestionOnEnter = 'on';
     }
     else if (acceptSuggestionOnEnter === false) {
         options.acceptSuggestionOnEnter = 'off';
     }
-    var tabCompletion = options.tabCompletion;
+    const tabCompletion = options.tabCompletion;
     if (tabCompletion === false) {
         options.tabCompletion = 'off';
     }
     else if (tabCompletion === true) {
         options.tabCompletion = 'onlySnippets';
     }
-    var suggest = options.suggest;
+    const suggest = options.suggest;
     if (suggest && typeof suggest.filteredTypes === 'object' && suggest.filteredTypes) {
-        var mapping = {};
+        const mapping = {};
         mapping['method'] = 'showMethods';
         mapping['function'] = 'showFunctions';
         mapping['constructor'] = 'showConstructors';
+        mapping['deprecated'] = 'showDeprecated';
         mapping['field'] = 'showFields';
         mapping['variable'] = 'showVariables';
         mapping['class'] = 'showClasses';
@@ -226,15 +210,15 @@ function migrateOptions(options) {
         mapping['folder'] = 'showFolders';
         mapping['typeParameter'] = 'showTypeParameters';
         mapping['snippet'] = 'showSnippets';
-        forEach(mapping, function (entry) {
-            var value = suggest.filteredTypes[entry.key];
+        forEach(mapping, entry => {
+            const value = suggest.filteredTypes[entry.key];
             if (value === false) {
                 suggest[entry.value] = value;
             }
         });
         // delete (<any>suggest).filteredTypes;
     }
-    var hover = options.hover;
+    const hover = options.hover;
     if (hover === true) {
         options.hover = {
             enabled: true
@@ -245,7 +229,7 @@ function migrateOptions(options) {
             enabled: false
         };
     }
-    var parameterHints = options.parameterHints;
+    const parameterHints = options.parameterHints;
     if (parameterHints === true) {
         options.parameterHints = {
             enabled: true
@@ -256,75 +240,90 @@ function migrateOptions(options) {
             enabled: false
         };
     }
-    var autoIndent = options.autoIndent;
+    const autoIndent = options.autoIndent;
     if (autoIndent === true) {
         options.autoIndent = 'full';
     }
     else if (autoIndent === false) {
         options.autoIndent = 'advanced';
     }
-    var matchBrackets = options.matchBrackets;
+    const matchBrackets = options.matchBrackets;
     if (matchBrackets === true) {
         options.matchBrackets = 'always';
     }
     else if (matchBrackets === false) {
         options.matchBrackets = 'never';
     }
+    const { renderIndentGuides, highlightActiveIndentGuide } = options;
+    if (!options.guides) {
+        options.guides = {};
+    }
+    if (renderIndentGuides !== undefined) {
+        options.guides.indentation = !!renderIndentGuides;
+    }
+    if (highlightActiveIndentGuide !== undefined) {
+        options.guides.highlightActiveIndentation = !!highlightActiveIndentGuide;
+    }
 }
 function deepCloneAndMigrateOptions(_options) {
-    var options = objects.deepClone(_options);
+    const options = objects.deepClone(_options);
     migrateOptions(options);
     return options;
 }
-var CommonEditorConfiguration = /** @class */ (function (_super) {
-    __extends(CommonEditorConfiguration, _super);
-    function CommonEditorConfiguration(isSimpleWidget, _options) {
-        var _this = _super.call(this) || this;
-        _this._onDidChange = _this._register(new Emitter());
-        _this.onDidChange = _this._onDidChange.event;
-        _this.isSimpleWidget = isSimpleWidget;
-        _this._isDominatedByLongLines = false;
-        _this._lineNumbersDigitCount = 1;
-        _this._rawOptions = deepCloneAndMigrateOptions(_options);
-        _this._readOptions = EditorConfiguration2.readOptions(_this._rawOptions);
-        _this._validatedOptions = EditorConfiguration2.validateOptions(_this._readOptions);
-        _this._register(EditorZoom.onDidChangeZoomLevel(function (_) { return _this._recomputeOptions(); }));
-        _this._register(TabFocus.onDidChangeTabFocus(function (_) { return _this._recomputeOptions(); }));
-        return _this;
+export class CommonEditorConfiguration extends Disposable {
+    constructor(isSimpleWidget, _options) {
+        super();
+        this._onDidChange = this._register(new Emitter());
+        this.onDidChange = this._onDidChange.event;
+        this._onDidChangeFast = this._register(new Emitter());
+        this.onDidChangeFast = this._onDidChangeFast.event;
+        this._reservedHeight = 0;
+        this.isSimpleWidget = isSimpleWidget;
+        this._isDominatedByLongLines = false;
+        this._computeOptionsMemory = new ComputeOptionsMemory();
+        this._viewLineCount = 1;
+        this._lineNumbersDigitCount = 1;
+        this._rawOptions = deepCloneAndMigrateOptions(_options);
+        this._readOptions = EditorConfiguration2.readOptions(this._rawOptions);
+        this._validatedOptions = EditorConfiguration2.validateOptions(this._readOptions);
+        this._register(EditorZoom.onDidChangeZoomLevel(_ => this._recomputeOptions()));
+        this._register(TabFocus.onDidChangeTabFocus(_ => this._recomputeOptions()));
     }
-    CommonEditorConfiguration.prototype.observeReferenceElement = function (dimension) {
-    };
-    CommonEditorConfiguration.prototype.dispose = function () {
-        _super.prototype.dispose.call(this);
-    };
-    CommonEditorConfiguration.prototype._recomputeOptions = function () {
-        var oldOptions = this.options;
-        var newOptions = this._computeInternalOptions();
+    observeReferenceElement(dimension) {
+    }
+    updatePixelRatio() {
+    }
+    _recomputeOptions() {
+        const oldOptions = this.options;
+        const newOptions = this._computeInternalOptions();
         if (!oldOptions) {
             this.options = newOptions;
         }
         else {
-            var changeEvent = EditorConfiguration2.checkEquals(oldOptions, newOptions);
+            const changeEvent = EditorConfiguration2.checkEquals(oldOptions, newOptions);
             if (changeEvent === null) {
                 // nothing changed!
                 return;
             }
             this.options = newOptions;
+            this._onDidChangeFast.fire(changeEvent);
             this._onDidChange.fire(changeEvent);
         }
-    };
-    CommonEditorConfiguration.prototype.getRawOptions = function () {
+    }
+    getRawOptions() {
         return this._rawOptions;
-    };
-    CommonEditorConfiguration.prototype._computeInternalOptions = function () {
-        var partialEnv = this._getEnvConfiguration();
-        var bareFontInfo = BareFontInfo.createFromValidatedSettings(this._validatedOptions, partialEnv.zoomLevel, this.isSimpleWidget);
-        var env = {
+    }
+    _computeInternalOptions() {
+        const partialEnv = this._getEnvConfiguration();
+        const bareFontInfo = BareFontInfo.createFromValidatedSettings(this._validatedOptions, partialEnv.zoomLevel, partialEnv.pixelRatio, this.isSimpleWidget);
+        const env = {
+            memory: this._computeOptionsMemory,
             outerWidth: partialEnv.outerWidth,
-            outerHeight: partialEnv.outerHeight,
+            outerHeight: partialEnv.outerHeight - this._reservedHeight,
             fontInfo: this.readConfiguration(bareFontInfo),
             extraEditorClassName: partialEnv.extraEditorClassName,
             isDominatedByLongLines: this._isDominatedByLongLines,
+            viewLineCount: this._viewLineCount,
             lineNumbersDigitCount: this._lineNumbersDigitCount,
             emptySelectionClipboard: partialEnv.emptySelectionClipboard,
             pixelRatio: partialEnv.pixelRatio,
@@ -332,77 +331,61 @@ var CommonEditorConfiguration = /** @class */ (function (_super) {
             accessibilitySupport: partialEnv.accessibilitySupport
         };
         return EditorConfiguration2.computeOptions(this._validatedOptions, env);
-    };
-    CommonEditorConfiguration._subsetEquals = function (base, subset) {
-        for (var key in subset) {
-            if (hasOwnProperty.call(subset, key)) {
-                var subsetValue = subset[key];
-                var baseValue = base[key];
-                if (baseValue === subsetValue) {
-                    continue;
-                }
-                if (Array.isArray(baseValue) && Array.isArray(subsetValue)) {
-                    if (!arrays.equals(baseValue, subsetValue)) {
-                        return false;
-                    }
-                    continue;
-                }
-                if (typeof baseValue === 'object' && typeof subsetValue === 'object') {
-                    if (!this._subsetEquals(baseValue, subsetValue)) {
-                        return false;
-                    }
-                    continue;
-                }
-                return false;
-            }
-        }
-        return true;
-    };
-    CommonEditorConfiguration.prototype.updateOptions = function (_newOptions) {
+    }
+    updateOptions(_newOptions) {
         if (typeof _newOptions === 'undefined') {
             return;
         }
-        var newOptions = deepCloneAndMigrateOptions(_newOptions);
-        if (CommonEditorConfiguration._subsetEquals(this._rawOptions, newOptions)) {
+        const newOptions = deepCloneAndMigrateOptions(_newOptions);
+        const didChange = EditorConfiguration2.applyUpdate(this._rawOptions, newOptions);
+        if (!didChange) {
             return;
         }
-        this._rawOptions = objects.mixin(this._rawOptions, newOptions || {});
         this._readOptions = EditorConfiguration2.readOptions(this._rawOptions);
         this._validatedOptions = EditorConfiguration2.validateOptions(this._readOptions);
         this._recomputeOptions();
-    };
-    CommonEditorConfiguration.prototype.setIsDominatedByLongLines = function (isDominatedByLongLines) {
+    }
+    setIsDominatedByLongLines(isDominatedByLongLines) {
         this._isDominatedByLongLines = isDominatedByLongLines;
         this._recomputeOptions();
-    };
-    CommonEditorConfiguration.prototype.setMaxLineNumber = function (maxLineNumber) {
-        var digitCount = CommonEditorConfiguration._digitCount(maxLineNumber);
-        if (this._lineNumbersDigitCount === digitCount) {
+    }
+    setMaxLineNumber(maxLineNumber) {
+        const lineNumbersDigitCount = CommonEditorConfiguration._digitCount(maxLineNumber);
+        if (this._lineNumbersDigitCount === lineNumbersDigitCount) {
             return;
         }
-        this._lineNumbersDigitCount = digitCount;
+        this._lineNumbersDigitCount = lineNumbersDigitCount;
         this._recomputeOptions();
-    };
-    CommonEditorConfiguration._digitCount = function (n) {
-        var r = 0;
+    }
+    setViewLineCount(viewLineCount) {
+        if (this._viewLineCount === viewLineCount) {
+            return;
+        }
+        this._viewLineCount = viewLineCount;
+        this._recomputeOptions();
+    }
+    static _digitCount(n) {
+        let r = 0;
         while (n) {
             n = Math.floor(n / 10);
             r++;
         }
         return r ? r : 1;
-    };
-    return CommonEditorConfiguration;
-}(Disposable));
-export { CommonEditorConfiguration };
-export var editorConfigurationBaseNode = Object.freeze({
+    }
+    reserveHeight(height) {
+        this._reservedHeight = height;
+        this._recomputeOptions();
+    }
+}
+export const editorConfigurationBaseNode = Object.freeze({
     id: 'editor',
     order: 5,
     type: 'object',
     title: nls.localize('editorConfigurationTitle', "Editor"),
     scope: 5 /* LANGUAGE_OVERRIDABLE */,
 });
-var configurationRegistry = Registry.as(Extensions.Configuration);
-var editorConfiguration = __assign(__assign({}, editorConfigurationBaseNode), { properties: {
+const configurationRegistry = Registry.as(Extensions.Configuration);
+const editorConfiguration = Object.assign(Object.assign({}, editorConfigurationBaseNode), { properties: {
         'editor.tabSize': {
             type: 'number',
             default: EDITOR_MODEL_DEFAULTS.tabSize,
@@ -448,9 +431,24 @@ var editorConfiguration = __assign(__assign({}, editorConfigurationBaseNode), { 
             default: true,
             description: nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
         },
+        'editor.wordBasedSuggestionsMode': {
+            enum: ['currentDocument', 'matchingDocuments', 'allDocuments'],
+            default: 'matchingDocuments',
+            enumDescriptions: [
+                nls.localize('wordBasedSuggestionsMode.currentDocument', 'Only suggest words from the active document.'),
+                nls.localize('wordBasedSuggestionsMode.matchingDocuments', 'Suggest words from all open documents of the same language.'),
+                nls.localize('wordBasedSuggestionsMode.allDocuments', 'Suggest words from all open documents.')
+            ],
+            description: nls.localize('wordBasedSuggestionsMode', "Controls from which documents word based completions are computed.")
+        },
         'editor.semanticHighlighting.enabled': {
-            type: 'boolean',
-            default: false,
+            enum: [true, false, 'configuredByTheme'],
+            enumDescriptions: [
+                nls.localize('semanticHighlighting.true', 'Semantic highlighting enabled for all color themes.'),
+                nls.localize('semanticHighlighting.false', 'Semantic highlighting disabled for all color themes.'),
+                nls.localize('semanticHighlighting.configuredByTheme', 'Semantic highlighting is configured by the current color theme\'s `semanticHighlighting` setting.')
+            ],
+            default: 'configuredByTheme',
             description: nls.localize('semanticHighlighting.enabled', "Controls whether the semanticHighlighting is shown for the languages that support it.")
         },
         'editor.stablePeek': {
@@ -463,10 +461,51 @@ var editorConfiguration = __assign(__assign({}, editorConfigurationBaseNode), { 
             default: 20000,
             description: nls.localize('maxTokenizationLineLength', "Lines above this length will not be tokenized for performance reasons")
         },
+        'editor.language.brackets': {
+            type: 'array',
+            default: false,
+            description: nls.localize('schema.brackets', 'Defines the bracket symbols that increase or decrease the indentation.'),
+            items: {
+                type: 'array',
+                items: [
+                    {
+                        type: 'string',
+                        description: nls.localize('schema.openBracket', 'The opening bracket character or string sequence.')
+                    },
+                    {
+                        type: 'string',
+                        description: nls.localize('schema.closeBracket', 'The closing bracket character or string sequence.')
+                    }
+                ]
+            }
+        },
+        'editor.language.colorizedBracketPairs': {
+            type: 'array',
+            default: false,
+            description: nls.localize('schema.colorizedBracketPairs', 'Defines the bracket pairs that are colorized by their nesting level if bracket pair colorization is enabled.'),
+            items: {
+                type: 'array',
+                items: [
+                    {
+                        type: 'string',
+                        description: nls.localize('schema.openBracket', 'The opening bracket character or string sequence.')
+                    },
+                    {
+                        type: 'string',
+                        description: nls.localize('schema.closeBracket', 'The closing bracket character or string sequence.')
+                    }
+                ]
+            }
+        },
         'diffEditor.maxComputationTime': {
             type: 'number',
             default: 5000,
             description: nls.localize('maxComputationTime', "Timeout in milliseconds after which diff computation is cancelled. Use 0 for no timeout.")
+        },
+        'diffEditor.maxFileSize': {
+            type: 'number',
+            default: 50,
+            description: nls.localize('maxFileSize', "Maximum file size in MB for which to compute diffs. Use 0 for no limit.")
         },
         'diffEditor.renderSideBySide': {
             type: 'boolean',
@@ -476,28 +515,42 @@ var editorConfiguration = __assign(__assign({}, editorConfigurationBaseNode), { 
         'diffEditor.ignoreTrimWhitespace': {
             type: 'boolean',
             default: true,
-            description: nls.localize('ignoreTrimWhitespace', "Controls whether the diff editor shows changes in leading or trailing whitespace as diffs.")
+            description: nls.localize('ignoreTrimWhitespace', "When enabled, the diff editor ignores changes in leading or trailing whitespace.")
         },
         'diffEditor.renderIndicators': {
             type: 'boolean',
             default: true,
             description: nls.localize('renderIndicators', "Controls whether the diff editor shows +/- indicators for added/removed changes.")
+        },
+        'diffEditor.codeLens': {
+            type: 'boolean',
+            default: false,
+            description: nls.localize('codeLens', "Controls whether the editor shows CodeLens.")
+        },
+        'diffEditor.wordWrap': {
+            type: 'string',
+            enum: ['off', 'on', 'inherit'],
+            default: 'inherit',
+            markdownEnumDescriptions: [
+                nls.localize('wordWrap.off', "Lines will never wrap."),
+                nls.localize('wordWrap.on', "Lines will wrap at the viewport width."),
+                nls.localize('wordWrap.inherit', "Lines will wrap according to the `#editor.wordWrap#` setting."),
+            ]
         }
     } });
 function isConfigurationPropertySchema(x) {
     return (typeof x.type !== 'undefined' || typeof x.anyOf !== 'undefined');
 }
 // Add properties from the Editor Option Registry
-for (var _i = 0, editorOptionsRegistry_1 = editorOptionsRegistry; _i < editorOptionsRegistry_1.length; _i++) {
-    var editorOption = editorOptionsRegistry_1[_i];
-    var schema = editorOption.schema;
+for (const editorOption of editorOptionsRegistry) {
+    const schema = editorOption.schema;
     if (typeof schema !== 'undefined') {
         if (isConfigurationPropertySchema(schema)) {
             // This is a single schema contribution
-            editorConfiguration.properties["editor." + editorOption.name] = schema;
+            editorConfiguration.properties[`editor.${editorOption.name}`] = schema;
         }
         else {
-            for (var key in schema) {
+            for (let key in schema) {
                 if (hasOwnProperty.call(schema, key)) {
                     editorConfiguration.properties[key] = schema[key];
                 }
@@ -505,22 +558,22 @@ for (var _i = 0, editorOptionsRegistry_1 = editorOptionsRegistry; _i < editorOpt
         }
     }
 }
-var cachedEditorConfigurationKeys = null;
+let cachedEditorConfigurationKeys = null;
 function getEditorConfigurationKeys() {
     if (cachedEditorConfigurationKeys === null) {
         cachedEditorConfigurationKeys = Object.create(null);
-        Object.keys(editorConfiguration.properties).forEach(function (prop) {
+        Object.keys(editorConfiguration.properties).forEach((prop) => {
             cachedEditorConfigurationKeys[prop] = true;
         });
     }
     return cachedEditorConfigurationKeys;
 }
 export function isEditorConfigurationKey(key) {
-    var editorConfigurationKeys = getEditorConfigurationKeys();
-    return (editorConfigurationKeys["editor." + key] || false);
+    const editorConfigurationKeys = getEditorConfigurationKeys();
+    return (editorConfigurationKeys[`editor.${key}`] || false);
 }
 export function isDiffEditorConfigurationKey(key) {
-    var editorConfigurationKeys = getEditorConfigurationKeys();
-    return (editorConfigurationKeys["diffEditor." + key] || false);
+    const editorConfigurationKeys = getEditorConfigurationKeys();
+    return (editorConfigurationKeys[`diffEditor.${key}`] || false);
 }
 configurationRegistry.registerConfiguration(editorConfiguration);

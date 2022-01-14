@@ -2,87 +2,96 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
+import { isLinux, isMacintosh, isWeb, isWindows, userAgent } from '../../../base/common/platform.js';
 import { isFalsyOrWhitespace } from '../../../base/common/strings.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-var ContextKeyExpr = /** @class */ (function () {
-    function ContextKeyExpr() {
-    }
-    ContextKeyExpr.has = function (key) {
+let _userAgent = userAgent || '';
+const CONSTANT_VALUES = new Map();
+CONSTANT_VALUES.set('false', false);
+CONSTANT_VALUES.set('true', true);
+CONSTANT_VALUES.set('isMac', isMacintosh);
+CONSTANT_VALUES.set('isLinux', isLinux);
+CONSTANT_VALUES.set('isWindows', isWindows);
+CONSTANT_VALUES.set('isWeb', isWeb);
+CONSTANT_VALUES.set('isMacNative', isMacintosh && !isWeb);
+CONSTANT_VALUES.set('isEdge', _userAgent.indexOf('Edg/') >= 0);
+CONSTANT_VALUES.set('isFirefox', _userAgent.indexOf('Firefox') >= 0);
+CONSTANT_VALUES.set('isChrome', _userAgent.indexOf('Chrome') >= 0);
+CONSTANT_VALUES.set('isSafari', _userAgent.indexOf('Safari') >= 0);
+const hasOwnProperty = Object.prototype.hasOwnProperty;
+export class ContextKeyExpr {
+    static has(key) {
         return ContextKeyDefinedExpr.create(key);
-    };
-    ContextKeyExpr.equals = function (key, value) {
+    }
+    static equals(key, value) {
         return ContextKeyEqualsExpr.create(key, value);
-    };
-    ContextKeyExpr.regex = function (key, value) {
+    }
+    static regex(key, value) {
         return ContextKeyRegexExpr.create(key, value);
-    };
-    ContextKeyExpr.not = function (key) {
+    }
+    static not(key) {
         return ContextKeyNotExpr.create(key);
-    };
-    ContextKeyExpr.and = function () {
-        var expr = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            expr[_i] = arguments[_i];
-        }
-        return ContextKeyAndExpr.create(expr);
-    };
-    ContextKeyExpr.or = function () {
-        var expr = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            expr[_i] = arguments[_i];
-        }
-        return ContextKeyOrExpr.create(expr);
-    };
-    ContextKeyExpr.deserialize = function (serialized, strict) {
-        if (strict === void 0) { strict = false; }
+    }
+    static and(...expr) {
+        return ContextKeyAndExpr.create(expr, null);
+    }
+    static or(...expr) {
+        return ContextKeyOrExpr.create(expr, null, true);
+    }
+    static deserialize(serialized, strict = false) {
         if (!serialized) {
             return undefined;
         }
         return this._deserializeOrExpression(serialized, strict);
-    };
-    ContextKeyExpr._deserializeOrExpression = function (serialized, strict) {
-        var _this = this;
-        var pieces = serialized.split('||');
-        return ContextKeyOrExpr.create(pieces.map(function (p) { return _this._deserializeAndExpression(p, strict); }));
-    };
-    ContextKeyExpr._deserializeAndExpression = function (serialized, strict) {
-        var _this = this;
-        var pieces = serialized.split('&&');
-        return ContextKeyAndExpr.create(pieces.map(function (p) { return _this._deserializeOne(p, strict); }));
-    };
-    ContextKeyExpr._deserializeOne = function (serializedOne, strict) {
+    }
+    static _deserializeOrExpression(serialized, strict) {
+        let pieces = serialized.split('||');
+        return ContextKeyOrExpr.create(pieces.map(p => this._deserializeAndExpression(p, strict)), null, true);
+    }
+    static _deserializeAndExpression(serialized, strict) {
+        let pieces = serialized.split('&&');
+        return ContextKeyAndExpr.create(pieces.map(p => this._deserializeOne(p, strict)), null);
+    }
+    static _deserializeOne(serializedOne, strict) {
         serializedOne = serializedOne.trim();
         if (serializedOne.indexOf('!=') >= 0) {
-            var pieces = serializedOne.split('!=');
+            let pieces = serializedOne.split('!=');
             return ContextKeyNotEqualsExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1], strict));
         }
         if (serializedOne.indexOf('==') >= 0) {
-            var pieces = serializedOne.split('==');
+            let pieces = serializedOne.split('==');
             return ContextKeyEqualsExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1], strict));
         }
         if (serializedOne.indexOf('=~') >= 0) {
-            var pieces = serializedOne.split('=~');
+            let pieces = serializedOne.split('=~');
             return ContextKeyRegexExpr.create(pieces[0].trim(), this._deserializeRegexValue(pieces[1], strict));
+        }
+        if (serializedOne.indexOf(' in ') >= 0) {
+            let pieces = serializedOne.split(' in ');
+            return ContextKeyInExpr.create(pieces[0].trim(), pieces[1].trim());
+        }
+        if (/^[^<=>]+>=[^<=>]+$/.test(serializedOne)) {
+            const pieces = serializedOne.split('>=');
+            return ContextKeyGreaterEqualsExpr.create(pieces[0].trim(), pieces[1].trim());
+        }
+        if (/^[^<=>]+>[^<=>]+$/.test(serializedOne)) {
+            const pieces = serializedOne.split('>');
+            return ContextKeyGreaterExpr.create(pieces[0].trim(), pieces[1].trim());
+        }
+        if (/^[^<=>]+<=[^<=>]+$/.test(serializedOne)) {
+            const pieces = serializedOne.split('<=');
+            return ContextKeySmallerEqualsExpr.create(pieces[0].trim(), pieces[1].trim());
+        }
+        if (/^[^<=>]+<[^<=>]+$/.test(serializedOne)) {
+            const pieces = serializedOne.split('<');
+            return ContextKeySmallerExpr.create(pieces[0].trim(), pieces[1].trim());
         }
         if (/^\!\s*/.test(serializedOne)) {
             return ContextKeyNotExpr.create(serializedOne.substr(1).trim());
         }
         return ContextKeyDefinedExpr.create(serializedOne);
-    };
-    ContextKeyExpr._deserializeValue = function (serializedValue, strict) {
+    }
+    static _deserializeValue(serializedValue, strict) {
         serializedValue = serializedValue.trim();
         if (serializedValue === 'true') {
             return true;
@@ -90,13 +99,13 @@ var ContextKeyExpr = /** @class */ (function () {
         if (serializedValue === 'false') {
             return false;
         }
-        var m = /^'([^']*)'$/.exec(serializedValue);
+        let m = /^'([^']*)'$/.exec(serializedValue);
         if (m) {
             return m[1].trim();
         }
         return serializedValue;
-    };
-    ContextKeyExpr._deserializeRegexValue = function (serializedValue, strict) {
+    }
+    static _deserializeRegexValue(serializedValue, strict) {
         if (isFalsyOrWhitespace(serializedValue)) {
             if (strict) {
                 throw new Error('missing regexp-value for =~-expression');
@@ -106,259 +115,609 @@ var ContextKeyExpr = /** @class */ (function () {
             }
             return null;
         }
-        var start = serializedValue.indexOf('/');
-        var end = serializedValue.lastIndexOf('/');
+        let start = serializedValue.indexOf('/');
+        let end = serializedValue.lastIndexOf('/');
         if (start === end || start < 0 /* || to < 0 */) {
             if (strict) {
-                throw new Error("bad regexp-value '" + serializedValue + "', missing /-enclosure");
+                throw new Error(`bad regexp-value '${serializedValue}', missing /-enclosure`);
             }
             else {
-                console.warn("bad regexp-value '" + serializedValue + "', missing /-enclosure");
+                console.warn(`bad regexp-value '${serializedValue}', missing /-enclosure`);
             }
             return null;
         }
-        var value = serializedValue.slice(start + 1, end);
-        var caseIgnoreFlag = serializedValue[end + 1] === 'i' ? 'i' : '';
+        let value = serializedValue.slice(start + 1, end);
+        let caseIgnoreFlag = serializedValue[end + 1] === 'i' ? 'i' : '';
         try {
             return new RegExp(value, caseIgnoreFlag);
         }
         catch (e) {
             if (strict) {
-                throw new Error("bad regexp-value '" + serializedValue + "', parse error: " + e);
+                throw new Error(`bad regexp-value '${serializedValue}', parse error: ${e}`);
             }
             else {
-                console.warn("bad regexp-value '" + serializedValue + "', parse error: " + e);
+                console.warn(`bad regexp-value '${serializedValue}', parse error: ${e}`);
             }
             return null;
         }
-    };
-    return ContextKeyExpr;
-}());
-export { ContextKeyExpr };
-function cmp(a, b) {
-    var aType = a.getType();
-    var bType = b.getType();
-    if (aType !== bType) {
-        return aType - bType;
-    }
-    switch (aType) {
-        case 1 /* Defined */:
-            return a.cmp(b);
-        case 2 /* Not */:
-            return a.cmp(b);
-        case 3 /* Equals */:
-            return a.cmp(b);
-        case 4 /* NotEquals */:
-            return a.cmp(b);
-        case 6 /* Regex */:
-            return a.cmp(b);
-        case 7 /* NotRegex */:
-            return a.cmp(b);
-        case 5 /* And */:
-            return a.cmp(b);
-        default:
-            throw new Error('Unknown ContextKeyExpr!');
     }
 }
-var ContextKeyDefinedExpr = /** @class */ (function () {
-    function ContextKeyDefinedExpr(key) {
-        this.key = key;
+export function expressionsAreEqualWithConstantSubstitution(a, b) {
+    const aExpr = a ? a.substituteConstants() : undefined;
+    const bExpr = b ? b.substituteConstants() : undefined;
+    if (!aExpr && !bExpr) {
+        return true;
     }
-    ContextKeyDefinedExpr.create = function (key) {
-        return new ContextKeyDefinedExpr(key);
-    };
-    ContextKeyDefinedExpr.prototype.getType = function () {
-        return 1 /* Defined */;
-    };
-    ContextKeyDefinedExpr.prototype.cmp = function (other) {
-        if (this.key < other.key) {
-            return -1;
+    if (!aExpr || !bExpr) {
+        return false;
+    }
+    return aExpr.equals(bExpr);
+}
+function cmp(a, b) {
+    return a.cmp(b);
+}
+export class ContextKeyFalseExpr {
+    constructor() {
+        this.type = 0 /* False */;
+    }
+    cmp(other) {
+        return this.type - other.type;
+    }
+    equals(other) {
+        return (other.type === this.type);
+    }
+    substituteConstants() {
+        return this;
+    }
+    evaluate(context) {
+        return false;
+    }
+    serialize() {
+        return 'false';
+    }
+    keys() {
+        return [];
+    }
+    negate() {
+        return ContextKeyTrueExpr.INSTANCE;
+    }
+}
+ContextKeyFalseExpr.INSTANCE = new ContextKeyFalseExpr();
+export class ContextKeyTrueExpr {
+    constructor() {
+        this.type = 1 /* True */;
+    }
+    cmp(other) {
+        return this.type - other.type;
+    }
+    equals(other) {
+        return (other.type === this.type);
+    }
+    substituteConstants() {
+        return this;
+    }
+    evaluate(context) {
+        return true;
+    }
+    serialize() {
+        return 'true';
+    }
+    keys() {
+        return [];
+    }
+    negate() {
+        return ContextKeyFalseExpr.INSTANCE;
+    }
+}
+ContextKeyTrueExpr.INSTANCE = new ContextKeyTrueExpr();
+export class ContextKeyDefinedExpr {
+    constructor(key, negated) {
+        this.key = key;
+        this.negated = negated;
+        this.type = 2 /* Defined */;
+    }
+    static create(key, negated = null) {
+        const constantValue = CONSTANT_VALUES.get(key);
+        if (typeof constantValue === 'boolean') {
+            return constantValue ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE;
         }
-        if (this.key > other.key) {
-            return 1;
+        return new ContextKeyDefinedExpr(key, negated);
+    }
+    cmp(other) {
+        if (other.type !== this.type) {
+            return this.type - other.type;
         }
-        return 0;
-    };
-    ContextKeyDefinedExpr.prototype.equals = function (other) {
-        if (other instanceof ContextKeyDefinedExpr) {
+        return cmp1(this.key, other.key);
+    }
+    equals(other) {
+        if (other.type === this.type) {
             return (this.key === other.key);
         }
         return false;
-    };
-    ContextKeyDefinedExpr.prototype.evaluate = function (context) {
+    }
+    substituteConstants() {
+        const constantValue = CONSTANT_VALUES.get(this.key);
+        if (typeof constantValue === 'boolean') {
+            return constantValue ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE;
+        }
+        return this;
+    }
+    evaluate(context) {
         return (!!context.getValue(this.key));
-    };
-    ContextKeyDefinedExpr.prototype.keys = function () {
+    }
+    serialize() {
+        return this.key;
+    }
+    keys() {
         return [this.key];
-    };
-    ContextKeyDefinedExpr.prototype.negate = function () {
-        return ContextKeyNotExpr.create(this.key);
-    };
-    return ContextKeyDefinedExpr;
-}());
-export { ContextKeyDefinedExpr };
-var ContextKeyEqualsExpr = /** @class */ (function () {
-    function ContextKeyEqualsExpr(key, value) {
+    }
+    negate() {
+        if (!this.negated) {
+            this.negated = ContextKeyNotExpr.create(this.key, this);
+        }
+        return this.negated;
+    }
+}
+export class ContextKeyEqualsExpr {
+    constructor(key, value, negated) {
         this.key = key;
         this.value = value;
+        this.negated = negated;
+        this.type = 4 /* Equals */;
     }
-    ContextKeyEqualsExpr.create = function (key, value) {
+    static create(key, value, negated = null) {
         if (typeof value === 'boolean') {
-            if (value) {
-                return ContextKeyDefinedExpr.create(key);
-            }
-            return ContextKeyNotExpr.create(key);
+            return (value ? ContextKeyDefinedExpr.create(key, negated) : ContextKeyNotExpr.create(key, negated));
         }
-        return new ContextKeyEqualsExpr(key, value);
-    };
-    ContextKeyEqualsExpr.prototype.getType = function () {
-        return 3 /* Equals */;
-    };
-    ContextKeyEqualsExpr.prototype.cmp = function (other) {
-        if (this.key < other.key) {
-            return -1;
+        const constantValue = CONSTANT_VALUES.get(key);
+        if (typeof constantValue === 'boolean') {
+            const trueValue = constantValue ? 'true' : 'false';
+            return (value === trueValue ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE);
         }
-        if (this.key > other.key) {
-            return 1;
+        return new ContextKeyEqualsExpr(key, value, negated);
+    }
+    cmp(other) {
+        if (other.type !== this.type) {
+            return this.type - other.type;
         }
-        if (this.value < other.value) {
-            return -1;
-        }
-        if (this.value > other.value) {
-            return 1;
-        }
-        return 0;
-    };
-    ContextKeyEqualsExpr.prototype.equals = function (other) {
-        if (other instanceof ContextKeyEqualsExpr) {
+        return cmp2(this.key, this.value, other.key, other.value);
+    }
+    equals(other) {
+        if (other.type === this.type) {
             return (this.key === other.key && this.value === other.value);
         }
         return false;
-    };
-    ContextKeyEqualsExpr.prototype.evaluate = function (context) {
+    }
+    substituteConstants() {
+        const constantValue = CONSTANT_VALUES.get(this.key);
+        if (typeof constantValue === 'boolean') {
+            const trueValue = constantValue ? 'true' : 'false';
+            return (this.value === trueValue ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE);
+        }
+        return this;
+    }
+    evaluate(context) {
         // Intentional ==
         // eslint-disable-next-line eqeqeq
         return (context.getValue(this.key) == this.value);
-    };
-    ContextKeyEqualsExpr.prototype.keys = function () {
+    }
+    serialize() {
+        return `${this.key} == '${this.value}'`;
+    }
+    keys() {
         return [this.key];
-    };
-    ContextKeyEqualsExpr.prototype.negate = function () {
-        return ContextKeyNotEqualsExpr.create(this.key, this.value);
-    };
-    return ContextKeyEqualsExpr;
-}());
-export { ContextKeyEqualsExpr };
-var ContextKeyNotEqualsExpr = /** @class */ (function () {
-    function ContextKeyNotEqualsExpr(key, value) {
+    }
+    negate() {
+        if (!this.negated) {
+            this.negated = ContextKeyNotEqualsExpr.create(this.key, this.value, this);
+        }
+        return this.negated;
+    }
+}
+export class ContextKeyInExpr {
+    constructor(key, valueKey) {
+        this.key = key;
+        this.valueKey = valueKey;
+        this.type = 10 /* In */;
+        this.negated = null;
+    }
+    static create(key, valueKey) {
+        return new ContextKeyInExpr(key, valueKey);
+    }
+    cmp(other) {
+        if (other.type !== this.type) {
+            return this.type - other.type;
+        }
+        return cmp2(this.key, this.valueKey, other.key, other.valueKey);
+    }
+    equals(other) {
+        if (other.type === this.type) {
+            return (this.key === other.key && this.valueKey === other.valueKey);
+        }
+        return false;
+    }
+    substituteConstants() {
+        return this;
+    }
+    evaluate(context) {
+        const source = context.getValue(this.valueKey);
+        const item = context.getValue(this.key);
+        if (Array.isArray(source)) {
+            return (source.indexOf(item) >= 0);
+        }
+        if (typeof item === 'string' && typeof source === 'object' && source !== null) {
+            return hasOwnProperty.call(source, item);
+        }
+        return false;
+    }
+    serialize() {
+        return `${this.key} in '${this.valueKey}'`;
+    }
+    keys() {
+        return [this.key, this.valueKey];
+    }
+    negate() {
+        if (!this.negated) {
+            this.negated = ContextKeyNotInExpr.create(this);
+        }
+        return this.negated;
+    }
+}
+export class ContextKeyNotInExpr {
+    constructor(_actual) {
+        this._actual = _actual;
+        this.type = 11 /* NotIn */;
+        //
+    }
+    static create(actual) {
+        return new ContextKeyNotInExpr(actual);
+    }
+    cmp(other) {
+        if (other.type !== this.type) {
+            return this.type - other.type;
+        }
+        return this._actual.cmp(other._actual);
+    }
+    equals(other) {
+        if (other.type === this.type) {
+            return this._actual.equals(other._actual);
+        }
+        return false;
+    }
+    substituteConstants() {
+        return this;
+    }
+    evaluate(context) {
+        return !this._actual.evaluate(context);
+    }
+    serialize() {
+        throw new Error('Method not implemented.');
+    }
+    keys() {
+        return this._actual.keys();
+    }
+    negate() {
+        return this._actual;
+    }
+}
+export class ContextKeyNotEqualsExpr {
+    constructor(key, value, negated) {
         this.key = key;
         this.value = value;
+        this.negated = negated;
+        this.type = 5 /* NotEquals */;
     }
-    ContextKeyNotEqualsExpr.create = function (key, value) {
+    static create(key, value, negated = null) {
         if (typeof value === 'boolean') {
             if (value) {
-                return ContextKeyNotExpr.create(key);
+                return ContextKeyNotExpr.create(key, negated);
             }
-            return ContextKeyDefinedExpr.create(key);
+            return ContextKeyDefinedExpr.create(key, negated);
         }
-        return new ContextKeyNotEqualsExpr(key, value);
-    };
-    ContextKeyNotEqualsExpr.prototype.getType = function () {
-        return 4 /* NotEquals */;
-    };
-    ContextKeyNotEqualsExpr.prototype.cmp = function (other) {
-        if (this.key < other.key) {
-            return -1;
+        const constantValue = CONSTANT_VALUES.get(key);
+        if (typeof constantValue === 'boolean') {
+            const falseValue = constantValue ? 'true' : 'false';
+            return (value === falseValue ? ContextKeyFalseExpr.INSTANCE : ContextKeyTrueExpr.INSTANCE);
         }
-        if (this.key > other.key) {
-            return 1;
+        return new ContextKeyNotEqualsExpr(key, value, negated);
+    }
+    cmp(other) {
+        if (other.type !== this.type) {
+            return this.type - other.type;
         }
-        if (this.value < other.value) {
-            return -1;
-        }
-        if (this.value > other.value) {
-            return 1;
-        }
-        return 0;
-    };
-    ContextKeyNotEqualsExpr.prototype.equals = function (other) {
-        if (other instanceof ContextKeyNotEqualsExpr) {
+        return cmp2(this.key, this.value, other.key, other.value);
+    }
+    equals(other) {
+        if (other.type === this.type) {
             return (this.key === other.key && this.value === other.value);
         }
         return false;
-    };
-    ContextKeyNotEqualsExpr.prototype.evaluate = function (context) {
+    }
+    substituteConstants() {
+        const constantValue = CONSTANT_VALUES.get(this.key);
+        if (typeof constantValue === 'boolean') {
+            const falseValue = constantValue ? 'true' : 'false';
+            return (this.value === falseValue ? ContextKeyFalseExpr.INSTANCE : ContextKeyTrueExpr.INSTANCE);
+        }
+        return this;
+    }
+    evaluate(context) {
         // Intentional !=
         // eslint-disable-next-line eqeqeq
         return (context.getValue(this.key) != this.value);
-    };
-    ContextKeyNotEqualsExpr.prototype.keys = function () {
-        return [this.key];
-    };
-    ContextKeyNotEqualsExpr.prototype.negate = function () {
-        return ContextKeyEqualsExpr.create(this.key, this.value);
-    };
-    return ContextKeyNotEqualsExpr;
-}());
-export { ContextKeyNotEqualsExpr };
-var ContextKeyNotExpr = /** @class */ (function () {
-    function ContextKeyNotExpr(key) {
-        this.key = key;
     }
-    ContextKeyNotExpr.create = function (key) {
-        return new ContextKeyNotExpr(key);
-    };
-    ContextKeyNotExpr.prototype.getType = function () {
-        return 2 /* Not */;
-    };
-    ContextKeyNotExpr.prototype.cmp = function (other) {
-        if (this.key < other.key) {
-            return -1;
+    serialize() {
+        return `${this.key} != '${this.value}'`;
+    }
+    keys() {
+        return [this.key];
+    }
+    negate() {
+        if (!this.negated) {
+            this.negated = ContextKeyEqualsExpr.create(this.key, this.value, this);
         }
-        if (this.key > other.key) {
-            return 1;
+        return this.negated;
+    }
+}
+export class ContextKeyNotExpr {
+    constructor(key, negated) {
+        this.key = key;
+        this.negated = negated;
+        this.type = 3 /* Not */;
+    }
+    static create(key, negated = null) {
+        const constantValue = CONSTANT_VALUES.get(key);
+        if (typeof constantValue === 'boolean') {
+            return (constantValue ? ContextKeyFalseExpr.INSTANCE : ContextKeyTrueExpr.INSTANCE);
         }
-        return 0;
-    };
-    ContextKeyNotExpr.prototype.equals = function (other) {
-        if (other instanceof ContextKeyNotExpr) {
+        return new ContextKeyNotExpr(key, negated);
+    }
+    cmp(other) {
+        if (other.type !== this.type) {
+            return this.type - other.type;
+        }
+        return cmp1(this.key, other.key);
+    }
+    equals(other) {
+        if (other.type === this.type) {
             return (this.key === other.key);
         }
         return false;
-    };
-    ContextKeyNotExpr.prototype.evaluate = function (context) {
+    }
+    substituteConstants() {
+        const constantValue = CONSTANT_VALUES.get(this.key);
+        if (typeof constantValue === 'boolean') {
+            return (constantValue ? ContextKeyFalseExpr.INSTANCE : ContextKeyTrueExpr.INSTANCE);
+        }
+        return this;
+    }
+    evaluate(context) {
         return (!context.getValue(this.key));
-    };
-    ContextKeyNotExpr.prototype.keys = function () {
+    }
+    serialize() {
+        return `!${this.key}`;
+    }
+    keys() {
         return [this.key];
-    };
-    ContextKeyNotExpr.prototype.negate = function () {
-        return ContextKeyDefinedExpr.create(this.key);
-    };
-    return ContextKeyNotExpr;
-}());
-export { ContextKeyNotExpr };
-var ContextKeyRegexExpr = /** @class */ (function () {
-    function ContextKeyRegexExpr(key, regexp) {
+    }
+    negate() {
+        if (!this.negated) {
+            this.negated = ContextKeyDefinedExpr.create(this.key, this);
+        }
+        return this.negated;
+    }
+}
+function withFloatOrStr(value, callback) {
+    if (typeof value === 'string') {
+        const n = parseFloat(value);
+        if (!isNaN(n)) {
+            value = n;
+        }
+    }
+    if (typeof value === 'string' || typeof value === 'number') {
+        return callback(value);
+    }
+    return ContextKeyFalseExpr.INSTANCE;
+}
+export class ContextKeyGreaterExpr {
+    constructor(key, value, negated) {
+        this.key = key;
+        this.value = value;
+        this.negated = negated;
+        this.type = 12 /* Greater */;
+    }
+    static create(key, _value, negated = null) {
+        return withFloatOrStr(_value, (value) => new ContextKeyGreaterExpr(key, value, negated));
+    }
+    cmp(other) {
+        if (other.type !== this.type) {
+            return this.type - other.type;
+        }
+        return cmp2(this.key, this.value, other.key, other.value);
+    }
+    equals(other) {
+        if (other.type === this.type) {
+            return (this.key === other.key && this.value === other.value);
+        }
+        return false;
+    }
+    substituteConstants() {
+        return this;
+    }
+    evaluate(context) {
+        if (typeof this.value === 'string') {
+            return false;
+        }
+        return (parseFloat(context.getValue(this.key)) > this.value);
+    }
+    serialize() {
+        return `${this.key} > ${this.value}`;
+    }
+    keys() {
+        return [this.key];
+    }
+    negate() {
+        if (!this.negated) {
+            this.negated = ContextKeySmallerEqualsExpr.create(this.key, this.value, this);
+        }
+        return this.negated;
+    }
+}
+export class ContextKeyGreaterEqualsExpr {
+    constructor(key, value, negated) {
+        this.key = key;
+        this.value = value;
+        this.negated = negated;
+        this.type = 13 /* GreaterEquals */;
+    }
+    static create(key, _value, negated = null) {
+        return withFloatOrStr(_value, (value) => new ContextKeyGreaterEqualsExpr(key, value, negated));
+    }
+    cmp(other) {
+        if (other.type !== this.type) {
+            return this.type - other.type;
+        }
+        return cmp2(this.key, this.value, other.key, other.value);
+    }
+    equals(other) {
+        if (other.type === this.type) {
+            return (this.key === other.key && this.value === other.value);
+        }
+        return false;
+    }
+    substituteConstants() {
+        return this;
+    }
+    evaluate(context) {
+        if (typeof this.value === 'string') {
+            return false;
+        }
+        return (parseFloat(context.getValue(this.key)) >= this.value);
+    }
+    serialize() {
+        return `${this.key} >= ${this.value}`;
+    }
+    keys() {
+        return [this.key];
+    }
+    negate() {
+        if (!this.negated) {
+            this.negated = ContextKeySmallerExpr.create(this.key, this.value, this);
+        }
+        return this.negated;
+    }
+}
+export class ContextKeySmallerExpr {
+    constructor(key, value, negated) {
+        this.key = key;
+        this.value = value;
+        this.negated = negated;
+        this.type = 14 /* Smaller */;
+    }
+    static create(key, _value, negated = null) {
+        return withFloatOrStr(_value, (value) => new ContextKeySmallerExpr(key, value, negated));
+    }
+    cmp(other) {
+        if (other.type !== this.type) {
+            return this.type - other.type;
+        }
+        return cmp2(this.key, this.value, other.key, other.value);
+    }
+    equals(other) {
+        if (other.type === this.type) {
+            return (this.key === other.key && this.value === other.value);
+        }
+        return false;
+    }
+    substituteConstants() {
+        return this;
+    }
+    evaluate(context) {
+        if (typeof this.value === 'string') {
+            return false;
+        }
+        return (parseFloat(context.getValue(this.key)) < this.value);
+    }
+    serialize() {
+        return `${this.key} < ${this.value}`;
+    }
+    keys() {
+        return [this.key];
+    }
+    negate() {
+        if (!this.negated) {
+            this.negated = ContextKeyGreaterEqualsExpr.create(this.key, this.value, this);
+        }
+        return this.negated;
+    }
+}
+export class ContextKeySmallerEqualsExpr {
+    constructor(key, value, negated) {
+        this.key = key;
+        this.value = value;
+        this.negated = negated;
+        this.type = 15 /* SmallerEquals */;
+    }
+    static create(key, _value, negated = null) {
+        return withFloatOrStr(_value, (value) => new ContextKeySmallerEqualsExpr(key, value, negated));
+    }
+    cmp(other) {
+        if (other.type !== this.type) {
+            return this.type - other.type;
+        }
+        return cmp2(this.key, this.value, other.key, other.value);
+    }
+    equals(other) {
+        if (other.type === this.type) {
+            return (this.key === other.key && this.value === other.value);
+        }
+        return false;
+    }
+    substituteConstants() {
+        return this;
+    }
+    evaluate(context) {
+        if (typeof this.value === 'string') {
+            return false;
+        }
+        return (parseFloat(context.getValue(this.key)) <= this.value);
+    }
+    serialize() {
+        return `${this.key} <= ${this.value}`;
+    }
+    keys() {
+        return [this.key];
+    }
+    negate() {
+        if (!this.negated) {
+            this.negated = ContextKeyGreaterExpr.create(this.key, this.value, this);
+        }
+        return this.negated;
+    }
+}
+export class ContextKeyRegexExpr {
+    constructor(key, regexp) {
         this.key = key;
         this.regexp = regexp;
+        this.type = 7 /* Regex */;
+        this.negated = null;
         //
     }
-    ContextKeyRegexExpr.create = function (key, regexp) {
+    static create(key, regexp) {
         return new ContextKeyRegexExpr(key, regexp);
-    };
-    ContextKeyRegexExpr.prototype.getType = function () {
-        return 6 /* Regex */;
-    };
-    ContextKeyRegexExpr.prototype.cmp = function (other) {
+    }
+    cmp(other) {
+        if (other.type !== this.type) {
+            return this.type - other.type;
+        }
         if (this.key < other.key) {
             return -1;
         }
         if (this.key > other.key) {
             return 1;
         }
-        var thisSource = this.regexp ? this.regexp.source : '';
-        var otherSource = other.regexp ? other.regexp.source : '';
+        const thisSource = this.regexp ? this.regexp.source : '';
+        const otherSource = other.regexp ? other.regexp.source : '';
         if (thisSource < otherSource) {
             return -1;
         }
@@ -366,98 +725,135 @@ var ContextKeyRegexExpr = /** @class */ (function () {
             return 1;
         }
         return 0;
-    };
-    ContextKeyRegexExpr.prototype.equals = function (other) {
-        if (other instanceof ContextKeyRegexExpr) {
-            var thisSource = this.regexp ? this.regexp.source : '';
-            var otherSource = other.regexp ? other.regexp.source : '';
+    }
+    equals(other) {
+        if (other.type === this.type) {
+            const thisSource = this.regexp ? this.regexp.source : '';
+            const otherSource = other.regexp ? other.regexp.source : '';
             return (this.key === other.key && thisSource === otherSource);
         }
         return false;
-    };
-    ContextKeyRegexExpr.prototype.evaluate = function (context) {
-        var value = context.getValue(this.key);
+    }
+    substituteConstants() {
+        return this;
+    }
+    evaluate(context) {
+        let value = context.getValue(this.key);
         return this.regexp ? this.regexp.test(value) : false;
-    };
-    ContextKeyRegexExpr.prototype.keys = function () {
+    }
+    serialize() {
+        const value = this.regexp
+            ? `/${this.regexp.source}/${this.regexp.ignoreCase ? 'i' : ''}`
+            : '/invalid/';
+        return `${this.key} =~ ${value}`;
+    }
+    keys() {
         return [this.key];
-    };
-    ContextKeyRegexExpr.prototype.negate = function () {
-        return ContextKeyNotRegexExpr.create(this);
-    };
-    return ContextKeyRegexExpr;
-}());
-export { ContextKeyRegexExpr };
-var ContextKeyNotRegexExpr = /** @class */ (function () {
-    function ContextKeyNotRegexExpr(_actual) {
+    }
+    negate() {
+        if (!this.negated) {
+            this.negated = ContextKeyNotRegexExpr.create(this);
+        }
+        return this.negated;
+    }
+}
+export class ContextKeyNotRegexExpr {
+    constructor(_actual) {
         this._actual = _actual;
+        this.type = 8 /* NotRegex */;
         //
     }
-    ContextKeyNotRegexExpr.create = function (actual) {
+    static create(actual) {
         return new ContextKeyNotRegexExpr(actual);
-    };
-    ContextKeyNotRegexExpr.prototype.getType = function () {
-        return 7 /* NotRegex */;
-    };
-    ContextKeyNotRegexExpr.prototype.cmp = function (other) {
+    }
+    cmp(other) {
+        if (other.type !== this.type) {
+            return this.type - other.type;
+        }
         return this._actual.cmp(other._actual);
-    };
-    ContextKeyNotRegexExpr.prototype.equals = function (other) {
-        if (other instanceof ContextKeyNotRegexExpr) {
+    }
+    equals(other) {
+        if (other.type === this.type) {
             return this._actual.equals(other._actual);
         }
         return false;
-    };
-    ContextKeyNotRegexExpr.prototype.evaluate = function (context) {
-        return !this._actual.evaluate(context);
-    };
-    ContextKeyNotRegexExpr.prototype.keys = function () {
-        return this._actual.keys();
-    };
-    ContextKeyNotRegexExpr.prototype.negate = function () {
-        return this._actual;
-    };
-    return ContextKeyNotRegexExpr;
-}());
-export { ContextKeyNotRegexExpr };
-var ContextKeyAndExpr = /** @class */ (function () {
-    function ContextKeyAndExpr(expr) {
-        this.expr = expr;
     }
-    ContextKeyAndExpr.create = function (_expr) {
-        var expr = ContextKeyAndExpr._normalizeArr(_expr);
-        if (expr.length === 0) {
-            return undefined;
+    substituteConstants() {
+        return this;
+    }
+    evaluate(context) {
+        return !this._actual.evaluate(context);
+    }
+    serialize() {
+        throw new Error('Method not implemented.');
+    }
+    keys() {
+        return this._actual.keys();
+    }
+    negate() {
+        return this._actual;
+    }
+}
+/**
+ * @returns the same instance if nothing changed.
+ */
+function eliminateConstantsInArray(arr) {
+    // Allocate array only if there is a difference
+    let newArr = null;
+    for (let i = 0, len = arr.length; i < len; i++) {
+        const newExpr = arr[i].substituteConstants();
+        if (arr[i] !== newExpr) {
+            // something has changed!
+            // allocate array on first difference
+            if (newArr === null) {
+                newArr = [];
+                for (let j = 0; j < i; j++) {
+                    newArr[j] = arr[j];
+                }
+            }
         }
-        if (expr.length === 1) {
-            return expr[0];
+        if (newArr !== null) {
+            newArr[i] = newExpr;
         }
-        return new ContextKeyAndExpr(expr);
-    };
-    ContextKeyAndExpr.prototype.getType = function () {
-        return 5 /* And */;
-    };
-    ContextKeyAndExpr.prototype.cmp = function (other) {
+    }
+    if (newArr === null) {
+        return arr;
+    }
+    return newArr;
+}
+class ContextKeyAndExpr {
+    constructor(expr, negated) {
+        this.expr = expr;
+        this.negated = negated;
+        this.type = 6 /* And */;
+    }
+    static create(_expr, negated) {
+        return ContextKeyAndExpr._normalizeArr(_expr, negated);
+    }
+    cmp(other) {
+        if (other.type !== this.type) {
+            return this.type - other.type;
+        }
         if (this.expr.length < other.expr.length) {
             return -1;
         }
         if (this.expr.length > other.expr.length) {
             return 1;
         }
-        for (var i = 0, len = this.expr.length; i < len; i++) {
-            var r = cmp(this.expr[i], other.expr[i]);
+        for (let i = 0, len = this.expr.length; i < len; i++) {
+            const r = cmp(this.expr[i], other.expr[i]);
             if (r !== 0) {
                 return r;
             }
         }
         return 0;
-    };
-    ContextKeyAndExpr.prototype.equals = function (other) {
-        if (other instanceof ContextKeyAndExpr) {
+    }
+    equals(other) {
+        if (other.type === this.type) {
             if (this.expr.length !== other.expr.length) {
                 return false;
             }
-            for (var i = 0, len = this.expr.length; i < len; i++) {
+            for (let i = 0, len = this.expr.length; i < len; i++) {
                 if (!this.expr[i].equals(other.expr[i])) {
                     return false;
                 }
@@ -465,79 +861,143 @@ var ContextKeyAndExpr = /** @class */ (function () {
             return true;
         }
         return false;
-    };
-    ContextKeyAndExpr.prototype.evaluate = function (context) {
-        for (var i = 0, len = this.expr.length; i < len; i++) {
+    }
+    substituteConstants() {
+        const exprArr = eliminateConstantsInArray(this.expr);
+        if (exprArr === this.expr) {
+            // no change
+            return this;
+        }
+        return ContextKeyAndExpr.create(exprArr, this.negated);
+    }
+    evaluate(context) {
+        for (let i = 0, len = this.expr.length; i < len; i++) {
             if (!this.expr[i].evaluate(context)) {
                 return false;
             }
         }
         return true;
-    };
-    ContextKeyAndExpr._normalizeArr = function (arr) {
-        var expr = [];
-        if (arr) {
-            for (var i = 0, len = arr.length; i < len; i++) {
-                var e = arr[i];
-                if (!e) {
-                    continue;
-                }
-                if (e instanceof ContextKeyAndExpr) {
-                    expr = expr.concat(e.expr);
-                    continue;
-                }
-                if (e instanceof ContextKeyOrExpr) {
-                    // Not allowed, because we don't have parens!
-                    throw new Error("It is not allowed to have an or expression here due to lack of parens! For example \"a && (b||c)\" is not supported, use \"(a&&b) || (a&&c)\" instead.");
-                }
-                expr.push(e);
-            }
-            expr.sort(cmp);
-        }
-        return expr;
-    };
-    ContextKeyAndExpr.prototype.keys = function () {
-        var result = [];
-        for (var _i = 0, _a = this.expr; _i < _a.length; _i++) {
-            var expr = _a[_i];
-            result.push.apply(result, expr.keys());
-        }
-        return result;
-    };
-    ContextKeyAndExpr.prototype.negate = function () {
-        var result = [];
-        for (var _i = 0, _a = this.expr; _i < _a.length; _i++) {
-            var expr = _a[_i];
-            result.push(expr.negate());
-        }
-        return ContextKeyOrExpr.create(result);
-    };
-    return ContextKeyAndExpr;
-}());
-export { ContextKeyAndExpr };
-var ContextKeyOrExpr = /** @class */ (function () {
-    function ContextKeyOrExpr(expr) {
-        this.expr = expr;
     }
-    ContextKeyOrExpr.create = function (_expr) {
-        var expr = ContextKeyOrExpr._normalizeArr(_expr);
+    static _normalizeArr(arr, negated) {
+        const expr = [];
+        let hasTrue = false;
+        for (const e of arr) {
+            if (!e) {
+                continue;
+            }
+            if (e.type === 1 /* True */) {
+                // anything && true ==> anything
+                hasTrue = true;
+                continue;
+            }
+            if (e.type === 0 /* False */) {
+                // anything && false ==> false
+                return ContextKeyFalseExpr.INSTANCE;
+            }
+            if (e.type === 6 /* And */) {
+                expr.push(...e.expr);
+                continue;
+            }
+            expr.push(e);
+        }
+        if (expr.length === 0 && hasTrue) {
+            return ContextKeyTrueExpr.INSTANCE;
+        }
         if (expr.length === 0) {
             return undefined;
         }
         if (expr.length === 1) {
             return expr[0];
         }
-        return new ContextKeyOrExpr(expr);
-    };
-    ContextKeyOrExpr.prototype.getType = function () {
-        return 8 /* Or */;
-    };
-    ContextKeyOrExpr.prototype.equals = function (other) {
-        if (other instanceof ContextKeyOrExpr) {
+        expr.sort(cmp);
+        // eliminate duplicate terms
+        for (let i = 1; i < expr.length; i++) {
+            if (expr[i - 1].equals(expr[i])) {
+                expr.splice(i, 1);
+                i--;
+            }
+        }
+        if (expr.length === 1) {
+            return expr[0];
+        }
+        // We must distribute any OR expression because we don't support parens
+        // OR extensions will be at the end (due to sorting rules)
+        while (expr.length > 1) {
+            const lastElement = expr[expr.length - 1];
+            if (lastElement.type !== 9 /* Or */) {
+                break;
+            }
+            // pop the last element
+            expr.pop();
+            // pop the second to last element
+            const secondToLastElement = expr.pop();
+            const isFinished = (expr.length === 0);
+            // distribute `lastElement` over `secondToLastElement`
+            const resultElement = ContextKeyOrExpr.create(lastElement.expr.map(el => ContextKeyAndExpr.create([el, secondToLastElement], null)), null, isFinished);
+            if (resultElement) {
+                expr.push(resultElement);
+                expr.sort(cmp);
+            }
+        }
+        if (expr.length === 1) {
+            return expr[0];
+        }
+        return new ContextKeyAndExpr(expr, negated);
+    }
+    serialize() {
+        return this.expr.map(e => e.serialize()).join(' && ');
+    }
+    keys() {
+        const result = [];
+        for (let expr of this.expr) {
+            result.push(...expr.keys());
+        }
+        return result;
+    }
+    negate() {
+        if (!this.negated) {
+            const result = [];
+            for (let expr of this.expr) {
+                result.push(expr.negate());
+            }
+            this.negated = ContextKeyOrExpr.create(result, this, true);
+        }
+        return this.negated;
+    }
+}
+class ContextKeyOrExpr {
+    constructor(expr, negated) {
+        this.expr = expr;
+        this.negated = negated;
+        this.type = 9 /* Or */;
+    }
+    static create(_expr, negated, extraRedundantCheck) {
+        return ContextKeyOrExpr._normalizeArr(_expr, negated, extraRedundantCheck);
+    }
+    cmp(other) {
+        if (other.type !== this.type) {
+            return this.type - other.type;
+        }
+        if (this.expr.length < other.expr.length) {
+            return -1;
+        }
+        if (this.expr.length > other.expr.length) {
+            return 1;
+        }
+        for (let i = 0, len = this.expr.length; i < len; i++) {
+            const r = cmp(this.expr[i], other.expr[i]);
+            if (r !== 0) {
+                return r;
+            }
+        }
+        return 0;
+    }
+    equals(other) {
+        if (other.type === this.type) {
             if (this.expr.length !== other.expr.length) {
                 return false;
             }
-            for (var i = 0, len = this.expr.length; i < len; i++) {
+            for (let i = 0, len = this.expr.length; i < len; i++) {
                 if (!this.expr[i].equals(other.expr[i])) {
                     return false;
                 }
@@ -545,91 +1005,204 @@ var ContextKeyOrExpr = /** @class */ (function () {
             return true;
         }
         return false;
-    };
-    ContextKeyOrExpr.prototype.evaluate = function (context) {
-        for (var i = 0, len = this.expr.length; i < len; i++) {
+    }
+    substituteConstants() {
+        const exprArr = eliminateConstantsInArray(this.expr);
+        if (exprArr === this.expr) {
+            // no change
+            return this;
+        }
+        return ContextKeyOrExpr.create(exprArr, this.negated, false);
+    }
+    evaluate(context) {
+        for (let i = 0, len = this.expr.length; i < len; i++) {
             if (this.expr[i].evaluate(context)) {
                 return true;
             }
         }
         return false;
-    };
-    ContextKeyOrExpr._normalizeArr = function (arr) {
-        var expr = [];
+    }
+    static _normalizeArr(arr, negated, extraRedundantCheck) {
+        let expr = [];
+        let hasFalse = false;
         if (arr) {
-            for (var i = 0, len = arr.length; i < len; i++) {
-                var e = arr[i];
+            for (let i = 0, len = arr.length; i < len; i++) {
+                const e = arr[i];
                 if (!e) {
                     continue;
                 }
-                if (e instanceof ContextKeyOrExpr) {
+                if (e.type === 0 /* False */) {
+                    // anything || false ==> anything
+                    hasFalse = true;
+                    continue;
+                }
+                if (e.type === 1 /* True */) {
+                    // anything || true ==> true
+                    return ContextKeyTrueExpr.INSTANCE;
+                }
+                if (e.type === 9 /* Or */) {
                     expr = expr.concat(e.expr);
                     continue;
                 }
                 expr.push(e);
             }
+            if (expr.length === 0 && hasFalse) {
+                return ContextKeyFalseExpr.INSTANCE;
+            }
             expr.sort(cmp);
         }
-        return expr;
-    };
-    ContextKeyOrExpr.prototype.keys = function () {
-        var result = [];
-        for (var _i = 0, _a = this.expr; _i < _a.length; _i++) {
-            var expr = _a[_i];
-            result.push.apply(result, expr.keys());
+        if (expr.length === 0) {
+            return undefined;
         }
-        return result;
-    };
-    ContextKeyOrExpr.prototype.negate = function () {
-        var result = [];
-        for (var _i = 0, _a = this.expr; _i < _a.length; _i++) {
-            var expr = _a[_i];
-            result.push(expr.negate());
+        if (expr.length === 1) {
+            return expr[0];
         }
-        var terminals = function (node) {
-            if (node instanceof ContextKeyOrExpr) {
-                return node.expr;
+        // eliminate duplicate terms
+        for (let i = 1; i < expr.length; i++) {
+            if (expr[i - 1].equals(expr[i])) {
+                expr.splice(i, 1);
+                i--;
             }
-            return [node];
-        };
-        // We don't support parens, so here we distribute the AND over the OR terminals
-        // We always take the first 2 AND pairs and distribute them
-        while (result.length > 1) {
-            var LEFT = result.shift();
-            var RIGHT = result.shift();
-            var all = [];
-            for (var _b = 0, _c = terminals(LEFT); _b < _c.length; _b++) {
-                var left = _c[_b];
-                for (var _d = 0, _e = terminals(RIGHT); _d < _e.length; _d++) {
-                    var right = _e[_d];
-                    all.push(ContextKeyExpr.and(left, right));
+        }
+        if (expr.length === 1) {
+            return expr[0];
+        }
+        // eliminate redundant terms
+        if (extraRedundantCheck) {
+            for (let i = 0; i < expr.length; i++) {
+                for (let j = i + 1; j < expr.length; j++) {
+                    if (implies(expr[i], expr[j])) {
+                        expr.splice(j, 1);
+                        j--;
+                    }
                 }
             }
-            result.unshift(ContextKeyExpr.or.apply(ContextKeyExpr, all));
+            if (expr.length === 1) {
+                return expr[0];
+            }
         }
-        return result[0];
-    };
-    return ContextKeyOrExpr;
-}());
-export { ContextKeyOrExpr };
-var RawContextKey = /** @class */ (function (_super) {
-    __extends(RawContextKey, _super);
-    function RawContextKey(key, defaultValue) {
-        var _this = _super.call(this, key) || this;
-        _this._defaultValue = defaultValue;
-        return _this;
+        return new ContextKeyOrExpr(expr, negated);
     }
-    RawContextKey.prototype.bindTo = function (target) {
+    serialize() {
+        return this.expr.map(e => e.serialize()).join(' || ');
+    }
+    keys() {
+        const result = [];
+        for (let expr of this.expr) {
+            result.push(...expr.keys());
+        }
+        return result;
+    }
+    negate() {
+        if (!this.negated) {
+            let result = [];
+            for (let expr of this.expr) {
+                result.push(expr.negate());
+            }
+            // We don't support parens, so here we distribute the AND over the OR terminals
+            // We always take the first 2 AND pairs and distribute them
+            while (result.length > 1) {
+                const LEFT = result.shift();
+                const RIGHT = result.shift();
+                const all = [];
+                for (const left of getTerminals(LEFT)) {
+                    for (const right of getTerminals(RIGHT)) {
+                        all.push(ContextKeyAndExpr.create([left, right], null));
+                    }
+                }
+                const isFinished = (result.length === 0);
+                result.unshift(ContextKeyOrExpr.create(all, null, isFinished));
+            }
+            this.negated = result[0];
+        }
+        return this.negated;
+    }
+}
+export class RawContextKey extends ContextKeyDefinedExpr {
+    constructor(key, defaultValue, metaOrHide) {
+        super(key, null);
+        this._defaultValue = defaultValue;
+        // collect all context keys into a central place
+        if (typeof metaOrHide === 'object') {
+            RawContextKey._info.push(Object.assign(Object.assign({}, metaOrHide), { key }));
+        }
+        else if (metaOrHide !== true) {
+            RawContextKey._info.push({ key, description: metaOrHide, type: defaultValue !== null && defaultValue !== undefined ? typeof defaultValue : undefined });
+        }
+    }
+    static all() {
+        return RawContextKey._info.values();
+    }
+    bindTo(target) {
         return target.createKey(this.key, this._defaultValue);
-    };
-    RawContextKey.prototype.getValue = function (target) {
+    }
+    getValue(target) {
         return target.getContextKeyValue(this.key);
-    };
-    RawContextKey.prototype.toNegated = function () {
-        return ContextKeyExpr.not(this.key);
-    };
-    return RawContextKey;
-}(ContextKeyDefinedExpr));
-export { RawContextKey };
-export var IContextKeyService = createDecorator('contextKeyService');
-export var SET_CONTEXT_COMMAND_ID = 'setContext';
+    }
+    toNegated() {
+        return this.negate();
+    }
+    isEqualTo(value) {
+        return ContextKeyEqualsExpr.create(this.key, value);
+    }
+}
+RawContextKey._info = [];
+export const IContextKeyService = createDecorator('contextKeyService');
+export const SET_CONTEXT_COMMAND_ID = 'setContext';
+function cmp1(key1, key2) {
+    if (key1 < key2) {
+        return -1;
+    }
+    if (key1 > key2) {
+        return 1;
+    }
+    return 0;
+}
+function cmp2(key1, value1, key2, value2) {
+    if (key1 < key2) {
+        return -1;
+    }
+    if (key1 > key2) {
+        return 1;
+    }
+    if (value1 < value2) {
+        return -1;
+    }
+    if (value1 > value2) {
+        return 1;
+    }
+    return 0;
+}
+/**
+ * Returns true if it is provable `p` implies `q`.
+ */
+export function implies(p, q) {
+    if (q.type === 6 /* And */ && (p.type !== 9 /* Or */ && p.type !== 6 /* And */)) {
+        // covers the case: A implies A && B
+        for (const qTerm of q.expr) {
+            if (p.equals(qTerm)) {
+                return true;
+            }
+        }
+    }
+    const notP = p.negate();
+    const expr = getTerminals(notP).concat(getTerminals(q));
+    expr.sort(cmp);
+    for (let i = 0; i < expr.length; i++) {
+        const a = expr[i];
+        const notA = a.negate();
+        for (let j = i + 1; j < expr.length; j++) {
+            const b = expr[j];
+            if (notA.equals(b)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+function getTerminals(node) {
+    if (node.type === 9 /* Or */) {
+        return node.expr;
+    }
+    return [node];
+}

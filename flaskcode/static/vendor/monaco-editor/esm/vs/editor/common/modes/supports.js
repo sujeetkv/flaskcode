@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 export function createScopedLineTokens(context, offset) {
-    var tokenCount = context.getCount();
-    var tokenIndex = context.findTokenIndexAtOffset(offset);
-    var desiredLanguageId = context.getLanguageId(tokenIndex);
-    var lastTokenIndex = tokenIndex;
+    let tokenCount = context.getCount();
+    let tokenIndex = context.findTokenIndexAtOffset(offset);
+    let desiredLanguageId = context.getLanguageId(tokenIndex);
+    let lastTokenIndex = tokenIndex;
     while (lastTokenIndex + 1 < tokenCount && context.getLanguageId(lastTokenIndex + 1) === desiredLanguageId) {
         lastTokenIndex++;
     }
-    var firstTokenIndex = tokenIndex;
+    let firstTokenIndex = tokenIndex;
     while (firstTokenIndex > 0 && context.getLanguageId(firstTokenIndex - 1) === desiredLanguageId) {
         firstTokenIndex--;
     }
     return new ScopedLineTokens(context, desiredLanguageId, firstTokenIndex, lastTokenIndex + 1, context.getStartOffset(firstTokenIndex), context.getEndOffset(lastTokenIndex));
 }
-var ScopedLineTokens = /** @class */ (function () {
-    function ScopedLineTokens(actual, languageId, firstTokenIndex, lastTokenIndex, firstCharOffset, lastCharOffset) {
+export class ScopedLineTokens {
+    constructor(actual, languageId, firstTokenIndex, lastTokenIndex, firstCharOffset, lastCharOffset) {
+        this._scopedLineTokensBrand = undefined;
         this._actual = actual;
         this.languageId = languageId;
         this._firstTokenIndex = firstTokenIndex;
@@ -25,26 +26,24 @@ var ScopedLineTokens = /** @class */ (function () {
         this.firstCharOffset = firstCharOffset;
         this._lastCharOffset = lastCharOffset;
     }
-    ScopedLineTokens.prototype.getLineContent = function () {
-        var actualLineContent = this._actual.getLineContent();
+    getLineContent() {
+        const actualLineContent = this._actual.getLineContent();
         return actualLineContent.substring(this.firstCharOffset, this._lastCharOffset);
-    };
-    ScopedLineTokens.prototype.getActualLineContentBefore = function (offset) {
-        var actualLineContent = this._actual.getLineContent();
+    }
+    getActualLineContentBefore(offset) {
+        const actualLineContent = this._actual.getLineContent();
         return actualLineContent.substring(0, this.firstCharOffset + offset);
-    };
-    ScopedLineTokens.prototype.getTokenCount = function () {
+    }
+    getTokenCount() {
         return this._lastTokenIndex - this._firstTokenIndex;
-    };
-    ScopedLineTokens.prototype.findTokenIndexAtOffset = function (offset) {
+    }
+    findTokenIndexAtOffset(offset) {
         return this._actual.findTokenIndexAtOffset(offset + this.firstCharOffset) - this._firstTokenIndex;
-    };
-    ScopedLineTokens.prototype.getStandardTokenType = function (tokenIndex) {
+    }
+    getStandardTokenType(tokenIndex) {
         return this._actual.getStandardTokenType(tokenIndex + this._firstTokenIndex);
-    };
-    return ScopedLineTokens;
-}());
-export { ScopedLineTokens };
+    }
+}
 export function ignoreBracketsInToken(standardTokenType) {
     return (standardTokenType & 7 /* value */) !== 0;
 }

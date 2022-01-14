@@ -2,19 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -25,79 +12,110 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose } from '../../../base/common/lifecycle.js';
 import * as platform from '../../../base/common/platform.js';
 import * as errors from '../../../base/common/errors.js';
 import { EDITOR_MODEL_DEFAULTS } from '../config/editorOptions.js';
 import { TextModel } from '../model/textModel.js';
-import { DocumentSemanticTokensProviderRegistry, TokenMetadata } from '../modes.js';
-import { PLAINTEXT_LANGUAGE_IDENTIFIER } from '../modes/modesRegistry.js';
+import { DocumentSemanticTokensProviderRegistry } from '../modes.js';
+import { PLAINTEXT_MODE_ID } from '../modes/modesRegistry.js';
+import { IModeService } from './modeService.js';
 import { ITextResourcePropertiesService } from './textResourceConfigurationService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { SparseEncodedTokens, MultilineTokens2 } from '../model/tokensStore.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { ILogService, LogLevel } from '../../../platform/log/common/log.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { IUndoRedoService } from '../../../platform/undoRedo/common/undoRedo.js';
+import { StringSHA1 } from '../../../base/common/hash.js';
+import { isEditStackElement } from '../model/editStack.js';
+import { Schemas } from '../../../base/common/network.js';
+import { SemanticTokensProviderStyling, toMultilineTokens2 } from './semanticTokensProviderStyling.js';
+import { getDocumentSemanticTokens, hasDocumentSemanticTokensProvider, isSemanticTokens, isSemanticTokensEdits } from './getSemanticTokens.js';
+import { equals } from '../../../base/common/objects.js';
+import { ILanguageConfigurationService } from '../modes/languageConfigurationRegistry.js';
 function MODEL_ID(resource) {
     return resource.toString();
 }
-var ModelData = /** @class */ (function () {
-    function ModelData(model, onWillDispose, onDidChangeLanguage) {
+function computeModelSha1(model) {
+    // compute the sha1
+    const shaComputer = new StringSHA1();
+    const snapshot = model.createSnapshot();
+    let text;
+    while ((text = snapshot.read())) {
+        shaComputer.update(text);
+    }
+    return shaComputer.digest();
+}
+class ModelData {
+    constructor(model, onWillDispose, onDidChangeLanguage) {
         this._modelEventListeners = new DisposableStore();
         this.model = model;
         this._languageSelection = null;
         this._languageSelectionListener = null;
-        this._modelEventListeners.add(model.onWillDispose(function () { return onWillDispose(model); }));
-        this._modelEventListeners.add(model.onDidChangeLanguage(function (e) { return onDidChangeLanguage(model, e); }));
+        this._modelEventListeners.add(model.onWillDispose(() => onWillDispose(model)));
+        this._modelEventListeners.add(model.onDidChangeLanguage((e) => onDidChangeLanguage(model, e)));
     }
-    ModelData.prototype._disposeLanguageSelection = function () {
+    _disposeLanguageSelection() {
         if (this._languageSelectionListener) {
             this._languageSelectionListener.dispose();
             this._languageSelectionListener = null;
         }
-        if (this._languageSelection) {
-            this._languageSelection.dispose();
-            this._languageSelection = null;
-        }
-    };
-    ModelData.prototype.dispose = function () {
+    }
+    dispose() {
         this._modelEventListeners.dispose();
         this._disposeLanguageSelection();
-    };
-    ModelData.prototype.setLanguage = function (languageSelection) {
-        var _this = this;
+    }
+    setLanguage(languageSelection) {
         this._disposeLanguageSelection();
         this._languageSelection = languageSelection;
-        this._languageSelectionListener = this._languageSelection.onDidChange(function () { return _this.model.setMode(languageSelection.languageIdentifier); });
-        this.model.setMode(languageSelection.languageIdentifier);
-    };
-    return ModelData;
-}());
-var DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? 1 /* LF */ : 2 /* CRLF */;
-var ModelServiceImpl = /** @class */ (function (_super) {
-    __extends(ModelServiceImpl, _super);
-    function ModelServiceImpl(configurationService, resourcePropertiesService, themeService, logService) {
-        var _this = _super.call(this) || this;
-        _this._onModelAdded = _this._register(new Emitter());
-        _this.onModelAdded = _this._onModelAdded.event;
-        _this._onModelRemoved = _this._register(new Emitter());
-        _this.onModelRemoved = _this._onModelRemoved.event;
-        _this._onModelModeChanged = _this._register(new Emitter());
-        _this.onModelModeChanged = _this._onModelModeChanged.event;
-        _this._configurationService = configurationService;
-        _this._resourcePropertiesService = resourcePropertiesService;
-        _this._models = {};
-        _this._modelCreationOptionsByLanguageAndResource = Object.create(null);
-        _this._configurationServiceSubscription = _this._configurationService.onDidChangeConfiguration(function (e) { return _this._updateModelOptions(); });
-        _this._updateModelOptions();
-        _this._register(new SemanticColoringFeature(_this, themeService, configurationService, logService));
-        return _this;
+        this._languageSelectionListener = this._languageSelection.onDidChange(() => this.model.setMode(languageSelection.languageId));
+        this.model.setMode(languageSelection.languageId);
     }
-    ModelServiceImpl._readModelOptions = function (config, isForSimpleWidget) {
-        var tabSize = EDITOR_MODEL_DEFAULTS.tabSize;
+}
+const DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? 1 /* LF */ : 2 /* CRLF */;
+class DisposedModelInfo {
+    constructor(uri, initialUndoRedoSnapshot, time, sharesUndoRedoStack, heapSize, sha1, versionId, alternativeVersionId) {
+        this.uri = uri;
+        this.initialUndoRedoSnapshot = initialUndoRedoSnapshot;
+        this.time = time;
+        this.sharesUndoRedoStack = sharesUndoRedoStack;
+        this.heapSize = heapSize;
+        this.sha1 = sha1;
+        this.versionId = versionId;
+        this.alternativeVersionId = alternativeVersionId;
+    }
+}
+let ModelServiceImpl = class ModelServiceImpl extends Disposable {
+    constructor(_configurationService, _resourcePropertiesService, _themeService, _logService, _undoRedoService, _modeService, _languageConfigurationService) {
+        super();
+        this._configurationService = _configurationService;
+        this._resourcePropertiesService = _resourcePropertiesService;
+        this._themeService = _themeService;
+        this._logService = _logService;
+        this._undoRedoService = _undoRedoService;
+        this._modeService = _modeService;
+        this._languageConfigurationService = _languageConfigurationService;
+        this._onModelAdded = this._register(new Emitter());
+        this.onModelAdded = this._onModelAdded.event;
+        this._onModelRemoved = this._register(new Emitter());
+        this.onModelRemoved = this._onModelRemoved.event;
+        this._onModelModeChanged = this._register(new Emitter());
+        this.onModelModeChanged = this._onModelModeChanged.event;
+        this._modelCreationOptionsByLanguageAndResource = Object.create(null);
+        this._models = {};
+        this._disposedModels = new Map();
+        this._disposedModelsHeapSize = 0;
+        this._semanticStyling = this._register(new SemanticStyling(this._themeService, this._modeService, this._logService));
+        this._register(this._configurationService.onDidChangeConfiguration(() => this._updateModelOptions()));
+        this._updateModelOptions();
+        this._register(new SemanticColoringFeature(this, this._themeService, this._configurationService, this._semanticStyling));
+    }
+    static _readModelOptions(config, isForSimpleWidget) {
+        var _a;
+        let tabSize = EDITOR_MODEL_DEFAULTS.tabSize;
         if (config.editor && typeof config.editor.tabSize !== 'undefined') {
-            var parsedTabSize = parseInt(config.editor.tabSize, 10);
+            const parsedTabSize = parseInt(config.editor.tabSize, 10);
             if (!isNaN(parsedTabSize)) {
                 tabSize = parsedTabSize;
             }
@@ -105,9 +123,9 @@ var ModelServiceImpl = /** @class */ (function (_super) {
                 tabSize = 1;
             }
         }
-        var indentSize = tabSize;
+        let indentSize = tabSize;
         if (config.editor && typeof config.editor.indentSize !== 'undefined' && config.editor.indentSize !== 'tabSize') {
-            var parsedIndentSize = parseInt(config.editor.indentSize, 10);
+            const parsedIndentSize = parseInt(config.editor.indentSize, 10);
             if (!isNaN(parsedIndentSize)) {
                 indentSize = parsedIndentSize;
             }
@@ -115,29 +133,35 @@ var ModelServiceImpl = /** @class */ (function (_super) {
                 indentSize = 1;
             }
         }
-        var insertSpaces = EDITOR_MODEL_DEFAULTS.insertSpaces;
+        let insertSpaces = EDITOR_MODEL_DEFAULTS.insertSpaces;
         if (config.editor && typeof config.editor.insertSpaces !== 'undefined') {
             insertSpaces = (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
         }
-        var newDefaultEOL = DEFAULT_EOL;
-        var eol = config.eol;
+        let newDefaultEOL = DEFAULT_EOL;
+        const eol = config.eol;
         if (eol === '\r\n') {
             newDefaultEOL = 2 /* CRLF */;
         }
         else if (eol === '\n') {
             newDefaultEOL = 1 /* LF */;
         }
-        var trimAutoWhitespace = EDITOR_MODEL_DEFAULTS.trimAutoWhitespace;
+        let trimAutoWhitespace = EDITOR_MODEL_DEFAULTS.trimAutoWhitespace;
         if (config.editor && typeof config.editor.trimAutoWhitespace !== 'undefined') {
             trimAutoWhitespace = (config.editor.trimAutoWhitespace === 'false' ? false : Boolean(config.editor.trimAutoWhitespace));
         }
-        var detectIndentation = EDITOR_MODEL_DEFAULTS.detectIndentation;
+        let detectIndentation = EDITOR_MODEL_DEFAULTS.detectIndentation;
         if (config.editor && typeof config.editor.detectIndentation !== 'undefined') {
             detectIndentation = (config.editor.detectIndentation === 'false' ? false : Boolean(config.editor.detectIndentation));
         }
-        var largeFileOptimizations = EDITOR_MODEL_DEFAULTS.largeFileOptimizations;
+        let largeFileOptimizations = EDITOR_MODEL_DEFAULTS.largeFileOptimizations;
         if (config.editor && typeof config.editor.largeFileOptimizations !== 'undefined') {
             largeFileOptimizations = (config.editor.largeFileOptimizations === 'false' ? false : Boolean(config.editor.largeFileOptimizations));
+        }
+        let bracketPairColorizationOptions = EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions;
+        if (((_a = config.editor) === null || _a === void 0 ? void 0 : _a.bracketPairColorization) && typeof config.editor.bracketPairColorization === 'object') {
+            bracketPairColorizationOptions = {
+                enabled: !!config.editor.bracketPairColorization.enabled
+            };
         }
         return {
             isForSimpleWidget: isForSimpleWidget,
@@ -147,35 +171,53 @@ var ModelServiceImpl = /** @class */ (function (_super) {
             detectIndentation: detectIndentation,
             defaultEOL: newDefaultEOL,
             trimAutoWhitespace: trimAutoWhitespace,
-            largeFileOptimizations: largeFileOptimizations
+            largeFileOptimizations: largeFileOptimizations,
+            bracketPairColorizationOptions
         };
-    };
-    ModelServiceImpl.prototype.getCreationOptions = function (language, resource, isForSimpleWidget) {
-        var creationOptions = this._modelCreationOptionsByLanguageAndResource[language + resource];
+    }
+    _getEOL(resource, language) {
+        if (resource) {
+            return this._resourcePropertiesService.getEOL(resource, language);
+        }
+        const eol = this._configurationService.getValue('files.eol', { overrideIdentifier: language });
+        if (eol && typeof eol === 'string' && eol !== 'auto') {
+            return eol;
+        }
+        return platform.OS === 3 /* Linux */ || platform.OS === 2 /* Macintosh */ ? '\n' : '\r\n';
+    }
+    _shouldRestoreUndoStack() {
+        const result = this._configurationService.getValue('files.restoreUndoStack');
+        if (typeof result === 'boolean') {
+            return result;
+        }
+        return true;
+    }
+    getCreationOptions(language, resource, isForSimpleWidget) {
+        let creationOptions = this._modelCreationOptionsByLanguageAndResource[language + resource];
         if (!creationOptions) {
-            var editor = this._configurationService.getValue('editor', { overrideIdentifier: language, resource: resource });
-            var eol = this._resourcePropertiesService.getEOL(resource, language);
-            creationOptions = ModelServiceImpl._readModelOptions({ editor: editor, eol: eol }, isForSimpleWidget);
+            const editor = this._configurationService.getValue('editor', { overrideIdentifier: language, resource });
+            const eol = this._getEOL(resource, language);
+            creationOptions = ModelServiceImpl._readModelOptions({ editor, eol }, isForSimpleWidget);
             this._modelCreationOptionsByLanguageAndResource[language + resource] = creationOptions;
         }
         return creationOptions;
-    };
-    ModelServiceImpl.prototype._updateModelOptions = function () {
-        var oldOptionsByLanguageAndResource = this._modelCreationOptionsByLanguageAndResource;
+    }
+    _updateModelOptions() {
+        const oldOptionsByLanguageAndResource = this._modelCreationOptionsByLanguageAndResource;
         this._modelCreationOptionsByLanguageAndResource = Object.create(null);
         // Update options on all models
-        var keys = Object.keys(this._models);
-        for (var i = 0, len = keys.length; i < len; i++) {
-            var modelId = keys[i];
-            var modelData = this._models[modelId];
-            var language = modelData.model.getLanguageIdentifier().language;
-            var uri = modelData.model.uri;
-            var oldOptions = oldOptionsByLanguageAndResource[language + uri];
-            var newOptions = this.getCreationOptions(language, uri, modelData.model.isForSimpleWidget);
+        const keys = Object.keys(this._models);
+        for (let i = 0, len = keys.length; i < len; i++) {
+            const modelId = keys[i];
+            const modelData = this._models[modelId];
+            const language = modelData.model.getLanguageId();
+            const uri = modelData.model.uri;
+            const oldOptions = oldOptionsByLanguageAndResource[language + uri];
+            const newOptions = this.getCreationOptions(language, uri, modelData.model.isForSimpleWidget);
             ModelServiceImpl._setModelOptionsForModel(modelData.model, newOptions, oldOptions);
         }
-    };
-    ModelServiceImpl._setModelOptionsForModel = function (model, newOptions, currentOptions) {
+    }
+    static _setModelOptionsForModel(model, newOptions, currentOptions) {
         if (currentOptions && currentOptions.defaultEOL !== newOptions.defaultEOL && model.getLineCount() === 1) {
             model.setEOL(newOptions.defaultEOL === 1 /* LF */ ? 0 /* LF */ : 1 /* CRLF */);
         }
@@ -184,14 +226,16 @@ var ModelServiceImpl = /** @class */ (function (_super) {
             && (currentOptions.insertSpaces === newOptions.insertSpaces)
             && (currentOptions.tabSize === newOptions.tabSize)
             && (currentOptions.indentSize === newOptions.indentSize)
-            && (currentOptions.trimAutoWhitespace === newOptions.trimAutoWhitespace)) {
+            && (currentOptions.trimAutoWhitespace === newOptions.trimAutoWhitespace)
+            && equals(currentOptions.bracketPairColorizationOptions, newOptions.bracketPairColorizationOptions)) {
             // Same indent opts, no need to touch the model
             return;
         }
         if (newOptions.detectIndentation) {
             model.detectIndentation(newOptions.insertSpaces, newOptions.tabSize);
             model.updateOptions({
-                trimAutoWhitespace: newOptions.trimAutoWhitespace
+                trimAutoWhitespace: newOptions.trimAutoWhitespace,
+                bracketColorizationOptions: newOptions.bracketPairColorizationOptions
             });
         }
         else {
@@ -199,405 +243,418 @@ var ModelServiceImpl = /** @class */ (function (_super) {
                 insertSpaces: newOptions.insertSpaces,
                 tabSize: newOptions.tabSize,
                 indentSize: newOptions.indentSize,
-                trimAutoWhitespace: newOptions.trimAutoWhitespace
+                trimAutoWhitespace: newOptions.trimAutoWhitespace,
+                bracketColorizationOptions: newOptions.bracketPairColorizationOptions
             });
         }
-    };
-    ModelServiceImpl.prototype.dispose = function () {
-        this._configurationServiceSubscription.dispose();
-        _super.prototype.dispose.call(this);
-    };
+    }
     // --- begin IModelService
-    ModelServiceImpl.prototype._createModelData = function (value, languageIdentifier, resource, isForSimpleWidget) {
-        var _this = this;
+    _insertDisposedModel(disposedModelData) {
+        this._disposedModels.set(MODEL_ID(disposedModelData.uri), disposedModelData);
+        this._disposedModelsHeapSize += disposedModelData.heapSize;
+    }
+    _removeDisposedModel(resource) {
+        const disposedModelData = this._disposedModels.get(MODEL_ID(resource));
+        if (disposedModelData) {
+            this._disposedModelsHeapSize -= disposedModelData.heapSize;
+        }
+        this._disposedModels.delete(MODEL_ID(resource));
+        return disposedModelData;
+    }
+    _ensureDisposedModelsHeapSize(maxModelsHeapSize) {
+        if (this._disposedModelsHeapSize > maxModelsHeapSize) {
+            // we must remove some old undo stack elements to free up some memory
+            const disposedModels = [];
+            this._disposedModels.forEach(entry => {
+                if (!entry.sharesUndoRedoStack) {
+                    disposedModels.push(entry);
+                }
+            });
+            disposedModels.sort((a, b) => a.time - b.time);
+            while (disposedModels.length > 0 && this._disposedModelsHeapSize > maxModelsHeapSize) {
+                const disposedModel = disposedModels.shift();
+                this._removeDisposedModel(disposedModel.uri);
+                if (disposedModel.initialUndoRedoSnapshot !== null) {
+                    this._undoRedoService.restoreSnapshot(disposedModel.initialUndoRedoSnapshot);
+                }
+            }
+        }
+    }
+    _createModelData(value, languageId, resource, isForSimpleWidget) {
         // create & save the model
-        var options = this.getCreationOptions(languageIdentifier.language, resource, isForSimpleWidget);
-        var model = new TextModel(value, options, languageIdentifier, resource);
-        var modelId = MODEL_ID(model.uri);
+        const options = this.getCreationOptions(languageId, resource, isForSimpleWidget);
+        const model = new TextModel(value, options, languageId, resource, this._undoRedoService, this._modeService, this._languageConfigurationService);
+        if (resource && this._disposedModels.has(MODEL_ID(resource))) {
+            const disposedModelData = this._removeDisposedModel(resource);
+            const elements = this._undoRedoService.getElements(resource);
+            const sha1IsEqual = (computeModelSha1(model) === disposedModelData.sha1);
+            if (sha1IsEqual || disposedModelData.sharesUndoRedoStack) {
+                for (const element of elements.past) {
+                    if (isEditStackElement(element) && element.matchesResource(resource)) {
+                        element.setModel(model);
+                    }
+                }
+                for (const element of elements.future) {
+                    if (isEditStackElement(element) && element.matchesResource(resource)) {
+                        element.setModel(model);
+                    }
+                }
+                this._undoRedoService.setElementsValidFlag(resource, true, (element) => (isEditStackElement(element) && element.matchesResource(resource)));
+                if (sha1IsEqual) {
+                    model._overwriteVersionId(disposedModelData.versionId);
+                    model._overwriteAlternativeVersionId(disposedModelData.alternativeVersionId);
+                    model._overwriteInitialUndoRedoSnapshot(disposedModelData.initialUndoRedoSnapshot);
+                }
+            }
+            else {
+                if (disposedModelData.initialUndoRedoSnapshot !== null) {
+                    this._undoRedoService.restoreSnapshot(disposedModelData.initialUndoRedoSnapshot);
+                }
+            }
+        }
+        const modelId = MODEL_ID(model.uri);
         if (this._models[modelId]) {
             // There already exists a model with this id => this is a programmer error
             throw new Error('ModelService: Cannot add model because it already exists!');
         }
-        var modelData = new ModelData(model, function (model) { return _this._onWillDispose(model); }, function (model, e) { return _this._onDidChangeLanguage(model, e); });
+        const modelData = new ModelData(model, (model) => this._onWillDispose(model), (model, e) => this._onDidChangeLanguage(model, e));
         this._models[modelId] = modelData;
         return modelData;
-    };
-    ModelServiceImpl.prototype.createModel = function (value, languageSelection, resource, isForSimpleWidget) {
-        if (isForSimpleWidget === void 0) { isForSimpleWidget = false; }
-        var modelData;
+    }
+    createModel(value, languageSelection, resource, isForSimpleWidget = false) {
+        let modelData;
         if (languageSelection) {
-            modelData = this._createModelData(value, languageSelection.languageIdentifier, resource, isForSimpleWidget);
+            modelData = this._createModelData(value, languageSelection.languageId, resource, isForSimpleWidget);
             this.setMode(modelData.model, languageSelection);
         }
         else {
-            modelData = this._createModelData(value, PLAINTEXT_LANGUAGE_IDENTIFIER, resource, isForSimpleWidget);
+            modelData = this._createModelData(value, PLAINTEXT_MODE_ID, resource, isForSimpleWidget);
         }
         this._onModelAdded.fire(modelData.model);
         return modelData.model;
-    };
-    ModelServiceImpl.prototype.setMode = function (model, languageSelection) {
+    }
+    setMode(model, languageSelection) {
         if (!languageSelection) {
             return;
         }
-        var modelData = this._models[MODEL_ID(model.uri)];
+        const modelData = this._models[MODEL_ID(model.uri)];
         if (!modelData) {
             return;
         }
         modelData.setLanguage(languageSelection);
-    };
-    ModelServiceImpl.prototype.getModels = function () {
-        var ret = [];
-        var keys = Object.keys(this._models);
-        for (var i = 0, len = keys.length; i < len; i++) {
-            var modelId = keys[i];
+    }
+    getModels() {
+        const ret = [];
+        const keys = Object.keys(this._models);
+        for (let i = 0, len = keys.length; i < len; i++) {
+            const modelId = keys[i];
             ret.push(this._models[modelId].model);
         }
         return ret;
-    };
-    ModelServiceImpl.prototype.getModel = function (resource) {
-        var modelId = MODEL_ID(resource);
-        var modelData = this._models[modelId];
+    }
+    getModel(resource) {
+        const modelId = MODEL_ID(resource);
+        const modelData = this._models[modelId];
         if (!modelData) {
             return null;
         }
         return modelData.model;
-    };
+    }
+    getSemanticTokensProviderStyling(provider) {
+        return this._semanticStyling.get(provider);
+    }
     // --- end IModelService
-    ModelServiceImpl.prototype._onWillDispose = function (model) {
-        var modelId = MODEL_ID(model.uri);
-        var modelData = this._models[modelId];
+    _schemaShouldMaintainUndoRedoElements(resource) {
+        return (resource.scheme === Schemas.file
+            || resource.scheme === Schemas.vscodeRemote
+            || resource.scheme === Schemas.userData
+            || resource.scheme === Schemas.vscodeNotebookCell
+            || resource.scheme === 'fake-fs' // for tests
+        );
+    }
+    _onWillDispose(model) {
+        const modelId = MODEL_ID(model.uri);
+        const modelData = this._models[modelId];
+        const sharesUndoRedoStack = (this._undoRedoService.getUriComparisonKey(model.uri) !== model.uri.toString());
+        let maintainUndoRedoStack = false;
+        let heapSize = 0;
+        if (sharesUndoRedoStack || (this._shouldRestoreUndoStack() && this._schemaShouldMaintainUndoRedoElements(model.uri))) {
+            const elements = this._undoRedoService.getElements(model.uri);
+            if (elements.past.length > 0 || elements.future.length > 0) {
+                for (const element of elements.past) {
+                    if (isEditStackElement(element) && element.matchesResource(model.uri)) {
+                        maintainUndoRedoStack = true;
+                        heapSize += element.heapSize(model.uri);
+                        element.setModel(model.uri); // remove reference from text buffer instance
+                    }
+                }
+                for (const element of elements.future) {
+                    if (isEditStackElement(element) && element.matchesResource(model.uri)) {
+                        maintainUndoRedoStack = true;
+                        heapSize += element.heapSize(model.uri);
+                        element.setModel(model.uri); // remove reference from text buffer instance
+                    }
+                }
+            }
+        }
+        const maxMemory = ModelServiceImpl.MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK;
+        if (!maintainUndoRedoStack) {
+            if (!sharesUndoRedoStack) {
+                const initialUndoRedoSnapshot = modelData.model.getInitialUndoRedoSnapshot();
+                if (initialUndoRedoSnapshot !== null) {
+                    this._undoRedoService.restoreSnapshot(initialUndoRedoSnapshot);
+                }
+            }
+        }
+        else if (!sharesUndoRedoStack && heapSize > maxMemory) {
+            // the undo stack for this file would never fit in the configured memory, so don't bother with it.
+            const initialUndoRedoSnapshot = modelData.model.getInitialUndoRedoSnapshot();
+            if (initialUndoRedoSnapshot !== null) {
+                this._undoRedoService.restoreSnapshot(initialUndoRedoSnapshot);
+            }
+        }
+        else {
+            this._ensureDisposedModelsHeapSize(maxMemory - heapSize);
+            // We only invalidate the elements, but they remain in the undo-redo service.
+            this._undoRedoService.setElementsValidFlag(model.uri, false, (element) => (isEditStackElement(element) && element.matchesResource(model.uri)));
+            this._insertDisposedModel(new DisposedModelInfo(model.uri, modelData.model.getInitialUndoRedoSnapshot(), Date.now(), sharesUndoRedoStack, heapSize, computeModelSha1(model), model.getVersionId(), model.getAlternativeVersionId()));
+        }
         delete this._models[modelId];
         modelData.dispose();
         // clean up cache
-        delete this._modelCreationOptionsByLanguageAndResource[model.getLanguageIdentifier().language + model.uri];
+        delete this._modelCreationOptionsByLanguageAndResource[model.getLanguageId() + model.uri];
         this._onModelRemoved.fire(model);
-    };
-    ModelServiceImpl.prototype._onDidChangeLanguage = function (model, e) {
-        var oldModeId = e.oldLanguage;
-        var newModeId = model.getLanguageIdentifier().language;
-        var oldOptions = this.getCreationOptions(oldModeId, model.uri, model.isForSimpleWidget);
-        var newOptions = this.getCreationOptions(newModeId, model.uri, model.isForSimpleWidget);
+    }
+    _onDidChangeLanguage(model, e) {
+        const oldModeId = e.oldLanguage;
+        const newModeId = model.getLanguageId();
+        const oldOptions = this.getCreationOptions(oldModeId, model.uri, model.isForSimpleWidget);
+        const newOptions = this.getCreationOptions(newModeId, model.uri, model.isForSimpleWidget);
         ModelServiceImpl._setModelOptionsForModel(model, newOptions, oldOptions);
-        this._onModelModeChanged.fire({ model: model, oldModeId: oldModeId });
-    };
-    ModelServiceImpl = __decorate([
-        __param(0, IConfigurationService),
-        __param(1, ITextResourcePropertiesService),
-        __param(2, IThemeService),
-        __param(3, ILogService)
-    ], ModelServiceImpl);
-    return ModelServiceImpl;
-}(Disposable));
+        this._onModelModeChanged.fire({ model, oldModeId });
+    }
+};
+ModelServiceImpl.MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK = 20 * 1024 * 1024;
+ModelServiceImpl = __decorate([
+    __param(0, IConfigurationService),
+    __param(1, ITextResourcePropertiesService),
+    __param(2, IThemeService),
+    __param(3, ILogService),
+    __param(4, IUndoRedoService),
+    __param(5, IModeService),
+    __param(6, ILanguageConfigurationService)
+], ModelServiceImpl);
 export { ModelServiceImpl };
-var SemanticColoringFeature = /** @class */ (function (_super) {
-    __extends(SemanticColoringFeature, _super);
-    function SemanticColoringFeature(modelService, themeService, configurationService, logService) {
-        var _this = _super.call(this) || this;
-        _this._configurationService = configurationService;
-        _this._watchers = Object.create(null);
-        _this._semanticStyling = _this._register(new SemanticStyling(themeService, logService));
-        var isSemanticColoringEnabled = function (model) {
-            var options = configurationService.getValue(SemanticColoringFeature.SETTING_ID, { overrideIdentifier: model.getLanguageIdentifier().language, resource: model.uri });
-            return options && options.enabled;
+export const SEMANTIC_HIGHLIGHTING_SETTING_ID = 'editor.semanticHighlighting';
+export function isSemanticColoringEnabled(model, themeService, configurationService) {
+    var _a;
+    const setting = (_a = configurationService.getValue(SEMANTIC_HIGHLIGHTING_SETTING_ID, { overrideIdentifier: model.getLanguageId(), resource: model.uri })) === null || _a === void 0 ? void 0 : _a.enabled;
+    if (typeof setting === 'boolean') {
+        return setting;
+    }
+    return themeService.getColorTheme().semanticHighlighting;
+}
+class SemanticColoringFeature extends Disposable {
+    constructor(modelService, themeService, configurationService, semanticStyling) {
+        super();
+        this._watchers = Object.create(null);
+        this._semanticStyling = semanticStyling;
+        const register = (model) => {
+            this._watchers[model.uri.toString()] = new ModelSemanticColoring(model, themeService, this._semanticStyling);
         };
-        var register = function (model) {
-            _this._watchers[model.uri.toString()] = new ModelSemanticColoring(model, themeService, _this._semanticStyling);
-        };
-        var deregister = function (model, modelSemanticColoring) {
+        const deregister = (model, modelSemanticColoring) => {
             modelSemanticColoring.dispose();
-            delete _this._watchers[model.uri.toString()];
+            delete this._watchers[model.uri.toString()];
         };
-        _this._register(modelService.onModelAdded(function (model) {
-            if (isSemanticColoringEnabled(model)) {
+        const handleSettingOrThemeChange = () => {
+            for (let model of modelService.getModels()) {
+                const curr = this._watchers[model.uri.toString()];
+                if (isSemanticColoringEnabled(model, themeService, configurationService)) {
+                    if (!curr) {
+                        register(model);
+                    }
+                }
+                else {
+                    if (curr) {
+                        deregister(model, curr);
+                    }
+                }
+            }
+        };
+        this._register(modelService.onModelAdded((model) => {
+            if (isSemanticColoringEnabled(model, themeService, configurationService)) {
                 register(model);
             }
         }));
-        _this._register(modelService.onModelRemoved(function (model) {
-            var curr = _this._watchers[model.uri.toString()];
+        this._register(modelService.onModelRemoved((model) => {
+            const curr = this._watchers[model.uri.toString()];
             if (curr) {
                 deregister(model, curr);
             }
         }));
-        _this._configurationService.onDidChangeConfiguration(function (e) {
-            if (e.affectsConfiguration(SemanticColoringFeature.SETTING_ID)) {
-                for (var _i = 0, _a = modelService.getModels(); _i < _a.length; _i++) {
-                    var model = _a[_i];
-                    var curr = _this._watchers[model.uri.toString()];
-                    if (isSemanticColoringEnabled(model)) {
-                        if (!curr) {
-                            register(model);
-                        }
-                    }
-                    else {
-                        if (curr) {
-                            deregister(model, curr);
-                        }
-                    }
-                }
+        this._register(configurationService.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration(SEMANTIC_HIGHLIGHTING_SETTING_ID)) {
+                handleSettingOrThemeChange();
             }
-        });
-        return _this;
+        }));
+        this._register(themeService.onDidColorThemeChange(handleSettingOrThemeChange));
     }
-    SemanticColoringFeature.SETTING_ID = 'editor.semanticHighlighting';
-    return SemanticColoringFeature;
-}(Disposable));
-var SemanticStyling = /** @class */ (function (_super) {
-    __extends(SemanticStyling, _super);
-    function SemanticStyling(_themeService, _logService) {
-        var _this = _super.call(this) || this;
-        _this._themeService = _themeService;
-        _this._logService = _logService;
-        _this._caches = new WeakMap();
-        if (_this._themeService) {
-            // workaround for tests which use undefined... :/
-            _this._register(_this._themeService.onThemeChange(function () {
-                _this._caches = new WeakMap();
-            }));
-        }
-        return _this;
+}
+class SemanticStyling extends Disposable {
+    constructor(_themeService, _modeService, _logService) {
+        super();
+        this._themeService = _themeService;
+        this._modeService = _modeService;
+        this._logService = _logService;
+        this._caches = new WeakMap();
+        this._register(this._themeService.onDidColorThemeChange(() => {
+            this._caches = new WeakMap();
+        }));
     }
-    SemanticStyling.prototype.get = function (provider) {
+    get(provider) {
         if (!this._caches.has(provider)) {
-            this._caches.set(provider, new SemanticColoringProviderStyling(provider.getLegend(), this._themeService, this._logService));
+            this._caches.set(provider, new SemanticTokensProviderStyling(provider.getLegend(), this._themeService, this._modeService, this._logService));
         }
         return this._caches.get(provider);
-    };
-    return SemanticStyling;
-}(Disposable));
-var HashTableEntry = /** @class */ (function () {
-    function HashTableEntry(tokenTypeIndex, tokenModifierSet, metadata) {
-        this.tokenTypeIndex = tokenTypeIndex;
-        this.tokenModifierSet = tokenModifierSet;
-        this.metadata = metadata;
-        this.next = null;
     }
-    return HashTableEntry;
-}());
-var HashTable = /** @class */ (function () {
-    function HashTable() {
-        this._elementsCount = 0;
-        this._currentLengthIndex = 0;
-        this._currentLength = HashTable._SIZES[this._currentLengthIndex];
-        this._growCount = Math.round(this._currentLengthIndex + 1 < HashTable._SIZES.length ? 2 / 3 * this._currentLength : 0);
-        this._elements = [];
-        HashTable._nullOutEntries(this._elements, this._currentLength);
-    }
-    HashTable._nullOutEntries = function (entries, length) {
-        for (var i = 0; i < length; i++) {
-            entries[i] = null;
-        }
-    };
-    HashTable.prototype._hashFunc = function (tokenTypeIndex, tokenModifierSet) {
-        return ((((tokenTypeIndex << 5) - tokenTypeIndex) + tokenModifierSet) | 0) % this._currentLength; // tokenTypeIndex * 31 + tokenModifierSet, keep as int32
-    };
-    HashTable.prototype.get = function (tokenTypeIndex, tokenModifierSet) {
-        var hash = this._hashFunc(tokenTypeIndex, tokenModifierSet);
-        var p = this._elements[hash];
-        while (p) {
-            if (p.tokenTypeIndex === tokenTypeIndex && p.tokenModifierSet === tokenModifierSet) {
-                return p;
-            }
-            p = p.next;
-        }
-        return null;
-    };
-    HashTable.prototype.add = function (tokenTypeIndex, tokenModifierSet, metadata) {
-        this._elementsCount++;
-        if (this._growCount !== 0 && this._elementsCount >= this._growCount) {
-            // expand!
-            var oldElements = this._elements;
-            this._currentLengthIndex++;
-            this._currentLength = HashTable._SIZES[this._currentLengthIndex];
-            this._growCount = Math.round(this._currentLengthIndex + 1 < HashTable._SIZES.length ? 2 / 3 * this._currentLength : 0);
-            this._elements = [];
-            HashTable._nullOutEntries(this._elements, this._currentLength);
-            for (var _i = 0, oldElements_1 = oldElements; _i < oldElements_1.length; _i++) {
-                var first = oldElements_1[_i];
-                var p = first;
-                while (p) {
-                    var oldNext = p.next;
-                    p.next = null;
-                    this._add(p);
-                    p = oldNext;
-                }
-            }
-        }
-        this._add(new HashTableEntry(tokenTypeIndex, tokenModifierSet, metadata));
-    };
-    HashTable.prototype._add = function (element) {
-        var hash = this._hashFunc(element.tokenTypeIndex, element.tokenModifierSet);
-        element.next = this._elements[hash];
-        this._elements[hash] = element;
-    };
-    HashTable._SIZES = [3, 7, 13, 31, 61, 127, 251, 509, 1021, 2039, 4093, 8191, 16381, 32749, 65521, 131071, 262139, 524287, 1048573, 2097143];
-    return HashTable;
-}());
-var SemanticColoringProviderStyling = /** @class */ (function () {
-    function SemanticColoringProviderStyling(_legend, _themeService, _logService) {
-        this._legend = _legend;
-        this._themeService = _themeService;
-        this._logService = _logService;
-        this._hashTable = new HashTable();
-    }
-    SemanticColoringProviderStyling.prototype.getMetadata = function (tokenTypeIndex, tokenModifierSet) {
-        var entry = this._hashTable.get(tokenTypeIndex, tokenModifierSet);
-        var metadata;
-        if (entry) {
-            metadata = entry.metadata;
-        }
-        else {
-            var tokenType = this._legend.tokenTypes[tokenTypeIndex];
-            var tokenModifiers = [];
-            var modifierSet = tokenModifierSet;
-            for (var modifierIndex = 0; modifierSet > 0 && modifierIndex < this._legend.tokenModifiers.length; modifierIndex++) {
-                if (modifierSet & 1) {
-                    tokenModifiers.push(this._legend.tokenModifiers[modifierIndex]);
-                }
-                modifierSet = modifierSet >> 1;
-            }
-            var tokenStyle = this._themeService.getTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
-            if (typeof tokenStyle === 'undefined') {
-                metadata = 2147483647 /* NO_STYLING */;
-            }
-            else {
-                metadata = 0;
-                if (typeof tokenStyle.italic !== 'undefined') {
-                    var italicBit = (tokenStyle.italic ? 1 /* Italic */ : 0) << 11 /* FONT_STYLE_OFFSET */;
-                    metadata |= italicBit | 1 /* SEMANTIC_USE_ITALIC */;
-                }
-                if (typeof tokenStyle.bold !== 'undefined') {
-                    var boldBit = (tokenStyle.bold ? 2 /* Bold */ : 0) << 11 /* FONT_STYLE_OFFSET */;
-                    metadata |= boldBit | 2 /* SEMANTIC_USE_BOLD */;
-                }
-                if (typeof tokenStyle.underline !== 'undefined') {
-                    var underlineBit = (tokenStyle.underline ? 4 /* Underline */ : 0) << 11 /* FONT_STYLE_OFFSET */;
-                    metadata |= underlineBit | 4 /* SEMANTIC_USE_UNDERLINE */;
-                }
-                if (tokenStyle.foreground) {
-                    var foregroundBits = (tokenStyle.foreground) << 14 /* FOREGROUND_OFFSET */;
-                    metadata |= foregroundBits | 8 /* SEMANTIC_USE_FOREGROUND */;
-                }
-                if (metadata === 0) {
-                    // Nothing!
-                    metadata = 2147483647 /* NO_STYLING */;
-                }
-            }
-            this._hashTable.add(tokenTypeIndex, tokenModifierSet, metadata);
-        }
-        if (this._logService.getLevel() === LogLevel.Trace) {
-            var type = this._legend.tokenTypes[tokenTypeIndex];
-            var modifiers = tokenModifierSet ? ' ' + this._legend.tokenModifiers.filter(function (_, i) { return tokenModifierSet & (1 << i); }).join(' ') : '';
-            this._logService.trace("tokenStyleMetadata " + (entry ? '[CACHED] ' : '') + type + modifiers + ": foreground " + TokenMetadata.getForeground(metadata) + ", fontStyle " + TokenMetadata.getFontStyle(metadata).toString(2));
-        }
-        return metadata;
-    };
-    return SemanticColoringProviderStyling;
-}());
-var SemanticTokensResponse = /** @class */ (function () {
-    function SemanticTokensResponse(_provider, resultId, data) {
-        this._provider = _provider;
+}
+class SemanticTokensResponse {
+    constructor(provider, resultId, data) {
+        this.provider = provider;
         this.resultId = resultId;
         this.data = data;
     }
-    SemanticTokensResponse.prototype.dispose = function () {
-        this._provider.releaseDocumentSemanticTokens(this.resultId);
-    };
-    return SemanticTokensResponse;
-}());
-var ModelSemanticColoring = /** @class */ (function (_super) {
-    __extends(ModelSemanticColoring, _super);
-    function ModelSemanticColoring(model, themeService, stylingProvider) {
-        var _this = _super.call(this) || this;
-        _this._isDisposed = false;
-        _this._model = model;
-        _this._semanticStyling = stylingProvider;
-        _this._fetchSemanticTokens = _this._register(new RunOnceScheduler(function () { return _this._fetchSemanticTokensNow(); }, 300));
-        _this._currentResponse = null;
-        _this._currentRequestCancellationTokenSource = null;
-        _this._register(_this._model.onDidChangeContent(function (e) {
-            if (!_this._fetchSemanticTokens.isScheduled()) {
-                _this._fetchSemanticTokens.schedule();
+    dispose() {
+        this.provider.releaseDocumentSemanticTokens(this.resultId);
+    }
+}
+export class ModelSemanticColoring extends Disposable {
+    constructor(model, themeService, stylingProvider) {
+        super();
+        this._isDisposed = false;
+        this._model = model;
+        this._semanticStyling = stylingProvider;
+        this._fetchDocumentSemanticTokens = this._register(new RunOnceScheduler(() => this._fetchDocumentSemanticTokensNow(), ModelSemanticColoring.FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY));
+        this._currentDocumentResponse = null;
+        this._currentDocumentRequestCancellationTokenSource = null;
+        this._documentProvidersChangeListeners = [];
+        this._register(this._model.onDidChangeContent(() => {
+            if (!this._fetchDocumentSemanticTokens.isScheduled()) {
+                this._fetchDocumentSemanticTokens.schedule();
             }
         }));
-        _this._register(DocumentSemanticTokensProviderRegistry.onDidChange(function (e) { return _this._fetchSemanticTokens.schedule(); }));
-        if (themeService) {
-            // workaround for tests which use undefined... :/
-            _this._register(themeService.onThemeChange(function (_) {
-                // clear out existing tokens
-                _this._setSemanticTokens(null, null, null, []);
-                _this._fetchSemanticTokens.schedule();
-            }));
-        }
-        _this._fetchSemanticTokens.schedule(0);
-        return _this;
+        this._register(this._model.onDidChangeLanguage(() => {
+            // clear any outstanding state
+            if (this._currentDocumentResponse) {
+                this._currentDocumentResponse.dispose();
+                this._currentDocumentResponse = null;
+            }
+            if (this._currentDocumentRequestCancellationTokenSource) {
+                this._currentDocumentRequestCancellationTokenSource.cancel();
+                this._currentDocumentRequestCancellationTokenSource = null;
+            }
+            this._setDocumentSemanticTokens(null, null, null, []);
+            this._fetchDocumentSemanticTokens.schedule(0);
+        }));
+        const bindDocumentChangeListeners = () => {
+            dispose(this._documentProvidersChangeListeners);
+            this._documentProvidersChangeListeners = [];
+            for (const provider of DocumentSemanticTokensProviderRegistry.all(model)) {
+                if (typeof provider.onDidChange === 'function') {
+                    this._documentProvidersChangeListeners.push(provider.onDidChange(() => this._fetchDocumentSemanticTokens.schedule(0)));
+                }
+            }
+        };
+        bindDocumentChangeListeners();
+        this._register(DocumentSemanticTokensProviderRegistry.onDidChange(() => {
+            bindDocumentChangeListeners();
+            this._fetchDocumentSemanticTokens.schedule();
+        }));
+        this._register(themeService.onDidColorThemeChange(_ => {
+            // clear out existing tokens
+            this._setDocumentSemanticTokens(null, null, null, []);
+            this._fetchDocumentSemanticTokens.schedule();
+        }));
+        this._fetchDocumentSemanticTokens.schedule(0);
     }
-    ModelSemanticColoring.prototype.dispose = function () {
-        if (this._currentResponse) {
-            this._currentResponse.dispose();
-            this._currentResponse = null;
+    dispose() {
+        if (this._currentDocumentResponse) {
+            this._currentDocumentResponse.dispose();
+            this._currentDocumentResponse = null;
         }
-        if (this._currentRequestCancellationTokenSource) {
-            this._currentRequestCancellationTokenSource.cancel();
-            this._currentRequestCancellationTokenSource = null;
+        if (this._currentDocumentRequestCancellationTokenSource) {
+            this._currentDocumentRequestCancellationTokenSource.cancel();
+            this._currentDocumentRequestCancellationTokenSource = null;
         }
-        this._setSemanticTokens(null, null, null, []);
+        this._setDocumentSemanticTokens(null, null, null, []);
         this._isDisposed = true;
-        _super.prototype.dispose.call(this);
-    };
-    ModelSemanticColoring.prototype._fetchSemanticTokensNow = function () {
-        var _this = this;
-        if (this._currentRequestCancellationTokenSource) {
+        super.dispose();
+    }
+    _fetchDocumentSemanticTokensNow() {
+        if (this._currentDocumentRequestCancellationTokenSource) {
             // there is already a request running, let it finish...
             return;
         }
-        var provider = this._getSemanticColoringProvider();
-        if (!provider) {
+        if (!hasDocumentSemanticTokensProvider(this._model)) {
+            // there is no provider
+            if (this._currentDocumentResponse) {
+                // there are semantic tokens set
+                this._model.setSemanticTokens(null, false);
+            }
             return;
         }
-        this._currentRequestCancellationTokenSource = new CancellationTokenSource();
-        var pendingChanges = [];
-        var contentChangeListener = this._model.onDidChangeContent(function (e) {
+        const cancellationTokenSource = new CancellationTokenSource();
+        const lastProvider = this._currentDocumentResponse ? this._currentDocumentResponse.provider : null;
+        const lastResultId = this._currentDocumentResponse ? this._currentDocumentResponse.resultId || null : null;
+        const request = getDocumentSemanticTokens(this._model, lastProvider, lastResultId, cancellationTokenSource.token);
+        this._currentDocumentRequestCancellationTokenSource = cancellationTokenSource;
+        const pendingChanges = [];
+        const contentChangeListener = this._model.onDidChangeContent((e) => {
             pendingChanges.push(e);
         });
-        var styling = this._semanticStyling.get(provider);
-        var lastResultId = this._currentResponse ? this._currentResponse.resultId || null : null;
-        var request = Promise.resolve(provider.provideDocumentSemanticTokens(this._model, lastResultId, this._currentRequestCancellationTokenSource.token));
-        request.then(function (res) {
-            _this._currentRequestCancellationTokenSource = null;
+        request.then((res) => {
+            this._currentDocumentRequestCancellationTokenSource = null;
             contentChangeListener.dispose();
-            _this._setSemanticTokens(provider, res || null, styling, pendingChanges);
-        }, function (err) {
-            if (!err || typeof err.message !== 'string' || err.message.indexOf('busy') === -1) {
+            if (!res) {
+                this._setDocumentSemanticTokens(null, null, null, pendingChanges);
+            }
+            else {
+                const { provider, tokens } = res;
+                const styling = this._semanticStyling.get(provider);
+                this._setDocumentSemanticTokens(provider, tokens || null, styling, pendingChanges);
+            }
+        }, (err) => {
+            const isExpectedError = err && (errors.isPromiseCanceledError(err) || (typeof err.message === 'string' && err.message.indexOf('busy') !== -1));
+            if (!isExpectedError) {
                 errors.onUnexpectedError(err);
             }
             // Semantic tokens eats up all errors and considers errors to mean that the result is temporarily not available
             // The API does not have a special error kind to express this...
-            _this._currentRequestCancellationTokenSource = null;
+            this._currentDocumentRequestCancellationTokenSource = null;
             contentChangeListener.dispose();
             if (pendingChanges.length > 0) {
                 // More changes occurred while the request was running
-                if (!_this._fetchSemanticTokens.isScheduled()) {
-                    _this._fetchSemanticTokens.schedule();
+                if (!this._fetchDocumentSemanticTokens.isScheduled()) {
+                    this._fetchDocumentSemanticTokens.schedule();
                 }
             }
         });
-    };
-    ModelSemanticColoring._isSemanticTokens = function (v) {
-        return v && !!(v.data);
-    };
-    ModelSemanticColoring._isSemanticTokensEdits = function (v) {
-        return v && Array.isArray(v.edits);
-    };
-    ModelSemanticColoring._copy = function (src, srcOffset, dest, destOffset, length) {
-        for (var i = 0; i < length; i++) {
+    }
+    static _copy(src, srcOffset, dest, destOffset, length) {
+        for (let i = 0; i < length; i++) {
             dest[destOffset + i] = src[srcOffset + i];
         }
-    };
-    ModelSemanticColoring.prototype._setSemanticTokens = function (provider, tokens, styling, pendingChanges) {
-        var currentResponse = this._currentResponse;
-        if (this._currentResponse) {
-            this._currentResponse.dispose();
-            this._currentResponse = null;
+    }
+    _setDocumentSemanticTokens(provider, tokens, styling, pendingChanges) {
+        const currentResponse = this._currentDocumentResponse;
+        const rescheduleIfNeeded = () => {
+            if (pendingChanges.length > 0 && !this._fetchDocumentSemanticTokens.isScheduled()) {
+                this._fetchDocumentSemanticTokens.schedule();
+            }
+        };
+        if (this._currentDocumentResponse) {
+            this._currentDocumentResponse.dispose();
+            this._currentDocumentResponse = null;
         }
         if (this._isDisposed) {
             // disposed!
@@ -606,14 +663,19 @@ var ModelSemanticColoring = /** @class */ (function (_super) {
             }
             return;
         }
-        if (!provider || !tokens || !styling) {
-            this._model.setSemanticTokens(null);
+        if (!provider || !styling) {
+            this._model.setSemanticTokens(null, false);
             return;
         }
-        if (ModelSemanticColoring._isSemanticTokensEdits(tokens)) {
+        if (!tokens) {
+            this._model.setSemanticTokens(null, true);
+            rescheduleIfNeeded();
+            return;
+        }
+        if (isSemanticTokensEdits(tokens)) {
             if (!currentResponse) {
                 // not possible!
-                this._model.setSemanticTokens(null);
+                this._model.setSemanticTokens(null, true);
                 return;
             }
             if (tokens.edits.length === 0) {
@@ -624,18 +686,17 @@ var ModelSemanticColoring = /** @class */ (function (_super) {
                 };
             }
             else {
-                var deltaLength = 0;
-                for (var _i = 0, _a = tokens.edits; _i < _a.length; _i++) {
-                    var edit = _a[_i];
+                let deltaLength = 0;
+                for (const edit of tokens.edits) {
                     deltaLength += (edit.data ? edit.data.length : 0) - edit.deleteCount;
                 }
-                var srcData = currentResponse.data;
-                var destData = new Uint32Array(srcData.length + deltaLength);
-                var srcLastStart = srcData.length;
-                var destLastStart = destData.length;
-                for (var i = tokens.edits.length - 1; i >= 0; i--) {
-                    var edit = tokens.edits[i];
-                    var copyCount = srcLastStart - (edit.start + edit.deleteCount);
+                const srcData = currentResponse.data;
+                const destData = new Uint32Array(srcData.length + deltaLength);
+                let srcLastStart = srcData.length;
+                let destLastStart = destData.length;
+                for (let i = tokens.edits.length - 1; i >= 0; i--) {
+                    const edit = tokens.edits[i];
+                    const copyCount = srcLastStart - (edit.start + edit.deleteCount);
                     if (copyCount > 0) {
                         ModelSemanticColoring._copy(srcData, srcLastStart - copyCount, destData, destLastStart - copyCount, copyCount);
                         destLastStart -= copyCount;
@@ -655,97 +716,29 @@ var ModelSemanticColoring = /** @class */ (function (_super) {
                 };
             }
         }
-        if (ModelSemanticColoring._isSemanticTokens(tokens)) {
-            this._currentResponse = new SemanticTokensResponse(provider, tokens.resultId, tokens.data);
-            var srcData = tokens.data;
-            var tokenCount = (tokens.data.length / 5) | 0;
-            var tokensPerArea = Math.max(Math.ceil(tokenCount / 1024 /* DesiredMaxAreas */), 400 /* DesiredTokensPerArea */);
-            var result = [];
-            var tokenIndex = 0;
-            var lastLineNumber = 1;
-            var lastStartCharacter = 0;
-            while (tokenIndex < tokenCount) {
-                var tokenStartIndex = tokenIndex;
-                var tokenEndIndex = Math.min(tokenStartIndex + tokensPerArea, tokenCount);
-                // Keep tokens on the same line in the same area...
-                if (tokenEndIndex < tokenCount) {
-                    var smallTokenEndIndex = tokenEndIndex;
-                    while (smallTokenEndIndex - 1 > tokenStartIndex && srcData[5 * smallTokenEndIndex] === 0) {
-                        smallTokenEndIndex--;
-                    }
-                    if (smallTokenEndIndex - 1 === tokenStartIndex) {
-                        // there are so many tokens on this line that our area would be empty, we must now go right
-                        var bigTokenEndIndex = tokenEndIndex;
-                        while (bigTokenEndIndex + 1 < tokenCount && srcData[5 * bigTokenEndIndex] === 0) {
-                            bigTokenEndIndex++;
-                        }
-                        tokenEndIndex = bigTokenEndIndex;
-                    }
-                    else {
-                        tokenEndIndex = smallTokenEndIndex;
-                    }
-                }
-                var destData = new Uint32Array((tokenEndIndex - tokenStartIndex) * 4);
-                var destOffset = 0;
-                var areaLine = 0;
-                while (tokenIndex < tokenEndIndex) {
-                    var srcOffset = 5 * tokenIndex;
-                    var deltaLine = srcData[srcOffset];
-                    var deltaCharacter = srcData[srcOffset + 1];
-                    var lineNumber = lastLineNumber + deltaLine;
-                    var startCharacter = (deltaLine === 0 ? lastStartCharacter + deltaCharacter : deltaCharacter);
-                    var length_1 = srcData[srcOffset + 2];
-                    var tokenTypeIndex = srcData[srcOffset + 3];
-                    var tokenModifierSet = srcData[srcOffset + 4];
-                    var metadata = styling.getMetadata(tokenTypeIndex, tokenModifierSet);
-                    if (metadata !== 2147483647 /* NO_STYLING */) {
-                        if (areaLine === 0) {
-                            areaLine = lineNumber;
-                        }
-                        destData[destOffset] = lineNumber - areaLine;
-                        destData[destOffset + 1] = startCharacter;
-                        destData[destOffset + 2] = startCharacter + length_1;
-                        destData[destOffset + 3] = metadata;
-                        destOffset += 4;
-                    }
-                    lastLineNumber = lineNumber;
-                    lastStartCharacter = startCharacter;
-                    tokenIndex++;
-                }
-                if (destOffset !== destData.length) {
-                    destData = destData.subarray(0, destOffset);
-                }
-                var tokens_1 = new MultilineTokens2(areaLine, new SparseEncodedTokens(destData));
-                result.push(tokens_1);
-            }
+        if (isSemanticTokens(tokens)) {
+            this._currentDocumentResponse = new SemanticTokensResponse(provider, tokens.resultId, tokens.data);
+            const result = toMultilineTokens2(tokens, styling, this._model.getLanguageId());
             // Adjust incoming semantic tokens
             if (pendingChanges.length > 0) {
                 // More changes occurred while the request was running
                 // We need to:
                 // 1. Adjust incoming semantic tokens
                 // 2. Request them again
-                for (var _b = 0, pendingChanges_1 = pendingChanges; _b < pendingChanges_1.length; _b++) {
-                    var change = pendingChanges_1[_b];
-                    for (var _c = 0, result_1 = result; _c < result_1.length; _c++) {
-                        var area = result_1[_c];
-                        for (var _d = 0, _e = change.changes; _d < _e.length; _d++) {
-                            var singleChange = _e[_d];
+                for (const change of pendingChanges) {
+                    for (const area of result) {
+                        for (const singleChange of change.changes) {
                             area.applyEdit(singleChange.range, singleChange.text);
                         }
                     }
                 }
-                if (!this._fetchSemanticTokens.isScheduled()) {
-                    this._fetchSemanticTokens.schedule();
-                }
             }
-            this._model.setSemanticTokens(result);
-            return;
+            this._model.setSemanticTokens(result, true);
         }
-        this._model.setSemanticTokens(null);
-    };
-    ModelSemanticColoring.prototype._getSemanticColoringProvider = function () {
-        var result = DocumentSemanticTokensProviderRegistry.ordered(this._model);
-        return (result.length > 0 ? result[0] : null);
-    };
-    return ModelSemanticColoring;
-}(Disposable));
+        else {
+            this._model.setSemanticTokens(null, true);
+        }
+        rescheduleIfNeeded();
+    }
+}
+ModelSemanticColoring.FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY = 300;

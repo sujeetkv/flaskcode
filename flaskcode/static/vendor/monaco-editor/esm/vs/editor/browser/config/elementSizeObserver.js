@@ -2,78 +2,65 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 import { Disposable } from '../../../base/common/lifecycle.js';
-import * as dom from '../../../base/browser/dom.js';
-var ElementSizeObserver = /** @class */ (function (_super) {
-    __extends(ElementSizeObserver, _super);
-    function ElementSizeObserver(referenceDomElement, dimension, changeCallback) {
-        var _this = _super.call(this) || this;
-        _this.referenceDomElement = referenceDomElement;
-        _this.changeCallback = changeCallback;
-        _this.width = -1;
-        _this.height = -1;
-        _this.mutationObserver = null;
-        _this.windowSizeListener = null;
-        _this.measureReferenceDomElement(false, dimension);
-        return _this;
+export class ElementSizeObserver extends Disposable {
+    constructor(referenceDomElement, dimension, changeCallback) {
+        super();
+        this.referenceDomElement = referenceDomElement;
+        this.changeCallback = changeCallback;
+        this.width = -1;
+        this.height = -1;
+        this.resizeObserver = null;
+        this.measureReferenceDomElementToken = -1;
+        this.measureReferenceDomElement(false, dimension);
     }
-    ElementSizeObserver.prototype.dispose = function () {
+    dispose() {
         this.stopObserving();
-        _super.prototype.dispose.call(this);
-    };
-    ElementSizeObserver.prototype.getWidth = function () {
+        super.dispose();
+    }
+    getWidth() {
         return this.width;
-    };
-    ElementSizeObserver.prototype.getHeight = function () {
+    }
+    getHeight() {
         return this.height;
-    };
-    ElementSizeObserver.prototype.startObserving = function () {
-        var _this = this;
-        if (!this.mutationObserver && this.referenceDomElement) {
-            this.mutationObserver = new MutationObserver(function () { return _this._onDidMutate(); });
-            this.mutationObserver.observe(this.referenceDomElement, {
-                attributes: true,
-            });
+    }
+    startObserving() {
+        if (typeof ResizeObserver !== 'undefined') {
+            if (!this.resizeObserver && this.referenceDomElement) {
+                this.resizeObserver = new ResizeObserver((entries) => {
+                    if (entries && entries[0] && entries[0].contentRect) {
+                        this.observe({ width: entries[0].contentRect.width, height: entries[0].contentRect.height });
+                    }
+                    else {
+                        this.observe();
+                    }
+                });
+                this.resizeObserver.observe(this.referenceDomElement);
+            }
         }
-        if (!this.windowSizeListener) {
-            this.windowSizeListener = dom.addDisposableListener(window, 'resize', function () { return _this._onDidResizeWindow(); });
+        else {
+            if (this.measureReferenceDomElementToken === -1) {
+                // setInterval type defaults to NodeJS.Timeout instead of number, so specify it as a number
+                this.measureReferenceDomElementToken = setInterval(() => this.observe(), 100);
+            }
         }
-    };
-    ElementSizeObserver.prototype.stopObserving = function () {
-        if (this.mutationObserver) {
-            this.mutationObserver.disconnect();
-            this.mutationObserver = null;
+    }
+    stopObserving() {
+        if (this.resizeObserver) {
+            this.resizeObserver.disconnect();
+            this.resizeObserver = null;
         }
-        if (this.windowSizeListener) {
-            this.windowSizeListener.dispose();
-            this.windowSizeListener = null;
+        if (this.measureReferenceDomElementToken !== -1) {
+            clearInterval(this.measureReferenceDomElementToken);
+            this.measureReferenceDomElementToken = -1;
         }
-    };
-    ElementSizeObserver.prototype.observe = function (dimension) {
+    }
+    observe(dimension) {
         this.measureReferenceDomElement(true, dimension);
-    };
-    ElementSizeObserver.prototype._onDidMutate = function () {
-        this.measureReferenceDomElement(true);
-    };
-    ElementSizeObserver.prototype._onDidResizeWindow = function () {
-        this.measureReferenceDomElement(true);
-    };
-    ElementSizeObserver.prototype.measureReferenceDomElement = function (callChangeCallback, dimension) {
-        var observedWidth = 0;
-        var observedHeight = 0;
+    }
+    measureReferenceDomElement(callChangeCallback, dimension) {
+        let observedWidth = 0;
+        let observedHeight = 0;
         if (dimension) {
             observedWidth = dimension.width;
             observedHeight = dimension.height;
@@ -91,7 +78,5 @@ var ElementSizeObserver = /** @class */ (function (_super) {
                 this.changeCallback();
             }
         }
-    };
-    return ElementSizeObserver;
-}(Disposable));
-export { ElementSizeObserver };
+    }
+}

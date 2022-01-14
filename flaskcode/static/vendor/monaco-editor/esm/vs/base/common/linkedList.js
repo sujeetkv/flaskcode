@@ -2,97 +2,97 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { FIN } from './iterator.js';
-var Node = /** @class */ (function () {
-    function Node(element) {
+class Node {
+    constructor(element) {
         this.element = element;
         this.next = Node.Undefined;
         this.prev = Node.Undefined;
     }
-    Node.Undefined = new Node(undefined);
-    return Node;
-}());
-var LinkedList = /** @class */ (function () {
-    function LinkedList() {
+}
+Node.Undefined = new Node(undefined);
+export class LinkedList {
+    constructor() {
         this._first = Node.Undefined;
         this._last = Node.Undefined;
         this._size = 0;
     }
-    Object.defineProperty(LinkedList.prototype, "size", {
-        get: function () {
-            return this._size;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    LinkedList.prototype.isEmpty = function () {
+    get size() {
+        return this._size;
+    }
+    isEmpty() {
         return this._first === Node.Undefined;
-    };
-    LinkedList.prototype.clear = function () {
+    }
+    clear() {
+        let node = this._first;
+        while (node !== Node.Undefined) {
+            const next = node.next;
+            node.prev = Node.Undefined;
+            node.next = Node.Undefined;
+            node = next;
+        }
         this._first = Node.Undefined;
         this._last = Node.Undefined;
         this._size = 0;
-    };
-    LinkedList.prototype.unshift = function (element) {
+    }
+    unshift(element) {
         return this._insert(element, false);
-    };
-    LinkedList.prototype.push = function (element) {
+    }
+    push(element) {
         return this._insert(element, true);
-    };
-    LinkedList.prototype._insert = function (element, atTheEnd) {
-        var _this = this;
-        var newNode = new Node(element);
+    }
+    _insert(element, atTheEnd) {
+        const newNode = new Node(element);
         if (this._first === Node.Undefined) {
             this._first = newNode;
             this._last = newNode;
         }
         else if (atTheEnd) {
             // push
-            var oldLast = this._last;
+            const oldLast = this._last;
             this._last = newNode;
             newNode.prev = oldLast;
             oldLast.next = newNode;
         }
         else {
             // unshift
-            var oldFirst = this._first;
+            const oldFirst = this._first;
             this._first = newNode;
             newNode.next = oldFirst;
             oldFirst.prev = newNode;
         }
         this._size += 1;
-        var didRemove = false;
-        return function () {
+        let didRemove = false;
+        return () => {
             if (!didRemove) {
                 didRemove = true;
-                _this._remove(newNode);
+                this._remove(newNode);
             }
         };
-    };
-    LinkedList.prototype.shift = function () {
+    }
+    shift() {
         if (this._first === Node.Undefined) {
             return undefined;
         }
         else {
-            var res = this._first.element;
+            const res = this._first.element;
             this._remove(this._first);
             return res;
         }
-    };
-    LinkedList.prototype.pop = function () {
+    }
+    pop() {
         if (this._last === Node.Undefined) {
             return undefined;
         }
         else {
-            var res = this._last.element;
+            const res = this._last.element;
             this._remove(this._last);
             return res;
         }
-    };
-    LinkedList.prototype._remove = function (node) {
+    }
+    _remove(node) {
         if (node.prev !== Node.Undefined && node.next !== Node.Undefined) {
             // middle
-            var anchor = node.prev;
+            const anchor = node.prev;
             anchor.next = node.next;
             node.next.prev = anchor;
         }
@@ -113,33 +113,12 @@ var LinkedList = /** @class */ (function () {
         }
         // done
         this._size -= 1;
-    };
-    LinkedList.prototype.iterator = function () {
-        var element;
-        var node = this._first;
-        return {
-            next: function () {
-                if (node === Node.Undefined) {
-                    return FIN;
-                }
-                if (!element) {
-                    element = { done: false, value: node.element };
-                }
-                else {
-                    element.value = node.element;
-                }
-                node = node.next;
-                return element;
-            }
-        };
-    };
-    LinkedList.prototype.toArray = function () {
-        var result = [];
-        for (var node = this._first; node !== Node.Undefined; node = node.next) {
-            result.push(node.element);
+    }
+    *[Symbol.iterator]() {
+        let node = this._first;
+        while (node !== Node.Undefined) {
+            yield node.element;
+            node = node.next;
         }
-        return result;
-    };
-    return LinkedList;
-}());
-export { LinkedList };
+    }
+}

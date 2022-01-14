@@ -5,72 +5,72 @@
 import { CoreNavigationCommands } from '../controller/coreCommands.js';
 import { Position } from '../../common/core/position.js';
 import * as platform from '../../../base/common/platform.js';
-var ViewController = /** @class */ (function () {
-    function ViewController(configuration, viewModel, outgoingEvents, commandDelegate) {
+export class ViewController {
+    constructor(configuration, viewModel, userInputEvents, commandDelegate) {
         this.configuration = configuration;
         this.viewModel = viewModel;
-        this.outgoingEvents = outgoingEvents;
+        this.userInputEvents = userInputEvents;
         this.commandDelegate = commandDelegate;
     }
-    ViewController.prototype._execMouseCommand = function (editorCommand, args) {
-        args.source = 'mouse';
-        this.commandDelegate.executeEditorCommand(editorCommand, args);
-    };
-    ViewController.prototype.paste = function (source, text, pasteOnNewLine, multicursorText, mode) {
-        this.commandDelegate.paste(source, text, pasteOnNewLine, multicursorText, mode);
-    };
-    ViewController.prototype.type = function (source, text) {
-        this.commandDelegate.type(source, text);
-    };
-    ViewController.prototype.replacePreviousChar = function (source, text, replaceCharCnt) {
-        this.commandDelegate.replacePreviousChar(source, text, replaceCharCnt);
-    };
-    ViewController.prototype.compositionStart = function (source) {
-        this.commandDelegate.compositionStart(source);
-    };
-    ViewController.prototype.compositionEnd = function (source) {
-        this.commandDelegate.compositionEnd(source);
-    };
-    ViewController.prototype.cut = function (source) {
-        this.commandDelegate.cut(source);
-    };
-    ViewController.prototype.setSelection = function (source, modelSelection) {
-        this.commandDelegate.executeEditorCommand(CoreNavigationCommands.SetSelection, {
-            source: source,
+    paste(text, pasteOnNewLine, multicursorText, mode) {
+        this.commandDelegate.paste(text, pasteOnNewLine, multicursorText, mode);
+    }
+    type(text) {
+        this.commandDelegate.type(text);
+    }
+    compositionType(text, replacePrevCharCnt, replaceNextCharCnt, positionDelta) {
+        this.commandDelegate.compositionType(text, replacePrevCharCnt, replaceNextCharCnt, positionDelta);
+    }
+    compositionStart() {
+        this.commandDelegate.startComposition();
+    }
+    compositionEnd() {
+        this.commandDelegate.endComposition();
+    }
+    cut() {
+        this.commandDelegate.cut();
+    }
+    setSelection(modelSelection) {
+        CoreNavigationCommands.SetSelection.runCoreEditorCommand(this.viewModel, {
+            source: 'keyboard',
             selection: modelSelection
         });
-    };
-    ViewController.prototype._validateViewColumn = function (viewPosition) {
-        var minColumn = this.viewModel.getLineMinColumn(viewPosition.lineNumber);
+    }
+    _validateViewColumn(viewPosition) {
+        const minColumn = this.viewModel.getLineMinColumn(viewPosition.lineNumber);
         if (viewPosition.column < minColumn) {
             return new Position(viewPosition.lineNumber, minColumn);
         }
         return viewPosition;
-    };
-    ViewController.prototype._hasMulticursorModifier = function (data) {
-        switch (this.configuration.options.get(59 /* multiCursorModifier */)) {
+    }
+    _hasMulticursorModifier(data) {
+        switch (this.configuration.options.get(69 /* multiCursorModifier */)) {
             case 'altKey':
                 return data.altKey;
             case 'ctrlKey':
                 return data.ctrlKey;
             case 'metaKey':
                 return data.metaKey;
+            default:
+                return false;
         }
-        return false;
-    };
-    ViewController.prototype._hasNonMulticursorModifier = function (data) {
-        switch (this.configuration.options.get(59 /* multiCursorModifier */)) {
+    }
+    _hasNonMulticursorModifier(data) {
+        switch (this.configuration.options.get(69 /* multiCursorModifier */)) {
             case 'altKey':
                 return data.ctrlKey || data.metaKey;
             case 'ctrlKey':
                 return data.altKey || data.metaKey;
             case 'metaKey':
                 return data.ctrlKey || data.altKey;
+            default:
+                return false;
         }
-        return false;
-    };
-    ViewController.prototype.dispatchMouse = function (data) {
-        var selectionClipboardIsOn = (platform.isLinux && this.configuration.options.get(81 /* selectionClipboard */));
+    }
+    dispatchMouse(data) {
+        const options = this.configuration.options;
+        const selectionClipboardIsOn = (platform.isLinux && options.get(95 /* selectionClipboard */));
+        const columnSelection = options.get(18 /* columnSelection */);
         if (data.middleButton && !selectionClipboardIsOn) {
             this._columnSelect(data.position, data.mouseColumn, data.inSelectionMode);
         }
@@ -150,7 +150,12 @@ var ViewController = /** @class */ (function () {
                         this._columnSelect(data.position, data.mouseColumn, true);
                     }
                     else {
-                        this._moveToSelect(data.position);
+                        if (columnSelection) {
+                            this._columnSelect(data.position, data.mouseColumn, true);
+                        }
+                        else {
+                            this._moveToSelect(data.position);
+                        }
                     }
                 }
                 else {
@@ -158,98 +163,102 @@ var ViewController = /** @class */ (function () {
                 }
             }
         }
-    };
-    ViewController.prototype._usualArgs = function (viewPosition) {
+    }
+    _usualArgs(viewPosition) {
         viewPosition = this._validateViewColumn(viewPosition);
         return {
+            source: 'mouse',
             position: this._convertViewToModelPosition(viewPosition),
             viewPosition: viewPosition
         };
-    };
-    ViewController.prototype.moveTo = function (viewPosition) {
-        this._execMouseCommand(CoreNavigationCommands.MoveTo, this._usualArgs(viewPosition));
-    };
-    ViewController.prototype._moveToSelect = function (viewPosition) {
-        this._execMouseCommand(CoreNavigationCommands.MoveToSelect, this._usualArgs(viewPosition));
-    };
-    ViewController.prototype._columnSelect = function (viewPosition, mouseColumn, doColumnSelect) {
+    }
+    moveTo(viewPosition) {
+        CoreNavigationCommands.MoveTo.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition));
+    }
+    _moveToSelect(viewPosition) {
+        CoreNavigationCommands.MoveToSelect.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition));
+    }
+    _columnSelect(viewPosition, mouseColumn, doColumnSelect) {
         viewPosition = this._validateViewColumn(viewPosition);
-        this._execMouseCommand(CoreNavigationCommands.ColumnSelect, {
+        CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(this.viewModel, {
+            source: 'mouse',
             position: this._convertViewToModelPosition(viewPosition),
             viewPosition: viewPosition,
             mouseColumn: mouseColumn,
             doColumnSelect: doColumnSelect
         });
-    };
-    ViewController.prototype._createCursor = function (viewPosition, wholeLine) {
+    }
+    _createCursor(viewPosition, wholeLine) {
         viewPosition = this._validateViewColumn(viewPosition);
-        this._execMouseCommand(CoreNavigationCommands.CreateCursor, {
+        CoreNavigationCommands.CreateCursor.runCoreEditorCommand(this.viewModel, {
+            source: 'mouse',
             position: this._convertViewToModelPosition(viewPosition),
             viewPosition: viewPosition,
             wholeLine: wholeLine
         });
-    };
-    ViewController.prototype._lastCursorMoveToSelect = function (viewPosition) {
-        this._execMouseCommand(CoreNavigationCommands.LastCursorMoveToSelect, this._usualArgs(viewPosition));
-    };
-    ViewController.prototype._wordSelect = function (viewPosition) {
-        this._execMouseCommand(CoreNavigationCommands.WordSelect, this._usualArgs(viewPosition));
-    };
-    ViewController.prototype._wordSelectDrag = function (viewPosition) {
-        this._execMouseCommand(CoreNavigationCommands.WordSelectDrag, this._usualArgs(viewPosition));
-    };
-    ViewController.prototype._lastCursorWordSelect = function (viewPosition) {
-        this._execMouseCommand(CoreNavigationCommands.LastCursorWordSelect, this._usualArgs(viewPosition));
-    };
-    ViewController.prototype._lineSelect = function (viewPosition) {
-        this._execMouseCommand(CoreNavigationCommands.LineSelect, this._usualArgs(viewPosition));
-    };
-    ViewController.prototype._lineSelectDrag = function (viewPosition) {
-        this._execMouseCommand(CoreNavigationCommands.LineSelectDrag, this._usualArgs(viewPosition));
-    };
-    ViewController.prototype._lastCursorLineSelect = function (viewPosition) {
-        this._execMouseCommand(CoreNavigationCommands.LastCursorLineSelect, this._usualArgs(viewPosition));
-    };
-    ViewController.prototype._lastCursorLineSelectDrag = function (viewPosition) {
-        this._execMouseCommand(CoreNavigationCommands.LastCursorLineSelectDrag, this._usualArgs(viewPosition));
-    };
-    ViewController.prototype._selectAll = function () {
-        this._execMouseCommand(CoreNavigationCommands.SelectAll, {});
-    };
+    }
+    _lastCursorMoveToSelect(viewPosition) {
+        CoreNavigationCommands.LastCursorMoveToSelect.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition));
+    }
+    _wordSelect(viewPosition) {
+        CoreNavigationCommands.WordSelect.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition));
+    }
+    _wordSelectDrag(viewPosition) {
+        CoreNavigationCommands.WordSelectDrag.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition));
+    }
+    _lastCursorWordSelect(viewPosition) {
+        CoreNavigationCommands.LastCursorWordSelect.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition));
+    }
+    _lineSelect(viewPosition) {
+        CoreNavigationCommands.LineSelect.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition));
+    }
+    _lineSelectDrag(viewPosition) {
+        CoreNavigationCommands.LineSelectDrag.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition));
+    }
+    _lastCursorLineSelect(viewPosition) {
+        CoreNavigationCommands.LastCursorLineSelect.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition));
+    }
+    _lastCursorLineSelectDrag(viewPosition) {
+        CoreNavigationCommands.LastCursorLineSelectDrag.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition));
+    }
+    _selectAll() {
+        CoreNavigationCommands.SelectAll.runCoreEditorCommand(this.viewModel, { source: 'mouse' });
+    }
     // ----------------------
-    ViewController.prototype._convertViewToModelPosition = function (viewPosition) {
+    _convertViewToModelPosition(viewPosition) {
         return this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(viewPosition);
-    };
-    ViewController.prototype.emitKeyDown = function (e) {
-        this.outgoingEvents.emitKeyDown(e);
-    };
-    ViewController.prototype.emitKeyUp = function (e) {
-        this.outgoingEvents.emitKeyUp(e);
-    };
-    ViewController.prototype.emitContextMenu = function (e) {
-        this.outgoingEvents.emitContextMenu(e);
-    };
-    ViewController.prototype.emitMouseMove = function (e) {
-        this.outgoingEvents.emitMouseMove(e);
-    };
-    ViewController.prototype.emitMouseLeave = function (e) {
-        this.outgoingEvents.emitMouseLeave(e);
-    };
-    ViewController.prototype.emitMouseUp = function (e) {
-        this.outgoingEvents.emitMouseUp(e);
-    };
-    ViewController.prototype.emitMouseDown = function (e) {
-        this.outgoingEvents.emitMouseDown(e);
-    };
-    ViewController.prototype.emitMouseDrag = function (e) {
-        this.outgoingEvents.emitMouseDrag(e);
-    };
-    ViewController.prototype.emitMouseDrop = function (e) {
-        this.outgoingEvents.emitMouseDrop(e);
-    };
-    ViewController.prototype.emitMouseWheel = function (e) {
-        this.outgoingEvents.emitMouseWheel(e);
-    };
-    return ViewController;
-}());
-export { ViewController };
+    }
+    emitKeyDown(e) {
+        this.userInputEvents.emitKeyDown(e);
+    }
+    emitKeyUp(e) {
+        this.userInputEvents.emitKeyUp(e);
+    }
+    emitContextMenu(e) {
+        this.userInputEvents.emitContextMenu(e);
+    }
+    emitMouseMove(e) {
+        this.userInputEvents.emitMouseMove(e);
+    }
+    emitMouseLeave(e) {
+        this.userInputEvents.emitMouseLeave(e);
+    }
+    emitMouseUp(e) {
+        this.userInputEvents.emitMouseUp(e);
+    }
+    emitMouseDown(e) {
+        this.userInputEvents.emitMouseDown(e);
+    }
+    emitMouseDrag(e) {
+        this.userInputEvents.emitMouseDrag(e);
+    }
+    emitMouseDrop(e) {
+        this.userInputEvents.emitMouseDrop(e);
+    }
+    emitMouseDropCanceled() {
+        this.userInputEvents.emitMouseDropCanceled();
+    }
+    emitMouseWheel(e) {
+        this.userInputEvents.emitMouseWheel(e);
+    }
+}

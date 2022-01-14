@@ -2,45 +2,27 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 import './glyphMargin.css';
 import { DynamicViewOverlay } from '../../view/dynamicViewOverlay.js';
-var DecorationToRender = /** @class */ (function () {
-    function DecorationToRender(startLineNumber, endLineNumber, className) {
+export class DecorationToRender {
+    constructor(startLineNumber, endLineNumber, className) {
+        this._decorationToRenderBrand = undefined;
         this.startLineNumber = +startLineNumber;
         this.endLineNumber = +endLineNumber;
         this.className = String(className);
     }
-    return DecorationToRender;
-}());
-export { DecorationToRender };
-var DedupOverlay = /** @class */ (function (_super) {
-    __extends(DedupOverlay, _super);
-    function DedupOverlay() {
-        return _super !== null && _super.apply(this, arguments) || this;
-    }
-    DedupOverlay.prototype._render = function (visibleStartLineNumber, visibleEndLineNumber, decorations) {
-        var output = [];
-        for (var lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
-            var lineIndex = lineNumber - visibleStartLineNumber;
+}
+export class DedupOverlay extends DynamicViewOverlay {
+    _render(visibleStartLineNumber, visibleEndLineNumber, decorations) {
+        const output = [];
+        for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
+            const lineIndex = lineNumber - visibleStartLineNumber;
             output[lineIndex] = [];
         }
         if (decorations.length === 0) {
             return output;
         }
-        decorations.sort(function (a, b) {
+        decorations.sort((a, b) => {
             if (a.className === b.className) {
                 if (a.startLineNumber === b.startLineNumber) {
                     return a.endLineNumber - b.endLineNumber;
@@ -49,13 +31,13 @@ var DedupOverlay = /** @class */ (function (_super) {
             }
             return (a.className < b.className ? -1 : 1);
         });
-        var prevClassName = null;
-        var prevEndLineIndex = 0;
-        for (var i = 0, len = decorations.length; i < len; i++) {
-            var d = decorations[i];
-            var className = d.className;
-            var startLineIndex = Math.max(d.startLineNumber, visibleStartLineNumber) - visibleStartLineNumber;
-            var endLineIndex = Math.min(d.endLineNumber, visibleEndLineNumber) - visibleStartLineNumber;
+        let prevClassName = null;
+        let prevEndLineIndex = 0;
+        for (let i = 0, len = decorations.length; i < len; i++) {
+            const d = decorations[i];
+            const className = d.className;
+            let startLineIndex = Math.max(d.startLineNumber, visibleStartLineNumber) - visibleStartLineNumber;
+            const endLineIndex = Math.min(d.endLineNumber, visibleEndLineNumber) - visibleStartLineNumber;
             if (prevClassName === className) {
                 startLineIndex = Math.max(prevEndLineIndex + 1, startLineIndex);
                 prevEndLineIndex = Math.max(prevEndLineIndex, endLineIndex);
@@ -64,95 +46,91 @@ var DedupOverlay = /** @class */ (function (_super) {
                 prevClassName = className;
                 prevEndLineIndex = endLineIndex;
             }
-            for (var i_1 = startLineIndex; i_1 <= prevEndLineIndex; i_1++) {
-                output[i_1].push(prevClassName);
+            for (let i = startLineIndex; i <= prevEndLineIndex; i++) {
+                output[i].push(prevClassName);
             }
         }
         return output;
-    };
-    return DedupOverlay;
-}(DynamicViewOverlay));
-export { DedupOverlay };
-var GlyphMarginOverlay = /** @class */ (function (_super) {
-    __extends(GlyphMarginOverlay, _super);
-    function GlyphMarginOverlay(context) {
-        var _this = _super.call(this) || this;
-        _this._context = context;
-        var options = _this._context.configuration.options;
-        var layoutInfo = options.get(107 /* layoutInfo */);
-        _this._lineHeight = options.get(49 /* lineHeight */);
-        _this._glyphMargin = options.get(40 /* glyphMargin */);
-        _this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
-        _this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
-        _this._renderResult = null;
-        _this._context.addEventHandler(_this);
-        return _this;
     }
-    GlyphMarginOverlay.prototype.dispose = function () {
+}
+export class GlyphMarginOverlay extends DedupOverlay {
+    constructor(context) {
+        super();
+        this._context = context;
+        const options = this._context.configuration.options;
+        const layoutInfo = options.get(130 /* layoutInfo */);
+        this._lineHeight = options.get(58 /* lineHeight */);
+        this._glyphMargin = options.get(49 /* glyphMargin */);
+        this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
+        this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
+        this._renderResult = null;
+        this._context.addEventHandler(this);
+    }
+    dispose() {
         this._context.removeEventHandler(this);
         this._renderResult = null;
-        _super.prototype.dispose.call(this);
-    };
+        super.dispose();
+    }
     // --- begin event handlers
-    GlyphMarginOverlay.prototype.onConfigurationChanged = function (e) {
-        var options = this._context.configuration.options;
-        var layoutInfo = options.get(107 /* layoutInfo */);
-        this._lineHeight = options.get(49 /* lineHeight */);
-        this._glyphMargin = options.get(40 /* glyphMargin */);
+    onConfigurationChanged(e) {
+        const options = this._context.configuration.options;
+        const layoutInfo = options.get(130 /* layoutInfo */);
+        this._lineHeight = options.get(58 /* lineHeight */);
+        this._glyphMargin = options.get(49 /* glyphMargin */);
         this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
         this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
         return true;
-    };
-    GlyphMarginOverlay.prototype.onDecorationsChanged = function (e) {
+    }
+    onDecorationsChanged(e) {
         return true;
-    };
-    GlyphMarginOverlay.prototype.onFlushed = function (e) {
+    }
+    onFlushed(e) {
         return true;
-    };
-    GlyphMarginOverlay.prototype.onLinesChanged = function (e) {
+    }
+    onLinesChanged(e) {
         return true;
-    };
-    GlyphMarginOverlay.prototype.onLinesDeleted = function (e) {
+    }
+    onLinesDeleted(e) {
         return true;
-    };
-    GlyphMarginOverlay.prototype.onLinesInserted = function (e) {
+    }
+    onLinesInserted(e) {
         return true;
-    };
-    GlyphMarginOverlay.prototype.onScrollChanged = function (e) {
+    }
+    onScrollChanged(e) {
         return e.scrollTopChanged;
-    };
-    GlyphMarginOverlay.prototype.onZonesChanged = function (e) {
+    }
+    onZonesChanged(e) {
         return true;
-    };
+    }
     // --- end event handlers
-    GlyphMarginOverlay.prototype._getDecorations = function (ctx) {
-        var decorations = ctx.getDecorationsInViewport();
-        var r = [], rLen = 0;
-        for (var i = 0, len = decorations.length; i < len; i++) {
-            var d = decorations[i];
-            var glyphMarginClassName = d.options.glyphMarginClassName;
+    _getDecorations(ctx) {
+        const decorations = ctx.getDecorationsInViewport();
+        let r = [], rLen = 0;
+        for (let i = 0, len = decorations.length; i < len; i++) {
+            const d = decorations[i];
+            const glyphMarginClassName = d.options.glyphMarginClassName;
             if (glyphMarginClassName) {
                 r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, glyphMarginClassName);
             }
         }
         return r;
-    };
-    GlyphMarginOverlay.prototype.prepareRender = function (ctx) {
+    }
+    prepareRender(ctx) {
         if (!this._glyphMargin) {
             this._renderResult = null;
             return;
         }
-        var visibleStartLineNumber = ctx.visibleRange.startLineNumber;
-        var visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-        var toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, this._getDecorations(ctx));
-        var lineHeight = this._lineHeight.toString();
-        var left = this._glyphMarginLeft.toString();
-        var width = this._glyphMarginWidth.toString();
-        var common = '" style="left:' + left + 'px;width:' + width + 'px' + ';height:' + lineHeight + 'px;"></div>';
-        var output = [];
-        for (var lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
-            var lineIndex = lineNumber - visibleStartLineNumber;
-            var classNames = toRender[lineIndex];
+        const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+        const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
+        const toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, this._getDecorations(ctx));
+        const lineHeight = this._lineHeight.toString();
+        const left = this._glyphMarginLeft.toString();
+        const width = this._glyphMarginWidth.toString();
+        const common = '" style="left:' + left + 'px;width:' + width + 'px' + ';height:' + lineHeight + 'px;"></div>';
+        const output = [];
+        for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
+            const lineIndex = lineNumber - visibleStartLineNumber;
+            const classNames = toRender[lineIndex];
             if (classNames.length === 0) {
                 output[lineIndex] = '';
             }
@@ -163,17 +141,15 @@ var GlyphMarginOverlay = /** @class */ (function (_super) {
             }
         }
         this._renderResult = output;
-    };
-    GlyphMarginOverlay.prototype.render = function (startLineNumber, lineNumber) {
+    }
+    render(startLineNumber, lineNumber) {
         if (!this._renderResult) {
             return '';
         }
-        var lineIndex = lineNumber - startLineNumber;
+        const lineIndex = lineNumber - startLineNumber;
         if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
             return '';
         }
         return this._renderResult[lineIndex];
-    };
-    return GlyphMarginOverlay;
-}(DedupOverlay));
-export { GlyphMarginOverlay };
+    }
+}

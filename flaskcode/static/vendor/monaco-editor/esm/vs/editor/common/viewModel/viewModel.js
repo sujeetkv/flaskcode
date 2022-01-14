@@ -3,38 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as strings from '../../../base/common/strings.js';
-var Viewport = /** @class */ (function () {
-    function Viewport(top, left, width, height) {
+import { Range } from '../core/range.js';
+export class Viewport {
+    constructor(top, left, width, height) {
+        this._viewportBrand = undefined;
         this.top = top | 0;
         this.left = left | 0;
         this.width = width | 0;
         this.height = height | 0;
     }
-    return Viewport;
-}());
-export { Viewport };
-var MinimapLinesRenderingData = /** @class */ (function () {
-    function MinimapLinesRenderingData(tabSize, data) {
+}
+export class MinimapLinesRenderingData {
+    constructor(tabSize, data) {
         this.tabSize = tabSize;
         this.data = data;
     }
-    return MinimapLinesRenderingData;
-}());
-export { MinimapLinesRenderingData };
-var ViewLineData = /** @class */ (function () {
-    function ViewLineData(content, continuesWithWrappedLine, minColumn, maxColumn, startVisibleColumn, tokens) {
+}
+export class ViewLineData {
+    constructor(content, continuesWithWrappedLine, minColumn, maxColumn, startVisibleColumn, tokens, inlineDecorations) {
+        this._viewLineDataBrand = undefined;
         this.content = content;
         this.continuesWithWrappedLine = continuesWithWrappedLine;
         this.minColumn = minColumn;
         this.maxColumn = maxColumn;
         this.startVisibleColumn = startVisibleColumn;
         this.tokens = tokens;
+        this.inlineDecorations = inlineDecorations;
     }
-    return ViewLineData;
-}());
-export { ViewLineData };
-var ViewLineRenderingData = /** @class */ (function () {
-    function ViewLineRenderingData(minColumn, maxColumn, content, continuesWithWrappedLine, mightContainRTL, mightContainNonBasicASCII, tokens, inlineDecorations, tabSize, startVisibleColumn) {
+}
+export class ViewLineRenderingData {
+    constructor(minColumn, maxColumn, content, continuesWithWrappedLine, mightContainRTL, mightContainNonBasicASCII, tokens, inlineDecorations, tabSize, startVisibleColumn) {
         this.minColumn = minColumn;
         this.maxColumn = maxColumn;
         this.content = content;
@@ -46,35 +44,67 @@ var ViewLineRenderingData = /** @class */ (function () {
         this.tabSize = tabSize;
         this.startVisibleColumn = startVisibleColumn;
     }
-    ViewLineRenderingData.isBasicASCII = function (lineContent, mightContainNonBasicASCII) {
+    static isBasicASCII(lineContent, mightContainNonBasicASCII) {
         if (mightContainNonBasicASCII) {
             return strings.isBasicASCII(lineContent);
         }
         return true;
-    };
-    ViewLineRenderingData.containsRTL = function (lineContent, isBasicASCII, mightContainRTL) {
+    }
+    static containsRTL(lineContent, isBasicASCII, mightContainRTL) {
         if (!isBasicASCII && mightContainRTL) {
             return strings.containsRTL(lineContent);
         }
         return false;
-    };
-    return ViewLineRenderingData;
-}());
-export { ViewLineRenderingData };
-var InlineDecoration = /** @class */ (function () {
-    function InlineDecoration(range, inlineClassName, type) {
+    }
+}
+export class InlineDecoration {
+    constructor(range, inlineClassName, type) {
         this.range = range;
         this.inlineClassName = inlineClassName;
         this.type = type;
     }
-    return InlineDecoration;
-}());
-export { InlineDecoration };
-var ViewModelDecoration = /** @class */ (function () {
-    function ViewModelDecoration(range, options) {
+}
+export class SingleLineInlineDecoration {
+    constructor(startOffset, endOffset, inlineClassName, inlineClassNameAffectsLetterSpacing) {
+        this.startOffset = startOffset;
+        this.endOffset = endOffset;
+        this.inlineClassName = inlineClassName;
+        this.inlineClassNameAffectsLetterSpacing = inlineClassNameAffectsLetterSpacing;
+    }
+    toInlineDecoration(lineNumber) {
+        return new InlineDecoration(new Range(lineNumber, this.startOffset + 1, lineNumber, this.endOffset + 1), this.inlineClassName, this.inlineClassNameAffectsLetterSpacing ? 3 /* RegularAffectingLetterSpacing */ : 0 /* Regular */);
+    }
+}
+export class ViewModelDecoration {
+    constructor(range, options) {
+        this._viewModelDecorationBrand = undefined;
         this.range = range;
         this.options = options;
     }
-    return ViewModelDecoration;
-}());
-export { ViewModelDecoration };
+}
+export class OverviewRulerDecorationsGroup {
+    constructor(color, zIndex, 
+    /**
+     * Decorations are encoded in a number array using the following scheme:
+     *  - 3*i = lane
+     *  - 3*i+1 = startLineNumber
+     *  - 3*i+2 = endLineNumber
+     */
+    data) {
+        this.color = color;
+        this.zIndex = zIndex;
+        this.data = data;
+    }
+    static cmp(a, b) {
+        if (a.zIndex === b.zIndex) {
+            if (a.color < b.color) {
+                return -1;
+            }
+            if (a.color > b.color) {
+                return 1;
+            }
+            return 0;
+        }
+        return a.zIndex - b.zIndex;
+    }
+}

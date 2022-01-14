@@ -6,8 +6,8 @@ import { Range } from '../core/range.js';
 /**
  * Contains all data needed to render at a specific viewport.
  */
-var ViewportData = /** @class */ (function () {
-    function ViewportData(selections, partialData, whitespaceViewportData, model) {
+export class ViewportData {
+    constructor(selections, partialData, whitespaceViewportData, model) {
         this.selections = selections;
         this.startLineNumber = partialData.startLineNumber | 0;
         this.endLineNumber = partialData.endLineNumber | 0;
@@ -17,12 +17,10 @@ var ViewportData = /** @class */ (function () {
         this._model = model;
         this.visibleRange = new Range(partialData.startLineNumber, this._model.getLineMinColumn(partialData.startLineNumber), partialData.endLineNumber, this._model.getLineMaxColumn(partialData.endLineNumber));
     }
-    ViewportData.prototype.getViewLineRenderingData = function (lineNumber) {
+    getViewLineRenderingData(lineNumber) {
         return this._model.getViewLineRenderingData(this.visibleRange, lineNumber);
-    };
-    ViewportData.prototype.getDecorationsInViewport = function () {
+    }
+    getDecorationsInViewport() {
         return this._model.getDecorationsInViewport(this.visibleRange);
-    };
-    return ViewportData;
-}());
-export { ViewportData };
+    }
+}

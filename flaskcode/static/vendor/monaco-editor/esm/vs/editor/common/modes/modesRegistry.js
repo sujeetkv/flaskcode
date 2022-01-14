@@ -4,42 +4,51 @@
  *--------------------------------------------------------------------------------------------*/
 import * as nls from '../../../nls.js';
 import { Emitter } from '../../../base/common/event.js';
-import { LanguageIdentifier } from '../modes.js';
 import { LanguageConfigurationRegistry } from './languageConfigurationRegistry.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
+import { Mimes } from '../../../base/common/mime.js';
+import { Extensions as ConfigurationExtensions } from '../../../platform/configuration/common/configurationRegistry.js';
 // Define extension point ids
-export var Extensions = {
+export const Extensions = {
     ModesRegistry: 'editor.modesRegistry'
 };
-var EditorModesRegistry = /** @class */ (function () {
-    function EditorModesRegistry() {
+export class EditorModesRegistry {
+    constructor() {
         this._onDidChangeLanguages = new Emitter();
         this.onDidChangeLanguages = this._onDidChangeLanguages.event;
         this._languages = [];
         this._dynamicLanguages = [];
     }
     // --- languages
-    EditorModesRegistry.prototype.registerLanguage = function (def) {
+    registerLanguage(def) {
         this._languages.push(def);
         this._onDidChangeLanguages.fire(undefined);
-    };
-    EditorModesRegistry.prototype.getLanguages = function () {
+        return {
+            dispose: () => {
+                for (let i = 0, len = this._languages.length; i < len; i++) {
+                    if (this._languages[i] === def) {
+                        this._languages.splice(i, 1);
+                        return;
+                    }
+                }
+            }
+        };
+    }
+    getLanguages() {
         return [].concat(this._languages).concat(this._dynamicLanguages);
-    };
-    return EditorModesRegistry;
-}());
-export { EditorModesRegistry };
-export var ModesRegistry = new EditorModesRegistry();
+    }
+}
+export const ModesRegistry = new EditorModesRegistry();
 Registry.add(Extensions.ModesRegistry, ModesRegistry);
-export var PLAINTEXT_MODE_ID = 'plaintext';
-export var PLAINTEXT_LANGUAGE_IDENTIFIER = new LanguageIdentifier(PLAINTEXT_MODE_ID, 1 /* PlainText */);
+export const PLAINTEXT_MODE_ID = 'plaintext';
+export const PLAINTEXT_EXTENSION = '.txt';
 ModesRegistry.registerLanguage({
     id: PLAINTEXT_MODE_ID,
-    extensions: ['.txt', '.gitignore'],
+    extensions: [PLAINTEXT_EXTENSION],
     aliases: [nls.localize('plainText.alias', "Plain Text"), 'text'],
-    mimetypes: ['text/plain']
+    mimetypes: [Mimes.text]
 });
-LanguageConfigurationRegistry.register(PLAINTEXT_LANGUAGE_IDENTIFIER, {
+LanguageConfigurationRegistry.register(PLAINTEXT_MODE_ID, {
     brackets: [
         ['(', ')'],
         ['[', ']'],
@@ -54,7 +63,16 @@ LanguageConfigurationRegistry.register(PLAINTEXT_LANGUAGE_IDENTIFIER, {
         { open: '\'', close: '\'' },
         { open: '`', close: '`' },
     ],
+    colorizedBracketPairs: [],
     folding: {
         offSide: true
     }
-});
+}, 0);
+Registry.as(ConfigurationExtensions.Configuration)
+    .registerDefaultConfigurations([{
+        overrides: {
+            '[plaintext]': {
+                'editor.unicodeHighlight.ambiguousCharacters': false
+            }
+        }
+    }]);

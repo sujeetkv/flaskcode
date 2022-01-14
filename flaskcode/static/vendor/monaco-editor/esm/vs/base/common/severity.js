@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as nls from '../../nls.js';
 import * as strings from './strings.js';
 var Severity;
 (function (Severity) {
@@ -12,14 +11,11 @@ var Severity;
     Severity[Severity["Error"] = 3] = "Error";
 })(Severity || (Severity = {}));
 (function (Severity) {
-    var _error = 'error';
-    var _warning = 'warning';
-    var _warn = 'warn';
-    var _info = 'info';
-    var _displayStrings = Object.create(null);
-    _displayStrings[Severity.Error] = nls.localize('sev.error', "Error");
-    _displayStrings[Severity.Warning] = nls.localize('sev.warning', "Warning");
-    _displayStrings[Severity.Info] = nls.localize('sev.info', "Info");
+    const _error = 'error';
+    const _warning = 'warning';
+    const _warn = 'warn';
+    const _info = 'info';
+    const _ignore = 'ignore';
     /**
      * Parses 'error', 'warning', 'warn', 'info' in call casings
      * and falls back to ignore.
@@ -40,5 +36,14 @@ var Severity;
         return Severity.Ignore;
     }
     Severity.fromValue = fromValue;
+    function toString(severity) {
+        switch (severity) {
+            case Severity.Error: return _error;
+            case Severity.Warning: return _warning;
+            case Severity.Info: return _info;
+            default: return _ignore;
+        }
+    }
+    Severity.toString = toString;
 })(Severity || (Severity = {}));
 export default Severity;

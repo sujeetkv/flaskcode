@@ -4,50 +4,48 @@
  *--------------------------------------------------------------------------------------------*/
 import { EditOperation } from '../../common/core/editOperation.js';
 import { Range } from '../../common/core/range.js';
-var SortLinesCommand = /** @class */ (function () {
-    function SortLinesCommand(selection, descending) {
+export class SortLinesCommand {
+    constructor(selection, descending) {
         this.selection = selection;
         this.descending = descending;
         this.selectionId = null;
     }
-    SortLinesCommand.getCollator = function () {
+    static getCollator() {
         if (!SortLinesCommand._COLLATOR) {
             SortLinesCommand._COLLATOR = new Intl.Collator();
         }
         return SortLinesCommand._COLLATOR;
-    };
-    SortLinesCommand.prototype.getEditOperations = function (model, builder) {
-        var op = sortLines(model, this.selection, this.descending);
+    }
+    getEditOperations(model, builder) {
+        let op = sortLines(model, this.selection, this.descending);
         if (op) {
             builder.addEditOperation(op.range, op.text);
         }
         this.selectionId = builder.trackSelection(this.selection);
-    };
-    SortLinesCommand.prototype.computeCursorState = function (model, helper) {
+    }
+    computeCursorState(model, helper) {
         return helper.getTrackedSelection(this.selectionId);
-    };
-    SortLinesCommand.canRun = function (model, selection, descending) {
+    }
+    static canRun(model, selection, descending) {
         if (model === null) {
             return false;
         }
-        var data = getSortData(model, selection, descending);
+        let data = getSortData(model, selection, descending);
         if (!data) {
             return false;
         }
-        for (var i = 0, len = data.before.length; i < len; i++) {
+        for (let i = 0, len = data.before.length; i < len; i++) {
             if (data.before[i] !== data.after[i]) {
                 return true;
             }
         }
         return false;
-    };
-    SortLinesCommand._COLLATOR = null;
-    return SortLinesCommand;
-}());
-export { SortLinesCommand };
+    }
+}
+SortLinesCommand._COLLATOR = null;
 function getSortData(model, selection, descending) {
-    var startLineNumber = selection.startLineNumber;
-    var endLineNumber = selection.endLineNumber;
+    let startLineNumber = selection.startLineNumber;
+    let endLineNumber = selection.endLineNumber;
     if (selection.endColumn === 1) {
         endLineNumber--;
     }
@@ -55,12 +53,12 @@ function getSortData(model, selection, descending) {
     if (startLineNumber >= endLineNumber) {
         return null;
     }
-    var linesToSort = [];
+    let linesToSort = [];
     // Get the contents of the selection to be sorted.
-    for (var lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+    for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
         linesToSort.push(model.getLineContent(lineNumber));
     }
-    var sorted = linesToSort.slice(0);
+    let sorted = linesToSort.slice(0);
     sorted.sort(SortLinesCommand.getCollator().compare);
     // If descending, reverse the order.
     if (descending === true) {
@@ -77,7 +75,7 @@ function getSortData(model, selection, descending) {
  * Generate commands for sorting lines on a model.
  */
 function sortLines(model, selection, descending) {
-    var data = getSortData(model, selection, descending);
+    let data = getSortData(model, selection, descending);
     if (!data) {
         return null;
     }

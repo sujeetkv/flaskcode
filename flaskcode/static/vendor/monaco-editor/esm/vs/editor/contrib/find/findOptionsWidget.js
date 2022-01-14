@@ -2,182 +2,170 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 import * as dom from '../../../base/browser/dom.js';
 import { CaseSensitiveCheckbox, RegexCheckbox, WholeWordsCheckbox } from '../../../base/browser/ui/findinput/findInputCheckboxes.js';
 import { Widget } from '../../../base/browser/ui/widget.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { FIND_IDS } from './findModel.js';
-import { contrastBorder, editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, widgetShadow, editorWidgetForeground } from '../../../platform/theme/common/colorRegistry.js';
+import { contrastBorder, editorWidgetBackground, editorWidgetForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, widgetShadow } from '../../../platform/theme/common/colorRegistry.js';
 import { registerThemingParticipant } from '../../../platform/theme/common/themeService.js';
-var FindOptionsWidget = /** @class */ (function (_super) {
-    __extends(FindOptionsWidget, _super);
-    function FindOptionsWidget(editor, state, keybindingService, themeService) {
-        var _this = _super.call(this) || this;
-        _this._hideSoon = _this._register(new RunOnceScheduler(function () { return _this._hide(); }, 2000));
-        _this._isVisible = false;
-        _this._editor = editor;
-        _this._state = state;
-        _this._keybindingService = keybindingService;
-        _this._domNode = document.createElement('div');
-        _this._domNode.className = 'findOptionsWidget';
-        _this._domNode.style.display = 'none';
-        _this._domNode.style.top = '10px';
-        _this._domNode.setAttribute('role', 'presentation');
-        _this._domNode.setAttribute('aria-hidden', 'true');
-        var inputActiveOptionBorderColor = themeService.getTheme().getColor(inputActiveOptionBorder);
-        var inputActiveOptionBackgroundColor = themeService.getTheme().getColor(inputActiveOptionBackground);
-        _this.caseSensitive = _this._register(new CaseSensitiveCheckbox({
-            appendTitle: _this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
-            isChecked: _this._state.matchCase,
+export class FindOptionsWidget extends Widget {
+    constructor(editor, state, keybindingService, themeService) {
+        super();
+        this._hideSoon = this._register(new RunOnceScheduler(() => this._hide(), 2000));
+        this._isVisible = false;
+        this._editor = editor;
+        this._state = state;
+        this._keybindingService = keybindingService;
+        this._domNode = document.createElement('div');
+        this._domNode.className = 'findOptionsWidget';
+        this._domNode.style.display = 'none';
+        this._domNode.style.top = '10px';
+        this._domNode.setAttribute('role', 'presentation');
+        this._domNode.setAttribute('aria-hidden', 'true');
+        const inputActiveOptionBorderColor = themeService.getColorTheme().getColor(inputActiveOptionBorder);
+        const inputActiveOptionForegroundColor = themeService.getColorTheme().getColor(inputActiveOptionForeground);
+        const inputActiveOptionBackgroundColor = themeService.getColorTheme().getColor(inputActiveOptionBackground);
+        this.caseSensitive = this._register(new CaseSensitiveCheckbox({
+            appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
+            isChecked: this._state.matchCase,
             inputActiveOptionBorder: inputActiveOptionBorderColor,
+            inputActiveOptionForeground: inputActiveOptionForegroundColor,
             inputActiveOptionBackground: inputActiveOptionBackgroundColor
         }));
-        _this._domNode.appendChild(_this.caseSensitive.domNode);
-        _this._register(_this.caseSensitive.onChange(function () {
-            _this._state.change({
-                matchCase: _this.caseSensitive.checked
+        this._domNode.appendChild(this.caseSensitive.domNode);
+        this._register(this.caseSensitive.onChange(() => {
+            this._state.change({
+                matchCase: this.caseSensitive.checked
             }, false);
         }));
-        _this.wholeWords = _this._register(new WholeWordsCheckbox({
-            appendTitle: _this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
-            isChecked: _this._state.wholeWord,
+        this.wholeWords = this._register(new WholeWordsCheckbox({
+            appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
+            isChecked: this._state.wholeWord,
             inputActiveOptionBorder: inputActiveOptionBorderColor,
+            inputActiveOptionForeground: inputActiveOptionForegroundColor,
             inputActiveOptionBackground: inputActiveOptionBackgroundColor
         }));
-        _this._domNode.appendChild(_this.wholeWords.domNode);
-        _this._register(_this.wholeWords.onChange(function () {
-            _this._state.change({
-                wholeWord: _this.wholeWords.checked
+        this._domNode.appendChild(this.wholeWords.domNode);
+        this._register(this.wholeWords.onChange(() => {
+            this._state.change({
+                wholeWord: this.wholeWords.checked
             }, false);
         }));
-        _this.regex = _this._register(new RegexCheckbox({
-            appendTitle: _this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
-            isChecked: _this._state.isRegex,
+        this.regex = this._register(new RegexCheckbox({
+            appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
+            isChecked: this._state.isRegex,
             inputActiveOptionBorder: inputActiveOptionBorderColor,
+            inputActiveOptionForeground: inputActiveOptionForegroundColor,
             inputActiveOptionBackground: inputActiveOptionBackgroundColor
         }));
-        _this._domNode.appendChild(_this.regex.domNode);
-        _this._register(_this.regex.onChange(function () {
-            _this._state.change({
-                isRegex: _this.regex.checked
+        this._domNode.appendChild(this.regex.domNode);
+        this._register(this.regex.onChange(() => {
+            this._state.change({
+                isRegex: this.regex.checked
             }, false);
         }));
-        _this._editor.addOverlayWidget(_this);
-        _this._register(_this._state.onFindReplaceStateChange(function (e) {
-            var somethingChanged = false;
+        this._editor.addOverlayWidget(this);
+        this._register(this._state.onFindReplaceStateChange((e) => {
+            let somethingChanged = false;
             if (e.isRegex) {
-                _this.regex.checked = _this._state.isRegex;
+                this.regex.checked = this._state.isRegex;
                 somethingChanged = true;
             }
             if (e.wholeWord) {
-                _this.wholeWords.checked = _this._state.wholeWord;
+                this.wholeWords.checked = this._state.wholeWord;
                 somethingChanged = true;
             }
             if (e.matchCase) {
-                _this.caseSensitive.checked = _this._state.matchCase;
+                this.caseSensitive.checked = this._state.matchCase;
                 somethingChanged = true;
             }
-            if (!_this._state.isRevealed && somethingChanged) {
-                _this._revealTemporarily();
+            if (!this._state.isRevealed && somethingChanged) {
+                this._revealTemporarily();
             }
         }));
-        _this._register(dom.addDisposableNonBubblingMouseOutListener(_this._domNode, function (e) { return _this._onMouseOut(); }));
-        _this._register(dom.addDisposableListener(_this._domNode, 'mouseover', function (e) { return _this._onMouseOver(); }));
-        _this._applyTheme(themeService.getTheme());
-        _this._register(themeService.onThemeChange(_this._applyTheme.bind(_this)));
-        return _this;
+        this._register(dom.addDisposableNonBubblingMouseOutListener(this._domNode, (e) => this._onMouseOut()));
+        this._register(dom.addDisposableListener(this._domNode, 'mouseover', (e) => this._onMouseOver()));
+        this._applyTheme(themeService.getColorTheme());
+        this._register(themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
     }
-    FindOptionsWidget.prototype._keybindingLabelFor = function (actionId) {
-        var kb = this._keybindingService.lookupKeybinding(actionId);
+    _keybindingLabelFor(actionId) {
+        let kb = this._keybindingService.lookupKeybinding(actionId);
         if (!kb) {
             return '';
         }
-        return " (" + kb.getLabel() + ")";
-    };
-    FindOptionsWidget.prototype.dispose = function () {
+        return ` (${kb.getLabel()})`;
+    }
+    dispose() {
         this._editor.removeOverlayWidget(this);
-        _super.prototype.dispose.call(this);
-    };
+        super.dispose();
+    }
     // ----- IOverlayWidget API
-    FindOptionsWidget.prototype.getId = function () {
+    getId() {
         return FindOptionsWidget.ID;
-    };
-    FindOptionsWidget.prototype.getDomNode = function () {
+    }
+    getDomNode() {
         return this._domNode;
-    };
-    FindOptionsWidget.prototype.getPosition = function () {
+    }
+    getPosition() {
         return {
             preference: 0 /* TOP_RIGHT_CORNER */
         };
-    };
-    FindOptionsWidget.prototype.highlightFindOptions = function () {
+    }
+    highlightFindOptions() {
         this._revealTemporarily();
-    };
-    FindOptionsWidget.prototype._revealTemporarily = function () {
+    }
+    _revealTemporarily() {
         this._show();
         this._hideSoon.schedule();
-    };
-    FindOptionsWidget.prototype._onMouseOut = function () {
+    }
+    _onMouseOut() {
         this._hideSoon.schedule();
-    };
-    FindOptionsWidget.prototype._onMouseOver = function () {
+    }
+    _onMouseOver() {
         this._hideSoon.cancel();
-    };
-    FindOptionsWidget.prototype._show = function () {
+    }
+    _show() {
         if (this._isVisible) {
             return;
         }
         this._isVisible = true;
         this._domNode.style.display = 'block';
-    };
-    FindOptionsWidget.prototype._hide = function () {
+    }
+    _hide() {
         if (!this._isVisible) {
             return;
         }
         this._isVisible = false;
         this._domNode.style.display = 'none';
-    };
-    FindOptionsWidget.prototype._applyTheme = function (theme) {
-        var inputStyles = {
+    }
+    _applyTheme(theme) {
+        let inputStyles = {
             inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
+            inputActiveOptionForeground: theme.getColor(inputActiveOptionForeground),
             inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground)
         };
         this.caseSensitive.style(inputStyles);
         this.wholeWords.style(inputStyles);
         this.regex.style(inputStyles);
-    };
-    FindOptionsWidget.ID = 'editor.contrib.findOptionsWidget';
-    return FindOptionsWidget;
-}(Widget));
-export { FindOptionsWidget };
-registerThemingParticipant(function (theme, collector) {
-    var widgetBackground = theme.getColor(editorWidgetBackground);
+    }
+}
+FindOptionsWidget.ID = 'editor.contrib.findOptionsWidget';
+registerThemingParticipant((theme, collector) => {
+    const widgetBackground = theme.getColor(editorWidgetBackground);
     if (widgetBackground) {
-        collector.addRule(".monaco-editor .findOptionsWidget { background-color: " + widgetBackground + "; }");
+        collector.addRule(`.monaco-editor .findOptionsWidget { background-color: ${widgetBackground}; }`);
     }
-    var widgetForeground = theme.getColor(editorWidgetForeground);
+    const widgetForeground = theme.getColor(editorWidgetForeground);
     if (widgetForeground) {
-        collector.addRule(".monaco-editor .findOptionsWidget { color: " + widgetForeground + "; }");
+        collector.addRule(`.monaco-editor .findOptionsWidget { color: ${widgetForeground}; }`);
     }
-    var widgetShadowColor = theme.getColor(widgetShadow);
+    const widgetShadowColor = theme.getColor(widgetShadow);
     if (widgetShadowColor) {
-        collector.addRule(".monaco-editor .findOptionsWidget { box-shadow: 0 2px 8px " + widgetShadowColor + "; }");
+        collector.addRule(`.monaco-editor .findOptionsWidget { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
     }
-    var hcBorder = theme.getColor(contrastBorder);
+    const hcBorder = theme.getColor(contrastBorder);
     if (hcBorder) {
-        collector.addRule(".monaco-editor .findOptionsWidget { border: 2px solid " + hcBorder + "; }");
+        collector.addRule(`.monaco-editor .findOptionsWidget { border: 2px solid ${hcBorder}; }`);
     }
 });

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { match as matchGlobPattern } from '../../../base/common/glob.js';
+import { normalize } from '../../../base/common/path.js';
 export function score(selector, candidateUri, candidateLanguage, candidateIsSynchronized) {
     if (Array.isArray(selector)) {
         // array -> take max individual value
-        var ret = 0;
-        for (var _i = 0, selector_1 = selector; _i < selector_1.length; _i++) {
-            var filter = selector_1[_i];
-            var value = score(filter, candidateUri, candidateLanguage, candidateIsSynchronized);
+        let ret = 0;
+        for (const filter of selector) {
+            const value = score(filter, candidateUri, candidateLanguage, candidateIsSynchronized);
             if (value === 10) {
                 return value; // already at the highest
             }
@@ -38,11 +38,11 @@ export function score(selector, candidateUri, candidateLanguage, candidateIsSync
     }
     else if (selector) {
         // filter -> select accordingly, use defaults for scheme
-        var language = selector.language, pattern = selector.pattern, scheme = selector.scheme, hasAccessToAllModels = selector.hasAccessToAllModels;
+        const { language, pattern, scheme, hasAccessToAllModels } = selector; // TODO: microsoft/TypeScript#42768
         if (!candidateIsSynchronized && !hasAccessToAllModels) {
             return 0;
         }
-        var ret = 0;
+        let ret = 0;
         if (scheme) {
             if (scheme === candidateUri.scheme) {
                 ret = 10;
@@ -66,7 +66,19 @@ export function score(selector, candidateUri, candidateLanguage, candidateIsSync
             }
         }
         if (pattern) {
-            if (pattern === candidateUri.fsPath || matchGlobPattern(pattern, candidateUri.fsPath)) {
+            let normalizedPattern;
+            if (typeof pattern === 'string') {
+                normalizedPattern = pattern;
+            }
+            else {
+                // Since this pattern has a `base` property, we need
+                // to normalize this path first before passing it on
+                // because we will compare it against `Uri.fsPath`
+                // which uses platform specific separators.
+                // Refs: https://github.com/microsoft/vscode/issues/99938
+                normalizedPattern = Object.assign(Object.assign({}, pattern), { base: normalize(pattern.base) });
+            }
+            if (normalizedPattern === candidateUri.fsPath || matchGlobPattern(normalizedPattern, candidateUri.fsPath)) {
                 ret = 10;
             }
             else {

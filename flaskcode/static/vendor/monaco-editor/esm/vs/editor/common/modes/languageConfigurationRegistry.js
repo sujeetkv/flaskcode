@@ -2,236 +2,261 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 import { Emitter } from '../../../base/common/event.js';
-import { toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import * as strings from '../../../base/common/strings.js';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from '../model/wordHelper.js';
-import { IndentAction } from './languageConfiguration.js';
+import { IndentAction, AutoClosingPairs } from './languageConfiguration.js';
 import { createScopedLineTokens } from './supports.js';
 import { CharacterPairSupport } from './supports/characterPair.js';
 import { BracketElectricCharacterSupport } from './supports/electricCharacter.js';
 import { IndentRulesSupport } from './supports/indentRules.js';
 import { OnEnterSupport } from './supports/onEnter.js';
 import { RichEditBrackets } from './supports/richEditBrackets.js';
-var RichEditSupport = /** @class */ (function () {
-    function RichEditSupport(languageIdentifier, previous, rawConf) {
-        this._languageIdentifier = languageIdentifier;
-        this._brackets = null;
-        this._electricCharacter = null;
-        var prev = null;
-        if (previous) {
-            prev = previous._conf;
-        }
-        this._conf = RichEditSupport._mergeConf(prev, rawConf);
-        this._onEnterSupport = (this._conf.brackets || this._conf.indentationRules || this._conf.onEnterRules ? new OnEnterSupport(this._conf) : null);
-        this.comments = RichEditSupport._handleComments(this._conf);
-        this.characterPair = new CharacterPairSupport(this._conf);
-        this.wordDefinition = this._conf.wordPattern || DEFAULT_WORD_REGEXP;
-        this.indentationRules = this._conf.indentationRules;
-        if (this._conf.indentationRules) {
-            this.indentRulesSupport = new IndentRulesSupport(this._conf.indentationRules);
-        }
-        else {
-            this.indentRulesSupport = null;
-        }
-        this.foldingRules = this._conf.folding || {};
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { IModeService } from '../services/modeService.js';
+import { registerSingleton } from '../../../platform/instantiation/common/extensions.js';
+export class LanguageConfigurationServiceChangeEvent {
+    constructor(languageId) {
+        this.languageId = languageId;
     }
-    Object.defineProperty(RichEditSupport.prototype, "brackets", {
-        get: function () {
-            if (!this._brackets && this._conf.brackets) {
-                this._brackets = new RichEditBrackets(this._languageIdentifier, this._conf.brackets);
-            }
-            return this._brackets;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(RichEditSupport.prototype, "electricCharacter", {
-        get: function () {
-            if (!this._electricCharacter) {
-                this._electricCharacter = new BracketElectricCharacterSupport(this.brackets);
-            }
-            return this._electricCharacter;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    RichEditSupport.prototype.onEnter = function (autoIndent, oneLineAboveText, beforeEnterText, afterEnterText) {
-        if (!this._onEnterSupport) {
-            return null;
-        }
-        return this._onEnterSupport.onEnter(autoIndent, oneLineAboveText, beforeEnterText, afterEnterText);
-    };
-    RichEditSupport._mergeConf = function (prev, current) {
-        return {
-            comments: (prev ? current.comments || prev.comments : current.comments),
-            brackets: (prev ? current.brackets || prev.brackets : current.brackets),
-            wordPattern: (prev ? current.wordPattern || prev.wordPattern : current.wordPattern),
-            indentationRules: (prev ? current.indentationRules || prev.indentationRules : current.indentationRules),
-            onEnterRules: (prev ? current.onEnterRules || prev.onEnterRules : current.onEnterRules),
-            autoClosingPairs: (prev ? current.autoClosingPairs || prev.autoClosingPairs : current.autoClosingPairs),
-            surroundingPairs: (prev ? current.surroundingPairs || prev.surroundingPairs : current.surroundingPairs),
-            autoCloseBefore: (prev ? current.autoCloseBefore || prev.autoCloseBefore : current.autoCloseBefore),
-            folding: (prev ? current.folding || prev.folding : current.folding),
-            __electricCharacterSupport: (prev ? current.__electricCharacterSupport || prev.__electricCharacterSupport : current.__electricCharacterSupport),
-        };
-    };
-    RichEditSupport._handleComments = function (conf) {
-        var commentRule = conf.comments;
-        if (!commentRule) {
-            return null;
-        }
-        // comment configuration
-        var comments = {};
-        if (commentRule.lineComment) {
-            comments.lineCommentToken = commentRule.lineComment;
-        }
-        if (commentRule.blockComment) {
-            var _a = commentRule.blockComment, blockStart = _a[0], blockEnd = _a[1];
-            comments.blockCommentStartToken = blockStart;
-            comments.blockCommentEndToken = blockEnd;
-        }
-        return comments;
-    };
-    return RichEditSupport;
-}());
-export { RichEditSupport };
-var LanguageConfigurationChangeEvent = /** @class */ (function () {
-    function LanguageConfigurationChangeEvent(languageIdentifier) {
-        this.languageIdentifier = languageIdentifier;
+    affects(languageId) {
+        return !this.languageId ? true : this.languageId === languageId;
     }
-    return LanguageConfigurationChangeEvent;
-}());
-export { LanguageConfigurationChangeEvent };
-var LanguageConfigurationRegistryImpl = /** @class */ (function () {
-    function LanguageConfigurationRegistryImpl() {
+}
+export const ILanguageConfigurationService = createDecorator('languageConfigurationService');
+let LanguageConfigurationService = class LanguageConfigurationService extends Disposable {
+    constructor(configurationService, modeService) {
+        super();
+        this.configurationService = configurationService;
+        this.modeService = modeService;
+        this.onDidChangeEmitter = this._register(new Emitter());
+        this.onDidChange = this.onDidChangeEmitter.event;
+        this.configurations = new Map();
+        const languageConfigKeys = new Set(Object.values(customizedLanguageConfigKeys));
+        this._register(this.configurationService.onDidChangeConfiguration((e) => {
+            const globalConfigChanged = e.change.keys.some((k) => languageConfigKeys.has(k));
+            const localConfigChanged = e.change.overrides
+                .filter(([overrideLangName, keys]) => keys.some((k) => languageConfigKeys.has(k)))
+                .map(([overrideLangName]) => this.modeService.validateLanguageId(overrideLangName));
+            if (globalConfigChanged) {
+                this.configurations.clear();
+                this.onDidChangeEmitter.fire(new LanguageConfigurationServiceChangeEvent(undefined));
+            }
+            else {
+                for (const languageId of localConfigChanged) {
+                    if (languageId) {
+                        this.configurations.delete(languageId);
+                        this.onDidChangeEmitter.fire(new LanguageConfigurationServiceChangeEvent(languageId));
+                    }
+                }
+            }
+        }));
+        this._register(LanguageConfigurationRegistry.onDidChange((e) => {
+            this.configurations.delete(e.languageId);
+            this.onDidChangeEmitter.fire(new LanguageConfigurationServiceChangeEvent(e.languageId));
+        }));
+    }
+    getLanguageConfiguration(languageId) {
+        let result = this.configurations.get(languageId);
+        if (!result) {
+            result = computeConfig(languageId, this.configurationService, this.modeService);
+            this.configurations.set(languageId, result);
+        }
+        return result;
+    }
+};
+LanguageConfigurationService = __decorate([
+    __param(0, IConfigurationService),
+    __param(1, IModeService)
+], LanguageConfigurationService);
+export { LanguageConfigurationService };
+function computeConfig(languageId, configurationService, modeService) {
+    let languageConfig = LanguageConfigurationRegistry.getLanguageConfiguration(languageId);
+    if (!languageConfig) {
+        const validLanguageId = modeService.validateLanguageId(languageId);
+        if (!validLanguageId) {
+            throw new Error('Unexpected languageId');
+        }
+        languageConfig = new ResolvedLanguageConfiguration(validLanguageId, {});
+    }
+    const customizedConfig = getCustomizedLanguageConfig(languageConfig.languageId, configurationService);
+    const data = combineLanguageConfigurations([languageConfig.underlyingConfig, customizedConfig]);
+    const config = new ResolvedLanguageConfiguration(languageConfig.languageId, data);
+    return config;
+}
+const customizedLanguageConfigKeys = {
+    brackets: 'editor.language.brackets',
+    colorizedBracketPairs: 'editor.language.colorizedBracketPairs'
+};
+function getCustomizedLanguageConfig(languageId, configurationService) {
+    const brackets = configurationService.getValue(customizedLanguageConfigKeys.brackets, {
+        overrideIdentifier: languageId,
+    });
+    const colorizedBracketPairs = configurationService.getValue(customizedLanguageConfigKeys.colorizedBracketPairs, {
+        overrideIdentifier: languageId,
+    });
+    return {
+        brackets: validateBracketPairs(brackets),
+        colorizedBracketPairs: validateBracketPairs(colorizedBracketPairs),
+    };
+}
+function validateBracketPairs(data) {
+    if (!Array.isArray(data)) {
+        return undefined;
+    }
+    return data.map(pair => {
+        if (!Array.isArray(pair) || pair.length !== 2) {
+            return undefined;
+        }
+        return [pair[0], pair[1]];
+    }).filter((p) => !!p);
+}
+export class LanguageConfigurationChangeEvent {
+    constructor(languageId) {
+        this.languageId = languageId;
+    }
+}
+export class LanguageConfigurationRegistryImpl {
+    constructor() {
         this._entries = new Map();
         this._onDidChange = new Emitter();
         this.onDidChange = this._onDidChange.event;
     }
-    LanguageConfigurationRegistryImpl.prototype.register = function (languageIdentifier, configuration) {
-        var _this = this;
-        var previous = this._getRichEditSupport(languageIdentifier.id);
-        var current = new RichEditSupport(languageIdentifier, previous, configuration);
-        this._entries.set(languageIdentifier.id, current);
-        this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageIdentifier));
-        return toDisposable(function () {
-            if (_this._entries.get(languageIdentifier.id) === current) {
-                _this._entries.set(languageIdentifier.id, previous);
-                _this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageIdentifier));
-            }
+    /**
+     * @param priority Use a higher number for higher priority
+     */
+    register(languageId, configuration, priority = 0) {
+        let entries = this._entries.get(languageId);
+        if (!entries) {
+            entries = new ComposedLanguageConfiguration(languageId);
+            this._entries.set(languageId, entries);
+        }
+        const disposable = entries.register(configuration, priority);
+        this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageId));
+        return toDisposable(() => {
+            disposable.dispose();
+            this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageId));
         });
-    };
-    LanguageConfigurationRegistryImpl.prototype._getRichEditSupport = function (languageId) {
-        return this._entries.get(languageId);
-    };
+    }
+    getLanguageConfiguration(languageId) {
+        let entries = this._entries.get(languageId);
+        return (entries === null || entries === void 0 ? void 0 : entries.getResolvedConfiguration()) || null;
+    }
+    getIndentationRules(languageId) {
+        const value = this.getLanguageConfiguration(languageId);
+        return value ? value.indentationRules || null : null;
+    }
     // begin electricCharacter
-    LanguageConfigurationRegistryImpl.prototype._getElectricCharacterSupport = function (languageId) {
-        var value = this._getRichEditSupport(languageId);
+    _getElectricCharacterSupport(languageId) {
+        let value = this.getLanguageConfiguration(languageId);
         if (!value) {
             return null;
         }
         return value.electricCharacter || null;
-    };
-    LanguageConfigurationRegistryImpl.prototype.getElectricCharacters = function (languageId) {
-        var electricCharacterSupport = this._getElectricCharacterSupport(languageId);
+    }
+    getElectricCharacters(languageId) {
+        let electricCharacterSupport = this._getElectricCharacterSupport(languageId);
         if (!electricCharacterSupport) {
             return [];
         }
         return electricCharacterSupport.getElectricCharacters();
-    };
+    }
     /**
      * Should return opening bracket type to match indentation with
      */
-    LanguageConfigurationRegistryImpl.prototype.onElectricCharacter = function (character, context, column) {
-        var scopedLineTokens = createScopedLineTokens(context, column - 1);
-        var electricCharacterSupport = this._getElectricCharacterSupport(scopedLineTokens.languageId);
+    onElectricCharacter(character, context, column) {
+        let scopedLineTokens = createScopedLineTokens(context, column - 1);
+        let electricCharacterSupport = this._getElectricCharacterSupport(scopedLineTokens.languageId);
         if (!electricCharacterSupport) {
             return null;
         }
         return electricCharacterSupport.onElectricCharacter(character, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
-    };
+    }
     // end electricCharacter
-    LanguageConfigurationRegistryImpl.prototype.getComments = function (languageId) {
-        var value = this._getRichEditSupport(languageId);
+    getComments(languageId) {
+        let value = this.getLanguageConfiguration(languageId);
         if (!value) {
             return null;
         }
         return value.comments || null;
-    };
+    }
     // begin characterPair
-    LanguageConfigurationRegistryImpl.prototype._getCharacterPairSupport = function (languageId) {
-        var value = this._getRichEditSupport(languageId);
+    _getCharacterPairSupport(languageId) {
+        let value = this.getLanguageConfiguration(languageId);
         if (!value) {
             return null;
         }
         return value.characterPair || null;
-    };
-    LanguageConfigurationRegistryImpl.prototype.getAutoClosingPairs = function (languageId) {
-        var characterPairSupport = this._getCharacterPairSupport(languageId);
-        if (!characterPairSupport) {
-            return [];
-        }
-        return characterPairSupport.getAutoClosingPairs();
-    };
-    LanguageConfigurationRegistryImpl.prototype.getAutoCloseBeforeSet = function (languageId) {
-        var characterPairSupport = this._getCharacterPairSupport(languageId);
+    }
+    getAutoClosingPairs(languageId) {
+        const characterPairSupport = this._getCharacterPairSupport(languageId);
+        return new AutoClosingPairs(characterPairSupport ? characterPairSupport.getAutoClosingPairs() : []);
+    }
+    getAutoCloseBeforeSet(languageId) {
+        let characterPairSupport = this._getCharacterPairSupport(languageId);
         if (!characterPairSupport) {
             return CharacterPairSupport.DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED;
         }
         return characterPairSupport.getAutoCloseBeforeSet();
-    };
-    LanguageConfigurationRegistryImpl.prototype.getSurroundingPairs = function (languageId) {
-        var characterPairSupport = this._getCharacterPairSupport(languageId);
+    }
+    getSurroundingPairs(languageId) {
+        let characterPairSupport = this._getCharacterPairSupport(languageId);
         if (!characterPairSupport) {
             return [];
         }
         return characterPairSupport.getSurroundingPairs();
-    };
-    LanguageConfigurationRegistryImpl.prototype.shouldAutoClosePair = function (autoClosingPair, context, column) {
-        var scopedLineTokens = createScopedLineTokens(context, column - 1);
-        return CharacterPairSupport.shouldAutoClosePair(autoClosingPair, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
-    };
+    }
     // end characterPair
-    LanguageConfigurationRegistryImpl.prototype.getWordDefinition = function (languageId) {
-        var value = this._getRichEditSupport(languageId);
+    getWordDefinition(languageId) {
+        let value = this.getLanguageConfiguration(languageId);
         if (!value) {
             return ensureValidWordDefinition(null);
         }
         return ensureValidWordDefinition(value.wordDefinition || null);
-    };
-    LanguageConfigurationRegistryImpl.prototype.getFoldingRules = function (languageId) {
-        var value = this._getRichEditSupport(languageId);
+    }
+    getFoldingRules(languageId) {
+        let value = this.getLanguageConfiguration(languageId);
         if (!value) {
             return {};
         }
         return value.foldingRules;
-    };
+    }
     // begin Indent Rules
-    LanguageConfigurationRegistryImpl.prototype.getIndentRulesSupport = function (languageId) {
-        var value = this._getRichEditSupport(languageId);
+    getIndentRulesSupport(languageId) {
+        let value = this.getLanguageConfiguration(languageId);
         if (!value) {
             return null;
         }
         return value.indentRulesSupport || null;
-    };
+    }
     /**
-     * Get nearest preceiding line which doesn't match unIndentPattern or contains all whitespace.
+     * Get nearest preceding line which doesn't match unIndentPattern or contains all whitespace.
      * Result:
      * -1: run into the boundary of embedded languages
      * 0: every line above are invalid
      * else: nearest preceding line of the same language
      */
-    LanguageConfigurationRegistryImpl.prototype.getPrecedingValidLine = function (model, lineNumber, indentRulesSupport) {
-        var languageID = model.getLanguageIdAtPosition(lineNumber, 0);
+    getPrecedingValidLine(model, lineNumber, indentRulesSupport) {
+        let languageID = model.getLanguageIdAtPosition(lineNumber, 0);
         if (lineNumber > 1) {
-            var lastLineNumber = void 0;
-            var resultLineNumber = -1;
+            let lastLineNumber;
+            let resultLineNumber = -1;
             for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
                 if (model.getLanguageIdAtPosition(lastLineNumber, 0) !== languageID) {
                     return resultLineNumber;
                 }
-                var text = model.getLineContent(lastLineNumber);
+                let text = model.getLineContent(lastLineNumber);
                 if (indentRulesSupport.shouldIgnore(text) || /^\s+$/.test(text) || text === '') {
                     resultLineNumber = lastLineNumber;
                     continue;
@@ -240,7 +265,7 @@ var LanguageConfigurationRegistryImpl = /** @class */ (function () {
             }
         }
         return -1;
-    };
+    }
     /**
      * Get inherited indentation from above lines.
      * 1. Find the nearest preceding line which doesn't match unIndentedLinePattern.
@@ -253,12 +278,11 @@ var LanguageConfigurationRegistryImpl = /** @class */ (function () {
      *
      * This function only return the inherited indent based on above lines, it doesn't check whether current line should decrease or not.
      */
-    LanguageConfigurationRegistryImpl.prototype.getInheritIndentForLine = function (autoIndent, model, lineNumber, honorIntentialIndent) {
-        if (honorIntentialIndent === void 0) { honorIntentialIndent = true; }
+    getInheritIndentForLine(autoIndent, model, lineNumber, honorIntentialIndent = true) {
         if (autoIndent < 4 /* Full */) {
             return null;
         }
-        var indentRulesSupport = this.getIndentRulesSupport(model.getLanguageIdentifier().id);
+        const indentRulesSupport = this.getIndentRulesSupport(model.getLanguageId());
         if (!indentRulesSupport) {
             return null;
         }
@@ -268,7 +292,7 @@ var LanguageConfigurationRegistryImpl = /** @class */ (function () {
                 action: null
             };
         }
-        var precedingUnIgnoredLine = this.getPrecedingValidLine(model, lineNumber, indentRulesSupport);
+        const precedingUnIgnoredLine = this.getPrecedingValidLine(model, lineNumber, indentRulesSupport);
         if (precedingUnIgnoredLine < 0) {
             return null;
         }
@@ -278,7 +302,7 @@ var LanguageConfigurationRegistryImpl = /** @class */ (function () {
                 action: null
             };
         }
-        var precedingUnIgnoredLineContent = model.getLineContent(precedingUnIgnoredLine);
+        const precedingUnIgnoredLineContent = model.getLineContent(precedingUnIgnoredLine);
         if (indentRulesSupport.shouldIncrease(precedingUnIgnoredLineContent) || indentRulesSupport.shouldIndentNextLine(precedingUnIgnoredLineContent)) {
             return {
                 indentation: strings.getLeadingWhitespace(precedingUnIgnoredLineContent),
@@ -306,12 +330,12 @@ var LanguageConfigurationRegistryImpl = /** @class */ (function () {
                     line: precedingUnIgnoredLine
                 };
             }
-            var previousLine = precedingUnIgnoredLine - 1;
-            var previousLineIndentMetadata = indentRulesSupport.getIndentMetadata(model.getLineContent(previousLine));
+            const previousLine = precedingUnIgnoredLine - 1;
+            const previousLineIndentMetadata = indentRulesSupport.getIndentMetadata(model.getLineContent(previousLine));
             if (!(previousLineIndentMetadata & (1 /* INCREASE_MASK */ | 2 /* DECREASE_MASK */)) &&
                 (previousLineIndentMetadata & 4 /* INDENT_NEXTLINE_MASK */)) {
-                var stopLine = 0;
-                for (var i = previousLine - 1; i > 0; i--) {
+                let stopLine = 0;
+                for (let i = previousLine - 1; i > 0; i--) {
                     if (indentRulesSupport.shouldIndentNextLine(model.getLineContent(i))) {
                         continue;
                     }
@@ -333,8 +357,8 @@ var LanguageConfigurationRegistryImpl = /** @class */ (function () {
             }
             else {
                 // search from precedingUnIgnoredLine until we find one whose indent is not temporary
-                for (var i = precedingUnIgnoredLine; i > 0; i--) {
-                    var lineContent = model.getLineContent(i);
+                for (let i = precedingUnIgnoredLine; i > 0; i--) {
+                    const lineContent = model.getLineContent(i);
                     if (indentRulesSupport.shouldIncrease(lineContent)) {
                         return {
                             indentation: strings.getLeadingWhitespace(lineContent),
@@ -343,8 +367,8 @@ var LanguageConfigurationRegistryImpl = /** @class */ (function () {
                         };
                     }
                     else if (indentRulesSupport.shouldIndentNextLine(lineContent)) {
-                        var stopLine = 0;
-                        for (var j = i - 1; j > 0; j--) {
+                        let stopLine = 0;
+                        for (let j = i - 1; j > 0; j--) {
                             if (indentRulesSupport.shouldIndentNextLine(model.getLineContent(i))) {
                                 continue;
                             }
@@ -372,27 +396,27 @@ var LanguageConfigurationRegistryImpl = /** @class */ (function () {
                 };
             }
         }
-    };
-    LanguageConfigurationRegistryImpl.prototype.getGoodIndentForLine = function (autoIndent, virtualModel, languageId, lineNumber, indentConverter) {
+    }
+    getGoodIndentForLine(autoIndent, virtualModel, languageId, lineNumber, indentConverter) {
         if (autoIndent < 4 /* Full */) {
             return null;
         }
-        var richEditSupport = this._getRichEditSupport(languageId);
+        const richEditSupport = this.getLanguageConfiguration(languageId);
         if (!richEditSupport) {
             return null;
         }
-        var indentRulesSupport = this.getIndentRulesSupport(languageId);
+        const indentRulesSupport = this.getIndentRulesSupport(languageId);
         if (!indentRulesSupport) {
             return null;
         }
-        var indent = this.getInheritIndentForLine(autoIndent, virtualModel, lineNumber);
-        var lineContent = virtualModel.getLineContent(lineNumber);
+        const indent = this.getInheritIndentForLine(autoIndent, virtualModel, lineNumber);
+        const lineContent = virtualModel.getLineContent(lineNumber);
         if (indent) {
-            var inheritLine = indent.line;
+            const inheritLine = indent.line;
             if (inheritLine !== undefined) {
-                var enterResult = richEditSupport.onEnter(autoIndent, '', virtualModel.getLineContent(inheritLine), '');
+                const enterResult = richEditSupport.onEnter(autoIndent, '', virtualModel.getLineContent(inheritLine), '');
                 if (enterResult) {
-                    var indentation = strings.getLeadingWhitespace(virtualModel.getLineContent(inheritLine));
+                    let indentation = strings.getLeadingWhitespace(virtualModel.getLineContent(inheritLine));
                     if (enterResult.removeText) {
                         indentation = indentation.substring(0, indentation.length - enterResult.removeText);
                     }
@@ -430,17 +454,17 @@ var LanguageConfigurationRegistryImpl = /** @class */ (function () {
             }
         }
         return null;
-    };
-    LanguageConfigurationRegistryImpl.prototype.getIndentForEnter = function (autoIndent, model, range, indentConverter) {
+    }
+    getIndentForEnter(autoIndent, model, range, indentConverter) {
         if (autoIndent < 4 /* Full */) {
             return null;
         }
         model.forceTokenization(range.startLineNumber);
-        var lineTokens = model.getLineTokens(range.startLineNumber);
-        var scopedLineTokens = createScopedLineTokens(lineTokens, range.startColumn - 1);
-        var scopedLineText = scopedLineTokens.getLineContent();
-        var embeddedLanguage = false;
-        var beforeEnterText;
+        const lineTokens = model.getLineTokens(range.startLineNumber);
+        const scopedLineTokens = createScopedLineTokens(lineTokens, range.startColumn - 1);
+        const scopedLineText = scopedLineTokens.getLineContent();
+        let embeddedLanguage = false;
+        let beforeEnterText;
         if (scopedLineTokens.firstCharOffset > 0 && lineTokens.getLanguageId(0) !== scopedLineTokens.languageId) {
             // we are in the embeded language content
             embeddedLanguage = true; // if embeddedLanguage is true, then we don't touch the indentation of current line
@@ -449,31 +473,31 @@ var LanguageConfigurationRegistryImpl = /** @class */ (function () {
         else {
             beforeEnterText = lineTokens.getLineContent().substring(0, range.startColumn - 1);
         }
-        var afterEnterText;
+        let afterEnterText;
         if (range.isEmpty()) {
             afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
         }
         else {
-            var endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
+            const endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
             afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
         }
-        var indentRulesSupport = this.getIndentRulesSupport(scopedLineTokens.languageId);
+        const indentRulesSupport = this.getIndentRulesSupport(scopedLineTokens.languageId);
         if (!indentRulesSupport) {
             return null;
         }
-        var beforeEnterResult = beforeEnterText;
-        var beforeEnterIndent = strings.getLeadingWhitespace(beforeEnterText);
-        var virtualModel = {
-            getLineTokens: function (lineNumber) {
+        const beforeEnterResult = beforeEnterText;
+        const beforeEnterIndent = strings.getLeadingWhitespace(beforeEnterText);
+        const virtualModel = {
+            getLineTokens: (lineNumber) => {
                 return model.getLineTokens(lineNumber);
             },
-            getLanguageIdentifier: function () {
-                return model.getLanguageIdentifier();
+            getLanguageId: () => {
+                return model.getLanguageId();
             },
-            getLanguageIdAtPosition: function (lineNumber, column) {
+            getLanguageIdAtPosition: (lineNumber, column) => {
                 return model.getLanguageIdAtPosition(lineNumber, column);
             },
-            getLineContent: function (lineNumber) {
+            getLineContent: (lineNumber) => {
                 if (lineNumber === range.startLineNumber) {
                     return beforeEnterResult;
                 }
@@ -482,16 +506,16 @@ var LanguageConfigurationRegistryImpl = /** @class */ (function () {
                 }
             }
         };
-        var currentLineIndent = strings.getLeadingWhitespace(lineTokens.getLineContent());
-        var afterEnterAction = this.getInheritIndentForLine(autoIndent, virtualModel, range.startLineNumber + 1);
+        const currentLineIndent = strings.getLeadingWhitespace(lineTokens.getLineContent());
+        const afterEnterAction = this.getInheritIndentForLine(autoIndent, virtualModel, range.startLineNumber + 1);
         if (!afterEnterAction) {
-            var beforeEnter = embeddedLanguage ? currentLineIndent : beforeEnterIndent;
+            const beforeEnter = embeddedLanguage ? currentLineIndent : beforeEnterIndent;
             return {
                 beforeEnter: beforeEnter,
                 afterEnter: beforeEnter
             };
         }
-        var afterEnterIndent = embeddedLanguage ? currentLineIndent : afterEnterAction.indentation;
+        let afterEnterIndent = embeddedLanguage ? currentLineIndent : afterEnterAction.indentation;
         if (afterEnterAction.action === IndentAction.Indent) {
             afterEnterIndent = indentConverter.shiftIndent(afterEnterIndent);
         }
@@ -502,29 +526,33 @@ var LanguageConfigurationRegistryImpl = /** @class */ (function () {
             beforeEnter: embeddedLanguage ? currentLineIndent : beforeEnterIndent,
             afterEnter: afterEnterIndent
         };
-    };
+    }
     /**
      * We should always allow intentional indentation. It means, if users change the indentation of `lineNumber` and the content of
      * this line doesn't match decreaseIndentPattern, we should not adjust the indentation.
      */
-    LanguageConfigurationRegistryImpl.prototype.getIndentActionForType = function (autoIndent, model, range, ch, indentConverter) {
+    getIndentActionForType(autoIndent, model, range, ch, indentConverter) {
         if (autoIndent < 4 /* Full */) {
             return null;
         }
-        var scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
-        var indentRulesSupport = this.getIndentRulesSupport(scopedLineTokens.languageId);
+        const scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
+        if (scopedLineTokens.firstCharOffset) {
+            // this line has mixed languages and indentation rules will not work
+            return null;
+        }
+        const indentRulesSupport = this.getIndentRulesSupport(scopedLineTokens.languageId);
         if (!indentRulesSupport) {
             return null;
         }
-        var scopedLineText = scopedLineTokens.getLineContent();
-        var beforeTypeText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+        const scopedLineText = scopedLineTokens.getLineContent();
+        const beforeTypeText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
         // selection support
-        var afterTypeText;
+        let afterTypeText;
         if (range.isEmpty()) {
             afterTypeText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
         }
         else {
-            var endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
+            const endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
             afterTypeText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
         }
         // If previous content already matches decreaseIndentPattern, it means indentation of this line should already be adjusted
@@ -532,20 +560,20 @@ var LanguageConfigurationRegistryImpl = /** @class */ (function () {
         if (!indentRulesSupport.shouldDecrease(beforeTypeText + afterTypeText) && indentRulesSupport.shouldDecrease(beforeTypeText + ch + afterTypeText)) {
             // after typing `ch`, the content matches decreaseIndentPattern, we should adjust the indent to a good manner.
             // 1. Get inherited indent action
-            var r = this.getInheritIndentForLine(autoIndent, model, range.startLineNumber, false);
+            const r = this.getInheritIndentForLine(autoIndent, model, range.startLineNumber, false);
             if (!r) {
                 return null;
             }
-            var indentation = r.indentation;
+            let indentation = r.indentation;
             if (r.action !== IndentAction.Indent) {
                 indentation = indentConverter.unshiftIndent(indentation);
             }
             return indentation;
         }
         return null;
-    };
-    LanguageConfigurationRegistryImpl.prototype.getIndentMetadata = function (model, lineNumber) {
-        var indentRulesSupport = this.getIndentRulesSupport(model.getLanguageIdentifier().id);
+    }
+    getIndentMetadata(model, lineNumber) {
+        const indentRulesSupport = this.getIndentRulesSupport(model.getLanguageId());
         if (!indentRulesSupport) {
             return null;
         }
@@ -553,42 +581,42 @@ var LanguageConfigurationRegistryImpl = /** @class */ (function () {
             return null;
         }
         return indentRulesSupport.getIndentMetadata(model.getLineContent(lineNumber));
-    };
+    }
     // end Indent Rules
     // begin onEnter
-    LanguageConfigurationRegistryImpl.prototype.getEnterAction = function (autoIndent, model, range) {
-        var scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
-        var richEditSupport = this._getRichEditSupport(scopedLineTokens.languageId);
+    getEnterAction(autoIndent, model, range) {
+        const scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
+        const richEditSupport = this.getLanguageConfiguration(scopedLineTokens.languageId);
         if (!richEditSupport) {
             return null;
         }
-        var scopedLineText = scopedLineTokens.getLineContent();
-        var beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+        const scopedLineText = scopedLineTokens.getLineContent();
+        const beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
         // selection support
-        var afterEnterText;
+        let afterEnterText;
         if (range.isEmpty()) {
             afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
         }
         else {
-            var endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
+            const endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
             afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
         }
-        var oneLineAboveText = '';
+        let previousLineText = '';
         if (range.startLineNumber > 1 && scopedLineTokens.firstCharOffset === 0) {
             // This is not the first line and the entire line belongs to this mode
-            var oneLineAboveScopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber - 1);
+            const oneLineAboveScopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber - 1);
             if (oneLineAboveScopedLineTokens.languageId === scopedLineTokens.languageId) {
                 // The line above ends with text belonging to the same mode
-                oneLineAboveText = oneLineAboveScopedLineTokens.getLineContent();
+                previousLineText = oneLineAboveScopedLineTokens.getLineContent();
             }
         }
-        var enterResult = richEditSupport.onEnter(autoIndent, oneLineAboveText, beforeEnterText, afterEnterText);
+        const enterResult = richEditSupport.onEnter(autoIndent, previousLineText, beforeEnterText, afterEnterText);
         if (!enterResult) {
             return null;
         }
-        var indentAction = enterResult.indentAction;
-        var appendText = enterResult.appendText;
-        var removeText = enterResult.removeText || 0;
+        const indentAction = enterResult.indentAction;
+        let appendText = enterResult.appendText;
+        const removeText = enterResult.removeText || 0;
         // Here we add `\t` to appendText first because enterAction is leveraging appendText and removeText to change indentation.
         if (!appendText) {
             if ((indentAction === IndentAction.Indent) ||
@@ -599,7 +627,10 @@ var LanguageConfigurationRegistryImpl = /** @class */ (function () {
                 appendText = '';
             }
         }
-        var indentation = this.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
+        else if (indentAction === IndentAction.Indent) {
+            appendText = '\t' + appendText;
+        }
+        let indentation = this.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
         if (removeText) {
             indentation = indentation.substring(0, indentation.length - removeText);
         }
@@ -609,30 +640,172 @@ var LanguageConfigurationRegistryImpl = /** @class */ (function () {
             removeText: removeText,
             indentation: indentation
         };
-    };
-    LanguageConfigurationRegistryImpl.prototype.getIndentationAtPosition = function (model, lineNumber, column) {
-        var lineText = model.getLineContent(lineNumber);
-        var indentation = strings.getLeadingWhitespace(lineText);
+    }
+    getIndentationAtPosition(model, lineNumber, column) {
+        const lineText = model.getLineContent(lineNumber);
+        let indentation = strings.getLeadingWhitespace(lineText);
         if (indentation.length > column - 1) {
             indentation = indentation.substring(0, column - 1);
         }
         return indentation;
-    };
-    LanguageConfigurationRegistryImpl.prototype.getScopedLineTokens = function (model, lineNumber, columnNumber) {
+    }
+    getScopedLineTokens(model, lineNumber, columnNumber) {
         model.forceTokenization(lineNumber);
-        var lineTokens = model.getLineTokens(lineNumber);
-        var column = (typeof columnNumber === 'undefined' ? model.getLineMaxColumn(lineNumber) - 1 : columnNumber - 1);
+        const lineTokens = model.getLineTokens(lineNumber);
+        const column = (typeof columnNumber === 'undefined' ? model.getLineMaxColumn(lineNumber) - 1 : columnNumber - 1);
         return createScopedLineTokens(lineTokens, column);
-    };
-    // end onEnter
-    LanguageConfigurationRegistryImpl.prototype.getBracketsSupport = function (languageId) {
-        var value = this._getRichEditSupport(languageId);
-        if (!value) {
+    }
+}
+export const LanguageConfigurationRegistry = new LanguageConfigurationRegistryImpl();
+class ComposedLanguageConfiguration {
+    constructor(languageId) {
+        this.languageId = languageId;
+        this._resolved = null;
+        this._entries = [];
+        this._order = 0;
+        this._resolved = null;
+    }
+    register(configuration, priority) {
+        const entry = new LanguageConfigurationContribution(configuration, priority, ++this._order);
+        this._entries.push(entry);
+        this._resolved = null;
+        return toDisposable(() => {
+            for (let i = 0; i < this._entries.length; i++) {
+                if (this._entries[i] === entry) {
+                    this._entries.splice(i, 1);
+                    this._resolved = null;
+                    break;
+                }
+            }
+        });
+    }
+    getResolvedConfiguration() {
+        if (!this._resolved) {
+            const config = this._resolve();
+            if (config) {
+                this._resolved = new ResolvedLanguageConfiguration(this.languageId, config);
+            }
+        }
+        return this._resolved;
+    }
+    _resolve() {
+        if (this._entries.length === 0) {
             return null;
         }
-        return value.brackets || null;
+        this._entries.sort(LanguageConfigurationContribution.cmp);
+        return combineLanguageConfigurations(this._entries.map(e => e.configuration));
+    }
+}
+function combineLanguageConfigurations(configs) {
+    let result = {
+        comments: undefined,
+        brackets: undefined,
+        wordPattern: undefined,
+        indentationRules: undefined,
+        onEnterRules: undefined,
+        autoClosingPairs: undefined,
+        surroundingPairs: undefined,
+        autoCloseBefore: undefined,
+        folding: undefined,
+        colorizedBracketPairs: undefined,
+        __electricCharacterSupport: undefined,
     };
-    return LanguageConfigurationRegistryImpl;
-}());
-export { LanguageConfigurationRegistryImpl };
-export var LanguageConfigurationRegistry = new LanguageConfigurationRegistryImpl();
+    for (const entry of configs) {
+        result = {
+            comments: entry.comments || result.comments,
+            brackets: entry.brackets || result.brackets,
+            wordPattern: entry.wordPattern || result.wordPattern,
+            indentationRules: entry.indentationRules || result.indentationRules,
+            onEnterRules: entry.onEnterRules || result.onEnterRules,
+            autoClosingPairs: entry.autoClosingPairs || result.autoClosingPairs,
+            surroundingPairs: entry.surroundingPairs || result.surroundingPairs,
+            autoCloseBefore: entry.autoCloseBefore || result.autoCloseBefore,
+            folding: entry.folding || result.folding,
+            colorizedBracketPairs: entry.colorizedBracketPairs || result.colorizedBracketPairs,
+            __electricCharacterSupport: entry.__electricCharacterSupport || result.__electricCharacterSupport,
+        };
+    }
+    return result;
+}
+class LanguageConfigurationContribution {
+    constructor(configuration, priority, order) {
+        this.configuration = configuration;
+        this.priority = priority;
+        this.order = order;
+    }
+    static cmp(a, b) {
+        if (a.priority === b.priority) {
+            // higher order last
+            return a.order - b.order;
+        }
+        // higher priority last
+        return a.priority - b.priority;
+    }
+}
+/**
+ * Immutable.
+*/
+export class ResolvedLanguageConfiguration {
+    constructor(languageId, underlyingConfig) {
+        this.languageId = languageId;
+        this.underlyingConfig = underlyingConfig;
+        this._brackets = null;
+        this._electricCharacter = null;
+        this._onEnterSupport =
+            this.underlyingConfig.brackets ||
+                this.underlyingConfig.indentationRules ||
+                this.underlyingConfig.onEnterRules
+                ? new OnEnterSupport(this.underlyingConfig)
+                : null;
+        this.comments = ResolvedLanguageConfiguration._handleComments(this.underlyingConfig);
+        this.characterPair = new CharacterPairSupport(this.underlyingConfig);
+        this.wordDefinition = this.underlyingConfig.wordPattern || DEFAULT_WORD_REGEXP;
+        this.indentationRules = this.underlyingConfig.indentationRules;
+        if (this.underlyingConfig.indentationRules) {
+            this.indentRulesSupport = new IndentRulesSupport(this.underlyingConfig.indentationRules);
+        }
+        else {
+            this.indentRulesSupport = null;
+        }
+        this.foldingRules = this.underlyingConfig.folding || {};
+    }
+    getWordDefinition() {
+        return ensureValidWordDefinition(this.wordDefinition);
+    }
+    get brackets() {
+        if (!this._brackets && this.underlyingConfig.brackets) {
+            this._brackets = new RichEditBrackets(this.languageId, this.underlyingConfig.brackets);
+        }
+        return this._brackets;
+    }
+    get electricCharacter() {
+        if (!this._electricCharacter) {
+            this._electricCharacter = new BracketElectricCharacterSupport(this.brackets);
+        }
+        return this._electricCharacter;
+    }
+    onEnter(autoIndent, previousLineText, beforeEnterText, afterEnterText) {
+        if (!this._onEnterSupport) {
+            return null;
+        }
+        return this._onEnterSupport.onEnter(autoIndent, previousLineText, beforeEnterText, afterEnterText);
+    }
+    static _handleComments(conf) {
+        let commentRule = conf.comments;
+        if (!commentRule) {
+            return null;
+        }
+        // comment configuration
+        let comments = {};
+        if (commentRule.lineComment) {
+            comments.lineCommentToken = commentRule.lineComment;
+        }
+        if (commentRule.blockComment) {
+            let [blockStart, blockEnd] = commentRule.blockComment;
+            comments.blockCommentStartToken = blockStart;
+            comments.blockCommentEndToken = blockEnd;
+        }
+        return comments;
+    }
+}
+registerSingleton(ILanguageConfigurationService, LanguageConfigurationService);

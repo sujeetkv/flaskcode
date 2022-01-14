@@ -2,92 +2,87 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 import { StandardWheelEvent } from '../../mouseEvent.js';
 import { AbstractScrollbar } from './abstractScrollbar.js';
 import { ARROW_IMG_SIZE } from './scrollbarArrow.js';
 import { ScrollbarState } from './scrollbarState.js';
-var HorizontalScrollbar = /** @class */ (function (_super) {
-    __extends(HorizontalScrollbar, _super);
-    function HorizontalScrollbar(scrollable, options, host) {
-        var _this = this;
-        var scrollDimensions = scrollable.getScrollDimensions();
-        var scrollPosition = scrollable.getCurrentScrollPosition();
-        _this = _super.call(this, {
+import { Codicon } from '../../../common/codicons.js';
+export class HorizontalScrollbar extends AbstractScrollbar {
+    constructor(scrollable, options, host) {
+        const scrollDimensions = scrollable.getScrollDimensions();
+        const scrollPosition = scrollable.getCurrentScrollPosition();
+        super({
             lazyRender: options.lazyRender,
             host: host,
             scrollbarState: new ScrollbarState((options.horizontalHasArrows ? options.arrowSize : 0), (options.horizontal === 2 /* Hidden */ ? 0 : options.horizontalScrollbarSize), (options.vertical === 2 /* Hidden */ ? 0 : options.verticalScrollbarSize), scrollDimensions.width, scrollDimensions.scrollWidth, scrollPosition.scrollLeft),
             visibility: options.horizontal,
             extraScrollbarClassName: 'horizontal',
-            scrollable: scrollable
-        }) || this;
+            scrollable: scrollable,
+            scrollByPage: options.scrollByPage
+        });
         if (options.horizontalHasArrows) {
-            var arrowDelta = (options.arrowSize - ARROW_IMG_SIZE) / 2;
-            var scrollbarDelta = (options.horizontalScrollbarSize - ARROW_IMG_SIZE) / 2;
-            _this._createArrow({
-                className: 'left-arrow',
+            const arrowDelta = (options.arrowSize - ARROW_IMG_SIZE) / 2;
+            const scrollbarDelta = (options.horizontalScrollbarSize - ARROW_IMG_SIZE) / 2;
+            this._createArrow({
+                className: 'scra',
+                icon: Codicon.scrollbarButtonLeft,
                 top: scrollbarDelta,
                 left: arrowDelta,
                 bottom: undefined,
                 right: undefined,
                 bgWidth: options.arrowSize,
                 bgHeight: options.horizontalScrollbarSize,
-                onActivate: function () { return _this._host.onMouseWheel(new StandardWheelEvent(null, 1, 0)); },
+                onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 1, 0)),
             });
-            _this._createArrow({
-                className: 'right-arrow',
+            this._createArrow({
+                className: 'scra',
+                icon: Codicon.scrollbarButtonRight,
                 top: scrollbarDelta,
                 left: undefined,
                 bottom: undefined,
                 right: arrowDelta,
                 bgWidth: options.arrowSize,
                 bgHeight: options.horizontalScrollbarSize,
-                onActivate: function () { return _this._host.onMouseWheel(new StandardWheelEvent(null, -1, 0)); },
+                onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, -1, 0)),
             });
         }
-        _this._createSlider(Math.floor((options.horizontalScrollbarSize - options.horizontalSliderSize) / 2), 0, undefined, options.horizontalSliderSize);
-        return _this;
+        this._createSlider(Math.floor((options.horizontalScrollbarSize - options.horizontalSliderSize) / 2), 0, undefined, options.horizontalSliderSize);
     }
-    HorizontalScrollbar.prototype._updateSlider = function (sliderSize, sliderPosition) {
+    _updateSlider(sliderSize, sliderPosition) {
         this.slider.setWidth(sliderSize);
         this.slider.setLeft(sliderPosition);
-    };
-    HorizontalScrollbar.prototype._renderDomNode = function (largeSize, smallSize) {
+    }
+    _renderDomNode(largeSize, smallSize) {
         this.domNode.setWidth(largeSize);
         this.domNode.setHeight(smallSize);
         this.domNode.setLeft(0);
         this.domNode.setBottom(0);
-    };
-    HorizontalScrollbar.prototype.onDidScroll = function (e) {
+    }
+    onDidScroll(e) {
         this._shouldRender = this._onElementScrollSize(e.scrollWidth) || this._shouldRender;
         this._shouldRender = this._onElementScrollPosition(e.scrollLeft) || this._shouldRender;
         this._shouldRender = this._onElementSize(e.width) || this._shouldRender;
         return this._shouldRender;
-    };
-    HorizontalScrollbar.prototype._mouseDownRelativePosition = function (offsetX, offsetY) {
+    }
+    _mouseDownRelativePosition(offsetX, offsetY) {
         return offsetX;
-    };
-    HorizontalScrollbar.prototype._sliderMousePosition = function (e) {
+    }
+    _sliderMousePosition(e) {
         return e.posx;
-    };
-    HorizontalScrollbar.prototype._sliderOrthogonalMousePosition = function (e) {
+    }
+    _sliderOrthogonalMousePosition(e) {
         return e.posy;
-    };
-    HorizontalScrollbar.prototype.writeScrollPosition = function (target, scrollPosition) {
+    }
+    _updateScrollbarSize(size) {
+        this.slider.setHeight(size);
+    }
+    writeScrollPosition(target, scrollPosition) {
         target.scrollLeft = scrollPosition;
-    };
-    return HorizontalScrollbar;
-}(AbstractScrollbar));
-export { HorizontalScrollbar };
+    }
+    updateOptions(options) {
+        this.updateScrollbarSize(options.horizontal === 2 /* Hidden */ ? 0 : options.horizontalScrollbarSize);
+        this._scrollbarState.setOppositeScrollbarSize(options.vertical === 2 /* Hidden */ ? 0 : options.verticalScrollbarSize);
+        this._visibilityController.setVisibility(options.horizontal);
+        this._scrollByPage = options.scrollByPage;
+    }
+}

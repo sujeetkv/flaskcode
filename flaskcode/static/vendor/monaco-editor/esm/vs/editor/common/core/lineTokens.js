@@ -3,104 +3,114 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { TokenMetadata } from '../modes.js';
-var LineTokens = /** @class */ (function () {
-    function LineTokens(tokens, text) {
+export class LineTokens {
+    constructor(tokens, text, decoder) {
+        this._lineTokensBrand = undefined;
         this._tokens = tokens;
         this._tokensCount = (this._tokens.length >>> 1);
         this._text = text;
+        this._languageIdCodec = decoder;
     }
-    LineTokens.prototype.equals = function (other) {
+    static createEmpty(lineContent, decoder) {
+        const defaultMetadata = LineTokens.defaultTokenMetadata;
+        const tokens = new Uint32Array(2);
+        tokens[0] = lineContent.length;
+        tokens[1] = defaultMetadata;
+        return new LineTokens(tokens, lineContent, decoder);
+    }
+    equals(other) {
         if (other instanceof LineTokens) {
             return this.slicedEquals(other, 0, this._tokensCount);
         }
         return false;
-    };
-    LineTokens.prototype.slicedEquals = function (other, sliceFromTokenIndex, sliceTokenCount) {
+    }
+    slicedEquals(other, sliceFromTokenIndex, sliceTokenCount) {
         if (this._text !== other._text) {
             return false;
         }
         if (this._tokensCount !== other._tokensCount) {
             return false;
         }
-        var from = (sliceFromTokenIndex << 1);
-        var to = from + (sliceTokenCount << 1);
-        for (var i = from; i < to; i++) {
+        const from = (sliceFromTokenIndex << 1);
+        const to = from + (sliceTokenCount << 1);
+        for (let i = from; i < to; i++) {
             if (this._tokens[i] !== other._tokens[i]) {
                 return false;
             }
         }
         return true;
-    };
-    LineTokens.prototype.getLineContent = function () {
+    }
+    getLineContent() {
         return this._text;
-    };
-    LineTokens.prototype.getCount = function () {
+    }
+    getCount() {
         return this._tokensCount;
-    };
-    LineTokens.prototype.getStartOffset = function (tokenIndex) {
+    }
+    getStartOffset(tokenIndex) {
         if (tokenIndex > 0) {
             return this._tokens[(tokenIndex - 1) << 1];
         }
         return 0;
-    };
-    LineTokens.prototype.getMetadata = function (tokenIndex) {
-        var metadata = this._tokens[(tokenIndex << 1) + 1];
+    }
+    getMetadata(tokenIndex) {
+        const metadata = this._tokens[(tokenIndex << 1) + 1];
         return metadata;
-    };
-    LineTokens.prototype.getLanguageId = function (tokenIndex) {
-        var metadata = this._tokens[(tokenIndex << 1) + 1];
-        return TokenMetadata.getLanguageId(metadata);
-    };
-    LineTokens.prototype.getStandardTokenType = function (tokenIndex) {
-        var metadata = this._tokens[(tokenIndex << 1) + 1];
+    }
+    getLanguageId(tokenIndex) {
+        const metadata = this._tokens[(tokenIndex << 1) + 1];
+        const languageId = TokenMetadata.getLanguageId(metadata);
+        return this._languageIdCodec.decodeLanguageId(languageId);
+    }
+    getStandardTokenType(tokenIndex) {
+        const metadata = this._tokens[(tokenIndex << 1) + 1];
         return TokenMetadata.getTokenType(metadata);
-    };
-    LineTokens.prototype.getForeground = function (tokenIndex) {
-        var metadata = this._tokens[(tokenIndex << 1) + 1];
+    }
+    getForeground(tokenIndex) {
+        const metadata = this._tokens[(tokenIndex << 1) + 1];
         return TokenMetadata.getForeground(metadata);
-    };
-    LineTokens.prototype.getClassName = function (tokenIndex) {
-        var metadata = this._tokens[(tokenIndex << 1) + 1];
+    }
+    getClassName(tokenIndex) {
+        const metadata = this._tokens[(tokenIndex << 1) + 1];
         return TokenMetadata.getClassNameFromMetadata(metadata);
-    };
-    LineTokens.prototype.getInlineStyle = function (tokenIndex, colorMap) {
-        var metadata = this._tokens[(tokenIndex << 1) + 1];
+    }
+    getInlineStyle(tokenIndex, colorMap) {
+        const metadata = this._tokens[(tokenIndex << 1) + 1];
         return TokenMetadata.getInlineStyleFromMetadata(metadata, colorMap);
-    };
-    LineTokens.prototype.getEndOffset = function (tokenIndex) {
+    }
+    getEndOffset(tokenIndex) {
         return this._tokens[tokenIndex << 1];
-    };
+    }
     /**
      * Find the token containing offset `offset`.
      * @param offset The search offset
      * @return The index of the token containing the offset.
      */
-    LineTokens.prototype.findTokenIndexAtOffset = function (offset) {
+    findTokenIndexAtOffset(offset) {
         return LineTokens.findIndexInTokensArray(this._tokens, offset);
-    };
-    LineTokens.prototype.inflate = function () {
+    }
+    inflate() {
         return this;
-    };
-    LineTokens.prototype.sliceAndInflate = function (startOffset, endOffset, deltaOffset) {
+    }
+    sliceAndInflate(startOffset, endOffset, deltaOffset) {
         return new SlicedLineTokens(this, startOffset, endOffset, deltaOffset);
-    };
-    LineTokens.convertToEndOffset = function (tokens, lineTextLength) {
-        var tokenCount = (tokens.length >>> 1);
-        var lastTokenIndex = tokenCount - 1;
-        for (var tokenIndex = 0; tokenIndex < lastTokenIndex; tokenIndex++) {
+    }
+    static convertToEndOffset(tokens, lineTextLength) {
+        const tokenCount = (tokens.length >>> 1);
+        const lastTokenIndex = tokenCount - 1;
+        for (let tokenIndex = 0; tokenIndex < lastTokenIndex; tokenIndex++) {
             tokens[tokenIndex << 1] = tokens[(tokenIndex + 1) << 1];
         }
         tokens[lastTokenIndex << 1] = lineTextLength;
-    };
-    LineTokens.findIndexInTokensArray = function (tokens, desiredIndex) {
+    }
+    static findIndexInTokensArray(tokens, desiredIndex) {
         if (tokens.length <= 2) {
             return 0;
         }
-        var low = 0;
-        var high = (tokens.length >>> 1) - 1;
+        let low = 0;
+        let high = (tokens.length >>> 1) - 1;
         while (low < high) {
-            var mid = low + Math.floor((high - low) / 2);
-            var endOffset = tokens[(mid << 1)];
+            const mid = low + Math.floor((high - low) / 2);
+            const endOffset = tokens[(mid << 1)];
             if (endOffset === desiredIndex) {
                 return mid + 1;
             }
@@ -112,27 +122,73 @@ var LineTokens = /** @class */ (function () {
             }
         }
         return low;
-    };
-    return LineTokens;
-}());
-export { LineTokens };
-var SlicedLineTokens = /** @class */ (function () {
-    function SlicedLineTokens(source, startOffset, endOffset, deltaOffset) {
+    }
+    /**
+     * @pure
+     * @param insertTokens Must be sorted by offset.
+    */
+    withInserted(insertTokens) {
+        if (insertTokens.length === 0) {
+            return this;
+        }
+        let nextOriginalTokenIdx = 0;
+        let nextInsertTokenIdx = 0;
+        let text = '';
+        const newTokens = new Array();
+        let originalEndOffset = 0;
+        while (true) {
+            let nextOriginalTokenEndOffset = nextOriginalTokenIdx < this._tokensCount ? this._tokens[nextOriginalTokenIdx << 1] : -1;
+            let nextInsertToken = nextInsertTokenIdx < insertTokens.length ? insertTokens[nextInsertTokenIdx] : null;
+            if (nextOriginalTokenEndOffset !== -1 && (nextInsertToken === null || nextOriginalTokenEndOffset <= nextInsertToken.offset)) {
+                // original token ends before next insert token
+                text += this._text.substring(originalEndOffset, nextOriginalTokenEndOffset);
+                const metadata = this._tokens[(nextOriginalTokenIdx << 1) + 1];
+                newTokens.push(text.length, metadata);
+                nextOriginalTokenIdx++;
+                originalEndOffset = nextOriginalTokenEndOffset;
+            }
+            else if (nextInsertToken) {
+                if (nextInsertToken.offset > originalEndOffset) {
+                    // insert token is in the middle of the next token.
+                    text += this._text.substring(originalEndOffset, nextInsertToken.offset);
+                    const metadata = this._tokens[(nextOriginalTokenIdx << 1) + 1];
+                    newTokens.push(text.length, metadata);
+                    originalEndOffset = nextInsertToken.offset;
+                }
+                text += nextInsertToken.text;
+                newTokens.push(text.length, nextInsertToken.tokenMetadata);
+                nextInsertTokenIdx++;
+            }
+            else {
+                break;
+            }
+        }
+        return new LineTokens(new Uint32Array(newTokens), text, this._languageIdCodec);
+    }
+}
+LineTokens.defaultTokenMetadata = ((0 /* None */ << 11 /* FONT_STYLE_OFFSET */)
+    | (1 /* DefaultForeground */ << 14 /* FOREGROUND_OFFSET */)
+    | (2 /* DefaultBackground */ << 23 /* BACKGROUND_OFFSET */)) >>> 0;
+export class SlicedLineTokens {
+    constructor(source, startOffset, endOffset, deltaOffset) {
         this._source = source;
         this._startOffset = startOffset;
         this._endOffset = endOffset;
         this._deltaOffset = deltaOffset;
         this._firstTokenIndex = source.findTokenIndexAtOffset(startOffset);
         this._tokensCount = 0;
-        for (var i = this._firstTokenIndex, len = source.getCount(); i < len; i++) {
-            var tokenStartOffset = source.getStartOffset(i);
+        for (let i = this._firstTokenIndex, len = source.getCount(); i < len; i++) {
+            const tokenStartOffset = source.getStartOffset(i);
             if (tokenStartOffset >= endOffset) {
                 break;
             }
             this._tokensCount++;
         }
     }
-    SlicedLineTokens.prototype.equals = function (other) {
+    getLineContent() {
+        return this._source.getLineContent().substring(this._startOffset, this._endOffset);
+    }
+    equals(other) {
         if (other instanceof SlicedLineTokens) {
             return (this._startOffset === other._startOffset
                 && this._endOffset === other._endOffset
@@ -140,26 +196,24 @@ var SlicedLineTokens = /** @class */ (function () {
                 && this._source.slicedEquals(other._source, this._firstTokenIndex, this._tokensCount));
         }
         return false;
-    };
-    SlicedLineTokens.prototype.getCount = function () {
+    }
+    getCount() {
         return this._tokensCount;
-    };
-    SlicedLineTokens.prototype.getForeground = function (tokenIndex) {
+    }
+    getForeground(tokenIndex) {
         return this._source.getForeground(this._firstTokenIndex + tokenIndex);
-    };
-    SlicedLineTokens.prototype.getEndOffset = function (tokenIndex) {
-        var tokenEndOffset = this._source.getEndOffset(this._firstTokenIndex + tokenIndex);
+    }
+    getEndOffset(tokenIndex) {
+        const tokenEndOffset = this._source.getEndOffset(this._firstTokenIndex + tokenIndex);
         return Math.min(this._endOffset, tokenEndOffset) - this._startOffset + this._deltaOffset;
-    };
-    SlicedLineTokens.prototype.getClassName = function (tokenIndex) {
+    }
+    getClassName(tokenIndex) {
         return this._source.getClassName(this._firstTokenIndex + tokenIndex);
-    };
-    SlicedLineTokens.prototype.getInlineStyle = function (tokenIndex, colorMap) {
+    }
+    getInlineStyle(tokenIndex, colorMap) {
         return this._source.getInlineStyle(this._firstTokenIndex + tokenIndex, colorMap);
-    };
-    SlicedLineTokens.prototype.findTokenIndexAtOffset = function (offset) {
+    }
+    findTokenIndexAtOffset(offset) {
         return this._source.findTokenIndexAtOffset(offset + this._startOffset - this._deltaOffset) - this._firstTokenIndex;
-    };
-    return SlicedLineTokens;
-}());
-export { SlicedLineTokens };
+    }
+}

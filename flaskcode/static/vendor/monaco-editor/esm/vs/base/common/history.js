@@ -2,68 +2,72 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { ArrayNavigator } from './iterator.js';
-var HistoryNavigator = /** @class */ (function () {
-    function HistoryNavigator(history, limit) {
-        if (history === void 0) { history = []; }
-        if (limit === void 0) { limit = 10; }
+import { ArrayNavigator } from './navigator.js';
+export class HistoryNavigator {
+    constructor(history = [], limit = 10) {
         this._initialize(history);
         this._limit = limit;
         this._onChange();
     }
-    HistoryNavigator.prototype.add = function (t) {
+    getHistory() {
+        return this._elements;
+    }
+    add(t) {
         this._history.delete(t);
         this._history.add(t);
         this._onChange();
-    };
-    HistoryNavigator.prototype.next = function () {
-        return this._navigator.next();
-    };
-    HistoryNavigator.prototype.previous = function () {
-        return this._navigator.previous();
-    };
-    HistoryNavigator.prototype.current = function () {
-        return this._navigator.current();
-    };
-    HistoryNavigator.prototype.parent = function () {
+    }
+    next() {
+        if (this._currentPosition() !== this._elements.length - 1) {
+            return this._navigator.next();
+        }
         return null;
-    };
-    HistoryNavigator.prototype.first = function () {
+    }
+    previous() {
+        if (this._currentPosition() !== 0) {
+            return this._navigator.previous();
+        }
+        return null;
+    }
+    current() {
+        return this._navigator.current();
+    }
+    first() {
         return this._navigator.first();
-    };
-    HistoryNavigator.prototype.last = function () {
+    }
+    last() {
         return this._navigator.last();
-    };
-    HistoryNavigator.prototype.has = function (t) {
+    }
+    has(t) {
         return this._history.has(t);
-    };
-    HistoryNavigator.prototype._onChange = function () {
+    }
+    _onChange() {
         this._reduceToLimit();
-        var elements = this._elements;
+        const elements = this._elements;
         this._navigator = new ArrayNavigator(elements, 0, elements.length, elements.length);
-    };
-    HistoryNavigator.prototype._reduceToLimit = function () {
-        var data = this._elements;
+    }
+    _reduceToLimit() {
+        const data = this._elements;
         if (data.length > this._limit) {
             this._initialize(data.slice(data.length - this._limit));
         }
-    };
-    HistoryNavigator.prototype._initialize = function (history) {
+    }
+    _currentPosition() {
+        const currentElement = this._navigator.current();
+        if (!currentElement) {
+            return -1;
+        }
+        return this._elements.indexOf(currentElement);
+    }
+    _initialize(history) {
         this._history = new Set();
-        for (var _i = 0, history_1 = history; _i < history_1.length; _i++) {
-            var entry = history_1[_i];
+        for (const entry of history) {
             this._history.add(entry);
         }
-    };
-    Object.defineProperty(HistoryNavigator.prototype, "_elements", {
-        get: function () {
-            var elements = [];
-            this._history.forEach(function (e) { return elements.push(e); });
-            return elements;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    return HistoryNavigator;
-}());
-export { HistoryNavigator };
+    }
+    get _elements() {
+        const elements = [];
+        this._history.forEach(e => elements.push(e));
+        return elements;
+    }
+}

@@ -2,19 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -24,167 +11,206 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-var __spreadArrays = (this && this.__spreadArrays) || function () {
-    for (var s = 0, i = 0, il = arguments.length; i < il; i++) s += arguments[i].length;
-    for (var r = Array(s), k = 0, i = 0; i < il; i++)
-        for (var a = arguments[i], j = 0, jl = a.length; j < jl; j++, k++)
-            r[k] = a[j];
-    return r;
-};
-import { Action } from '../../../base/common/actions.js';
-import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { IContextKeyService } from '../../contextkey/common/contextkey.js';
-import { ICommandService } from '../../commands/common/commands.js';
+import { Separator, SubmenuAction } from '../../../base/common/actions.js';
+import { CSSIcon } from '../../../base/common/codicons.js';
 import { Emitter } from '../../../base/common/event.js';
+import { Iterable } from '../../../base/common/iterator.js';
+import { toDisposable } from '../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../base/common/linkedList.js';
+import { ICommandService } from '../../commands/common/commands.js';
+import { IContextKeyService } from '../../contextkey/common/contextkey.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ThemeIcon } from '../../theme/common/themeService.js';
 export function isIMenuItem(item) {
     return item.command !== undefined;
 }
-export var IMenuService = createDecorator('menuService');
-export var MenuRegistry = new /** @class */ (function () {
-    function class_1() {
+export class MenuId {
+    constructor(debugName) {
+        this.id = MenuId._idPool++;
+        this._debugName = debugName;
+    }
+}
+MenuId._idPool = 0;
+MenuId.CommandPalette = new MenuId('CommandPalette');
+MenuId.EditorContext = new MenuId('EditorContext');
+MenuId.SimpleEditorContext = new MenuId('SimpleEditorContext');
+MenuId.EditorContextCopy = new MenuId('EditorContextCopy');
+MenuId.EditorContextPeek = new MenuId('EditorContextPeek');
+MenuId.MenubarEditMenu = new MenuId('MenubarEditMenu');
+MenuId.MenubarCopy = new MenuId('MenubarCopy');
+MenuId.MenubarGoMenu = new MenuId('MenubarGoMenu');
+MenuId.MenubarSelectionMenu = new MenuId('MenubarSelectionMenu');
+MenuId.InlineCompletionsActions = new MenuId('InlineCompletionsActions');
+export const IMenuService = createDecorator('menuService');
+export const MenuRegistry = new class {
+    constructor() {
         this._commands = new Map();
         this._menuItems = new Map();
         this._onDidChangeMenu = new Emitter();
         this.onDidChangeMenu = this._onDidChangeMenu.event;
-    }
-    class_1.prototype.addCommand = function (command) {
-        var _this = this;
-        this._commands.set(command.id, command);
-        this._onDidChangeMenu.fire(0 /* CommandPalette */);
-        return {
-            dispose: function () {
-                if (_this._commands.delete(command.id)) {
-                    _this._onDidChangeMenu.fire(0 /* CommandPalette */);
-                }
-            }
+        this._commandPaletteChangeEvent = {
+            has: id => id === MenuId.CommandPalette
         };
-    };
-    class_1.prototype.getCommand = function (id) {
+    }
+    addCommand(command) {
+        return this.addCommands(Iterable.single(command));
+    }
+    addCommands(commands) {
+        for (const command of commands) {
+            this._commands.set(command.id, command);
+        }
+        this._onDidChangeMenu.fire(this._commandPaletteChangeEvent);
+        return toDisposable(() => {
+            let didChange = false;
+            for (const command of commands) {
+                didChange = this._commands.delete(command.id) || didChange;
+            }
+            if (didChange) {
+                this._onDidChangeMenu.fire(this._commandPaletteChangeEvent);
+            }
+        });
+    }
+    getCommand(id) {
         return this._commands.get(id);
-    };
-    class_1.prototype.getCommands = function () {
-        var map = new Map();
-        this._commands.forEach(function (value, key) { return map.set(key, value); });
+    }
+    getCommands() {
+        const map = new Map();
+        this._commands.forEach((value, key) => map.set(key, value));
         return map;
-    };
-    class_1.prototype.appendMenuItem = function (id, item) {
-        var _this = this;
-        var array = this._menuItems.get(id);
-        if (!array) {
-            array = [item];
-            this._menuItems.set(id, array);
+    }
+    appendMenuItem(id, item) {
+        return this.appendMenuItems(Iterable.single({ id, item }));
+    }
+    appendMenuItems(items) {
+        const changedIds = new Set();
+        const toRemove = new LinkedList();
+        for (const { id, item } of items) {
+            let list = this._menuItems.get(id);
+            if (!list) {
+                list = new LinkedList();
+                this._menuItems.set(id, list);
+            }
+            toRemove.push(list.push(item));
+            changedIds.add(id);
+        }
+        this._onDidChangeMenu.fire(changedIds);
+        return toDisposable(() => {
+            if (toRemove.size > 0) {
+                for (let fn of toRemove) {
+                    fn();
+                }
+                this._onDidChangeMenu.fire(changedIds);
+                toRemove.clear();
+            }
+        });
+    }
+    getMenuItems(id) {
+        let result;
+        if (this._menuItems.has(id)) {
+            result = [...this._menuItems.get(id)];
         }
         else {
-            array.push(item);
+            result = [];
         }
-        this._onDidChangeMenu.fire(id);
-        return {
-            dispose: function () {
-                var idx = array.indexOf(item);
-                if (idx >= 0) {
-                    array.splice(idx, 1);
-                    _this._onDidChangeMenu.fire(id);
-                }
-            }
-        };
-    };
-    class_1.prototype.getMenuItems = function (id) {
-        var result = (this._menuItems.get(id) || []).slice(0);
-        if (id === 0 /* CommandPalette */) {
+        if (id === MenuId.CommandPalette) {
             // CommandPalette is special because it shows
             // all commands by default
             this._appendImplicitItems(result);
         }
         return result;
-    };
-    class_1.prototype._appendImplicitItems = function (result) {
-        var set = new Set();
-        var temp = result.filter(function (item) { return isIMenuItem(item); });
-        for (var _i = 0, temp_1 = temp; _i < temp_1.length; _i++) {
-            var _a = temp_1[_i], command = _a.command, alt = _a.alt;
-            set.add(command.id);
-            if (alt) {
-                set.add(alt.id);
+    }
+    _appendImplicitItems(result) {
+        const set = new Set();
+        for (const item of result) {
+            if (isIMenuItem(item)) {
+                set.add(item.command.id);
+                if (item.alt) {
+                    set.add(item.alt.id);
+                }
             }
         }
-        this._commands.forEach(function (command, id) {
+        this._commands.forEach((command, id) => {
             if (!set.has(id)) {
-                result.push({ command: command });
+                result.push({ command });
             }
         });
-    };
-    return class_1;
-}());
-var ExecuteCommandAction = /** @class */ (function (_super) {
-    __extends(ExecuteCommandAction, _super);
-    function ExecuteCommandAction(id, label, _commandService) {
-        var _this = _super.call(this, id, label) || this;
-        _this._commandService = _commandService;
-        return _this;
     }
-    ExecuteCommandAction.prototype.run = function () {
-        var _a;
-        var args = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            args[_i] = arguments[_i];
-        }
-        return (_a = this._commandService).executeCommand.apply(_a, __spreadArrays([this.id], args));
-    };
-    ExecuteCommandAction = __decorate([
-        __param(2, ICommandService)
-    ], ExecuteCommandAction);
-    return ExecuteCommandAction;
-}(Action));
-export { ExecuteCommandAction };
-var SubmenuItemAction = /** @class */ (function (_super) {
-    __extends(SubmenuItemAction, _super);
-    function SubmenuItemAction(item) {
-        var _this = this;
-        typeof item.title === 'string' ? _this = _super.call(this, '', item.title, 'submenu') || this : _this = _super.call(this, '', item.title.value, 'submenu') || this;
-        _this.item = item;
-        return _this;
+};
+export class SubmenuItemAction extends SubmenuAction {
+    constructor(item, _menuService, _contextKeyService, _options) {
+        super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, [], 'submenu');
+        this.item = item;
+        this._menuService = _menuService;
+        this._contextKeyService = _contextKeyService;
+        this._options = _options;
     }
-    return SubmenuItemAction;
-}(Action));
-export { SubmenuItemAction };
-var MenuItemAction = /** @class */ (function (_super) {
-    __extends(MenuItemAction, _super);
-    function MenuItemAction(item, alt, options, contextKeyService, commandService) {
-        var _this = this;
-        typeof item.title === 'string' ? _this = _super.call(this, item.id, item.title, commandService) || this : _this = _super.call(this, item.id, item.title.value, commandService) || this;
-        _this._cssClass = undefined;
-        _this._enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
-        _this._checked = Boolean(item.toggled && contextKeyService.contextMatchesRules(item.toggled));
-        _this._options = options || {};
-        _this.item = item;
-        _this.alt = alt ? new MenuItemAction(alt, undefined, _this._options, contextKeyService, commandService) : undefined;
-        return _this;
+    get actions() {
+        const result = [];
+        const menu = this._menuService.createMenu(this.item.submenu, this._contextKeyService);
+        const groups = menu.getActions(this._options);
+        menu.dispose();
+        for (const [, actions] of groups) {
+            if (actions.length > 0) {
+                result.push(...actions);
+                result.push(new Separator());
+            }
+        }
+        if (result.length) {
+            result.pop(); // remove last separator
+        }
+        return result;
     }
-    MenuItemAction.prototype.dispose = function () {
-        if (this.alt) {
-            this.alt.dispose();
+}
+// implements IAction, does NOT extend Action, so that no one
+// subscribes to events of Action or modified properties
+let MenuItemAction = class MenuItemAction {
+    constructor(item, alt, options, contextKeyService, _commandService) {
+        var _a, _b;
+        this._commandService = _commandService;
+        this.id = item.id;
+        this.label = (options === null || options === void 0 ? void 0 : options.renderShortTitle) && item.shortTitle
+            ? (typeof item.shortTitle === 'string' ? item.shortTitle : item.shortTitle.value)
+            : (typeof item.title === 'string' ? item.title : item.title.value);
+        this.tooltip = (_b = (typeof item.tooltip === 'string' ? item.tooltip : (_a = item.tooltip) === null || _a === void 0 ? void 0 : _a.value)) !== null && _b !== void 0 ? _b : '';
+        this.enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
+        this.checked = undefined;
+        if (item.toggled) {
+            const toggled = (item.toggled.condition ? item.toggled : { condition: item.toggled });
+            this.checked = contextKeyService.contextMatchesRules(toggled.condition);
+            if (this.checked && toggled.tooltip) {
+                this.tooltip = typeof toggled.tooltip === 'string' ? toggled.tooltip : toggled.tooltip.value;
+            }
+            if (toggled.title) {
+                this.label = typeof toggled.title === 'string' ? toggled.title : toggled.title.value;
+            }
         }
-        _super.prototype.dispose.call(this);
-    };
-    MenuItemAction.prototype.run = function () {
-        var args = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            args[_i] = arguments[_i];
+        this.item = item;
+        this.alt = alt ? new MenuItemAction(alt, undefined, options, contextKeyService, _commandService) : undefined;
+        this._options = options;
+        if (ThemeIcon.isThemeIcon(item.icon)) {
+            this.class = CSSIcon.asClassName(item.icon);
         }
-        var runArgs = [];
-        if (this._options.arg) {
-            runArgs = __spreadArrays(runArgs, [this._options.arg]);
+    }
+    dispose() {
+        // there is NOTHING to dispose and the MenuItemAction should
+        // never have anything to dispose as it is a convenience type
+        // to bridge into the rendering world.
+    }
+    run(...args) {
+        var _a, _b;
+        let runArgs = [];
+        if ((_a = this._options) === null || _a === void 0 ? void 0 : _a.arg) {
+            runArgs = [...runArgs, this._options.arg];
         }
-        if (this._options.shouldForwardArgs) {
-            runArgs = __spreadArrays(runArgs, args);
+        if ((_b = this._options) === null || _b === void 0 ? void 0 : _b.shouldForwardArgs) {
+            runArgs = [...runArgs, ...args];
         }
-        return _super.prototype.run.apply(this, runArgs);
-    };
-    MenuItemAction = __decorate([
-        __param(3, IContextKeyService),
-        __param(4, ICommandService)
-    ], MenuItemAction);
-    return MenuItemAction;
-}(ExecuteCommandAction));
+        return this._commandService.executeCommand(this.id, ...runArgs);
+    }
+};
+MenuItemAction = __decorate([
+    __param(3, IContextKeyService),
+    __param(4, ICommandService)
+], MenuItemAction);
 export { MenuItemAction };
 //#endregion

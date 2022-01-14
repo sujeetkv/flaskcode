@@ -10,7 +10,7 @@
 	line-height: 1.5em;
 }
 
-.monaco-editor .parameter-hints-widget > .wrapper {
+.monaco-editor .parameter-hints-widget > .phwrapper {
 	max-width: 440px;
 	display: flex;
 	flex-direction: row;
@@ -33,6 +33,7 @@
 .monaco-editor .parameter-hints-widget .monaco-scrollable-element,
 .monaco-editor .parameter-hints-widget .body {
 	display: flex;
+	flex: 1;
 	flex-direction: column;
 	min-height: 100%;
 }
@@ -101,7 +102,6 @@
 
 .monaco-editor .parameter-hints-widget .signature .parameter.active {
 	font-weight: bold;
-	text-decoration: underline;
 }
 
 .monaco-editor .parameter-hints-widget .documentation-parameter > .parameter {

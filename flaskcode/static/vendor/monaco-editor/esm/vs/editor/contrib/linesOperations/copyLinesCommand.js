@@ -4,28 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 import { Range } from '../../common/core/range.js';
 import { Selection } from '../../common/core/selection.js';
-var CopyLinesCommand = /** @class */ (function () {
-    function CopyLinesCommand(selection, isCopyingDown) {
+export class CopyLinesCommand {
+    constructor(selection, isCopyingDown, noop) {
         this._selection = selection;
         this._isCopyingDown = isCopyingDown;
+        this._noop = noop || false;
         this._selectionDirection = 0 /* LTR */;
         this._selectionId = null;
         this._startLineNumberDelta = 0;
         this._endLineNumberDelta = 0;
     }
-    CopyLinesCommand.prototype.getEditOperations = function (model, builder) {
-        var s = this._selection;
+    getEditOperations(model, builder) {
+        let s = this._selection;
         this._startLineNumberDelta = 0;
         this._endLineNumberDelta = 0;
         if (s.startLineNumber < s.endLineNumber && s.endColumn === 1) {
             this._endLineNumberDelta = 1;
             s = s.setEndPosition(s.endLineNumber - 1, model.getLineMaxColumn(s.endLineNumber - 1));
         }
-        var sourceLines = [];
-        for (var i = s.startLineNumber; i <= s.endLineNumber; i++) {
+        let sourceLines = [];
+        for (let i = s.startLineNumber; i <= s.endLineNumber; i++) {
             sourceLines.push(model.getLineContent(i));
         }
-        var sourceText = sourceLines.join('\n');
+        const sourceText = sourceLines.join('\n');
         if (sourceText === '') {
             // Duplicating empty line
             if (this._isCopyingDown) {
@@ -33,22 +34,27 @@ var CopyLinesCommand = /** @class */ (function () {
                 this._endLineNumberDelta++;
             }
         }
-        if (!this._isCopyingDown) {
-            builder.addEditOperation(new Range(s.endLineNumber, model.getLineMaxColumn(s.endLineNumber), s.endLineNumber, model.getLineMaxColumn(s.endLineNumber)), '\n' + sourceText);
+        if (this._noop) {
+            builder.addEditOperation(new Range(s.endLineNumber, model.getLineMaxColumn(s.endLineNumber), s.endLineNumber + 1, 1), s.endLineNumber === model.getLineCount() ? '' : '\n');
         }
         else {
-            builder.addEditOperation(new Range(s.startLineNumber, 1, s.startLineNumber, 1), sourceText + '\n');
+            if (!this._isCopyingDown) {
+                builder.addEditOperation(new Range(s.endLineNumber, model.getLineMaxColumn(s.endLineNumber), s.endLineNumber, model.getLineMaxColumn(s.endLineNumber)), '\n' + sourceText);
+            }
+            else {
+                builder.addEditOperation(new Range(s.startLineNumber, 1, s.startLineNumber, 1), sourceText + '\n');
+            }
         }
         this._selectionId = builder.trackSelection(s);
         this._selectionDirection = this._selection.getDirection();
-    };
-    CopyLinesCommand.prototype.computeCursorState = function (model, helper) {
-        var result = helper.getTrackedSelection(this._selectionId);
+    }
+    computeCursorState(model, helper) {
+        let result = helper.getTrackedSelection(this._selectionId);
         if (this._startLineNumberDelta !== 0 || this._endLineNumberDelta !== 0) {
-            var startLineNumber = result.startLineNumber;
-            var startColumn = result.startColumn;
-            var endLineNumber = result.endLineNumber;
-            var endColumn = result.endColumn;
+            let startLineNumber = result.startLineNumber;
+            let startColumn = result.startColumn;
+            let endLineNumber = result.endLineNumber;
+            let endColumn = result.endColumn;
             if (this._startLineNumberDelta !== 0) {
                 startLineNumber = startLineNumber + this._startLineNumberDelta;
                 startColumn = 1;
@@ -60,7 +66,5 @@ var CopyLinesCommand = /** @class */ (function () {
             result = Selection.createWithDirection(startLineNumber, startColumn, endLineNumber, endColumn, this._selectionDirection);
         }
         return result;
-    };
-    return CopyLinesCommand;
-}());
-export { CopyLinesCommand };
+    }
+}

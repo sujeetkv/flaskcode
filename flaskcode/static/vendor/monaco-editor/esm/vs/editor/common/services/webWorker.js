@@ -2,19 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 import { EditorWorkerClient } from './editorWorkerServiceImpl.js';
 import * as types from '../../../base/common/types.js';
 /**
@@ -24,18 +11,16 @@ import * as types from '../../../base/common/types.js';
 export function createWebWorker(modelService, opts) {
     return new MonacoWebWorkerImpl(modelService, opts);
 }
-var MonacoWebWorkerImpl = /** @class */ (function (_super) {
-    __extends(MonacoWebWorkerImpl, _super);
-    function MonacoWebWorkerImpl(modelService, opts) {
-        var _this = _super.call(this, modelService, opts.keepIdleModels || false, opts.label) || this;
-        _this._foreignModuleId = opts.moduleId;
-        _this._foreignModuleCreateData = opts.createData || null;
-        _this._foreignModuleHost = opts.host || null;
-        _this._foreignProxy = null;
-        return _this;
+class MonacoWebWorkerImpl extends EditorWorkerClient {
+    constructor(modelService, opts) {
+        super(modelService, opts.keepIdleModels || false, opts.label);
+        this._foreignModuleId = opts.moduleId;
+        this._foreignModuleCreateData = opts.createData || null;
+        this._foreignModuleHost = opts.host || null;
+        this._foreignProxy = null;
     }
     // foreign host request
-    MonacoWebWorkerImpl.prototype.fhr = function (method, args) {
+    fhr(method, args) {
         if (!this._foreignModuleHost || typeof this._foreignModuleHost[method] !== 'function') {
             return Promise.reject(new Error('Missing method ' + method + ' or missing main thread foreign host.'));
         }
@@ -45,26 +30,24 @@ var MonacoWebWorkerImpl = /** @class */ (function (_super) {
         catch (e) {
             return Promise.reject(e);
         }
-    };
-    MonacoWebWorkerImpl.prototype._getForeignProxy = function () {
-        var _this = this;
+    }
+    _getForeignProxy() {
         if (!this._foreignProxy) {
-            this._foreignProxy = this._getProxy().then(function (proxy) {
-                var foreignHostMethods = _this._foreignModuleHost ? types.getAllMethodNames(_this._foreignModuleHost) : [];
-                return proxy.loadForeignModule(_this._foreignModuleId, _this._foreignModuleCreateData, foreignHostMethods).then(function (foreignMethods) {
-                    _this._foreignModuleCreateData = null;
-                    var proxyMethodRequest = function (method, args) {
+            this._foreignProxy = this._getProxy().then((proxy) => {
+                const foreignHostMethods = this._foreignModuleHost ? types.getAllMethodNames(this._foreignModuleHost) : [];
+                return proxy.loadForeignModule(this._foreignModuleId, this._foreignModuleCreateData, foreignHostMethods).then((foreignMethods) => {
+                    this._foreignModuleCreateData = null;
+                    const proxyMethodRequest = (method, args) => {
                         return proxy.fmr(method, args);
                     };
-                    var createProxyMethod = function (method, proxyMethodRequest) {
+                    const createProxyMethod = (method, proxyMethodRequest) => {
                         return function () {
-                            var args = Array.prototype.slice.call(arguments, 0);
+                            const args = Array.prototype.slice.call(arguments, 0);
                             return proxyMethodRequest(method, args);
                         };
                     };
-                    var foreignProxy = {};
-                    for (var _i = 0, foreignMethods_1 = foreignMethods; _i < foreignMethods_1.length; _i++) {
-                        var foreignMethod = foreignMethods_1[_i];
+                    let foreignProxy = {};
+                    for (const foreignMethod of foreignMethods) {
                         foreignProxy[foreignMethod] = createProxyMethod(foreignMethod, proxyMethodRequest);
                     }
                     return foreignProxy;
@@ -72,13 +55,11 @@ var MonacoWebWorkerImpl = /** @class */ (function (_super) {
             });
         }
         return this._foreignProxy;
-    };
-    MonacoWebWorkerImpl.prototype.getProxy = function () {
+    }
+    getProxy() {
         return this._getForeignProxy();
-    };
-    MonacoWebWorkerImpl.prototype.withSyncedResources = function (resources) {
-        var _this = this;
-        return this._withSyncedResources(resources).then(function (_) { return _this.getProxy(); });
-    };
-    return MonacoWebWorkerImpl;
-}(EditorWorkerClient));
+    }
+    withSyncedResources(resources) {
+        return this._withSyncedResources(resources).then(_ => this.getProxy());
+    }
+}

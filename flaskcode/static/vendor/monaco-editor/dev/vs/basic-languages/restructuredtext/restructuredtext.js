@@ -1,146 +1,179 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-define(["require", "exports"], function (require, exports) {
-    'use strict';
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.conf = {
-        brackets: [
-            ['{', '}'],
-            ['[', ']'],
-            ['(', ')']
+/*!-----------------------------------------------------------------------------
+ * Copyright (c) Microsoft Corporation. All rights reserved.
+ * Version: 0.31.1(337587859b1c171314b40503171188b6cea6a32a)
+ * Released under the MIT license
+ * https://github.com/microsoft/monaco-editor/blob/main/LICENSE.txt
+ *-----------------------------------------------------------------------------*/
+define("vs/basic-languages/restructuredtext/restructuredtext",[],()=>{
+var moduleExports = (() => {
+  var __defProp = Object.defineProperty;
+  var __markAsModule = (target) => __defProp(target, "__esModule", { value: true });
+  var __export = (target, all) => {
+    __markAsModule(target);
+    for (var name in all)
+      __defProp(target, name, { get: all[name], enumerable: true });
+  };
+
+  // src/basic-languages/restructuredtext/restructuredtext.ts
+  var restructuredtext_exports = {};
+  __export(restructuredtext_exports, {
+    conf: () => conf,
+    language: () => language
+  });
+  var conf = {
+    brackets: [
+      ["{", "}"],
+      ["[", "]"],
+      ["(", ")"]
+    ],
+    autoClosingPairs: [
+      { open: "{", close: "}" },
+      { open: "[", close: "]" },
+      { open: "(", close: ")" },
+      { open: "<", close: ">", notIn: ["string"] }
+    ],
+    surroundingPairs: [
+      { open: "(", close: ")" },
+      { open: "[", close: "]" },
+      { open: "`", close: "`" }
+    ],
+    folding: {
+      markers: {
+        start: new RegExp("^\\s*<!--\\s*#?region\\b.*-->"),
+        end: new RegExp("^\\s*<!--\\s*#?endregion\\b.*-->")
+      }
+    }
+  };
+  var language = {
+    defaultToken: "",
+    tokenPostfix: ".rst",
+    control: /[\\`*_\[\]{}()#+\-\.!]/,
+    escapes: /\\(?:@control)/,
+    empty: [
+      "area",
+      "base",
+      "basefont",
+      "br",
+      "col",
+      "frame",
+      "hr",
+      "img",
+      "input",
+      "isindex",
+      "link",
+      "meta",
+      "param"
+    ],
+    alphanumerics: /[A-Za-z0-9]/,
+    simpleRefNameWithoutBq: /(?:@alphanumerics[-_+:.]*@alphanumerics)+|(?:@alphanumerics+)/,
+    simpleRefName: /(?:`@phrase`|@simpleRefNameWithoutBq)/,
+    phrase: /@simpleRefNameWithoutBq(?:\s@simpleRefNameWithoutBq)*/,
+    citationName: /[A-Za-z][A-Za-z0-9-_.]*/,
+    blockLiteralStart: /(?:[!"#$%&'()*+,-./:;<=>?@\[\]^_`{|}~]|[\s])/,
+    precedingChars: /(?:[ -:/'"<([{])/,
+    followingChars: /(?:[ -.,:;!?/'")\]}>]|$)/,
+    punctuation: /(=|-|~|`|#|"|\^|\+|\*|:|\.|'|_|\+)/,
+    tokenizer: {
+      root: [
+        [/^(@punctuation{3,}$){1,1}?/, "keyword"],
+        [/^\s*([\*\-+‣•]|[a-zA-Z0-9]+\.|\([a-zA-Z0-9]+\)|[a-zA-Z0-9]+\))\s/, "keyword"],
+        [/([ ]::)\s*$/, "keyword", "@blankLineOfLiteralBlocks"],
+        [/(::)\s*$/, "keyword", "@blankLineOfLiteralBlocks"],
+        { include: "@tables" },
+        { include: "@explicitMarkupBlocks" },
+        { include: "@inlineMarkup" }
+      ],
+      explicitMarkupBlocks: [
+        { include: "@citations" },
+        { include: "@footnotes" },
+        [
+          /^(\.\.\s)(@simpleRefName)(::\s)(.*)$/,
+          [{ token: "", next: "subsequentLines" }, "keyword", "", ""]
         ],
-        autoClosingPairs: [
-            { open: '{', close: '}' },
-            { open: '[', close: ']' },
-            { open: '(', close: ')' },
-            { open: '<', close: '>', notIn: ['string'] }
+        [
+          /^(\.\.)(\s+)(_)(@simpleRefName)(:)(\s+)(.*)/,
+          [{ token: "", next: "hyperlinks" }, "", "", "string.link", "", "", "string.link"]
         ],
-        surroundingPairs: [
-            { open: '(', close: ')' },
-            { open: '[', close: ']' },
-            { open: '`', close: '`' },
+        [
+          /^((?:(?:\.\.)(?:\s+))?)(__)(:)(\s+)(.*)/,
+          [{ token: "", next: "subsequentLines" }, "", "", "", "string.link"]
         ],
-        folding: {
-            markers: {
-                start: new RegExp("^\\s*<!--\\s*#?region\\b.*-->"),
-                end: new RegExp("^\\s*<!--\\s*#?endregion\\b.*-->")
-            }
-        }
-    };
-    exports.language = {
-        defaultToken: '',
-        tokenPostfix: '.rst',
-        control: /[\\`*_\[\]{}()#+\-\.!]/,
-        escapes: /\\(?:@control)/,
-        empty: [
-            'area', 'base', 'basefont', 'br', 'col', 'frame',
-            'hr', 'img', 'input', 'isindex', 'link', 'meta', 'param'
+        [/^(__\s+)(.+)/, ["", "string.link"]],
+        [
+          /^(\.\.)( \|)([^| ]+[^|]*[^| ]*)(\| )(@simpleRefName)(:: .*)/,
+          [{ token: "", next: "subsequentLines" }, "", "string.link", "", "keyword", ""],
+          "@rawBlocks"
         ],
-        alphanumerics: /[A-Za-z0-9]/,
-        alphanumericsplus: /[A-Za-z0-9-_+:.]/,
-        simpleRefNameWithoutBq: /(?:@alphanumerics@alphanumericsplus*@alphanumerics)+|(?:@alphanumerics+)/,
-        simpleRefName: /(?:`@simpleRefNameWithoutBq`|@simpleRefNameWithoutBq)/,
-        phrase: /@simpleRefName(?:\s@simpleRefName)*/,
-        citationName: /[A-Za-z][A-Za-z0-9-_.]*/,
-        blockLiteralStart: /(?:[!"#$%&'()*+,-./:;<=>?@\[\]^_`{|}~]|[\s])/,
-        precedingChars: /(?:[ -:/'"<([{])/,
-        followingChars: /(?:[ -.,:;!?/'")\]}>]|$)/,
-        punctuation: /(=|-|~|`|#|"|\^|\+|\*|:|\.|'|_|\+)/,
-        tokenizer: {
-            root: [
-                //sections
-                [/^(@punctuation{3,}$){1,1}?/, 'keyword'],
-                //line-blocks
-                //No rules on it
-                //bullet-lists
-                [/^\s*([\*\-+‣•]|[a-zA-Z0-9]+\.|\([a-zA-Z0-9]+\)|[a-zA-Z0-9]+\))\s/, 'keyword'],
-                //literal-blocks
-                [/([ ]::)\s*$/, 'keyword', '@blankLineOfLiteralBlocks'],
-                [/(::)\s*$/, 'keyword', '@blankLineOfLiteralBlocks'],
-                { include: '@tables' },
-                { include: '@explicitMarkupBlocks' },
-                { include: '@inlineMarkup' },
-            ],
-            explicitMarkupBlocks: [
-                //citations
-                { include: '@citations' },
-                //footnotes
-                { include: '@footnotes' },
-                //directives
-                [/^(\.\.\s)(@simpleRefName)(::\s)(.*)$/, [{ token: '', next: 'subsequentLines' }, 'keyword', '', '']],
-                //hyperlink-targets
-                [/^(\.\.)(\s+)(_)(@simpleRefName)(:)(\s+)(.*)/, [{ token: '', next: 'hyperlinks' }, '', '', 'string.link', '', '', 'string.link']],
-                //anonymous-hyperlinks
-                [/^((?:(?:\.\.)(?:\s+))?)(__)(:)(\s+)(.*)/, [{ token: '', next: 'subsequentLines' }, '', '', '', 'string.link']],
-                [/^(__\s+)(.+)/, ['', 'string.link']],
-                //substitution-definitions
-                [/^(\.\.)( \|)([^| ]+[^|]*[^| ]*)(\| )(@simpleRefName)(:: .*)/, [{ token: '', next: 'subsequentLines' }, '', 'string.link', '', 'keyword', ''], '@rawBlocks'],
-                [/(\|)([^| ]+[^|]*[^| ]*)(\|_{0,2})/, ['', 'string.link', '']],
-                //comments
-                [/^(\.\.)([ ].*)$/, [{ token: '', next: '@comments' }, 'comment']],
-            ],
-            inlineMarkup: [
-                { include: '@citationsReference' },
-                { include: '@footnotesReference' },
-                //hyperlink-references
-                [/(@simpleRefName)(_{1,2})/, ['string.link', '']],
-                //embedded-uris-and-aliases
-                [/(`)([^<`]+\s+)(<)(.*)(>)(`)(_)/, ['', 'string.link', '', 'string.link', '', '', '']],
-                //emphasis
-                [/\*\*([^\\*]|\*(?!\*))+\*\*/, 'strong'],
-                [/\*[^*]+\*/, 'emphasis'],
-                //inline-literals
-                [/(``)((?:[^`]|\`(?!`))+)(``)/, ['', 'keyword', '']],
-                [/(__\s+)(.+)/, ['', 'keyword']],
-                //interpreted-text
-                [/(:)((?:@simpleRefNameWithoutBq)?)(:`)([^`]+)(`)/, ['', 'keyword', '', '', '']],
-                [/(`)([^`]+)(`:)((?:@simpleRefNameWithoutBq)?)(:)/, ['', '', '', 'keyword', '']],
-                [/(`)([^`]+)(`)/, ''],
-                //inline-internal-targets
-                [/(_`)(@phrase)(`)/, ['', 'string.link', '']],
-            ],
-            citations: [
-                [/^(\.\.\s+\[)((?:@citationName))(\]\s+)(.*)/, [{ token: '', next: '@subsequentLines' }, 'string.link', '', '']],
-            ],
-            citationsReference: [
-                [/(\[)(@citationName)(\]_)/, ['', 'string.link', '']],
-            ],
-            footnotes: [
-                [/^(\.\.\s+\[)((?:[0-9]+))(\]\s+.*)/, [{ token: '', next: '@subsequentLines' }, 'string.link', '']],
-                [/^(\.\.\s+\[)((?:#@simpleRefName?))(\]\s+)(.*)/, [{ token: '', next: '@subsequentLines' }, 'string.link', '', '']],
-                [/^(\.\.\s+\[)((?:\*))(\]\s+)(.*)/, [{ token: '', next: '@subsequentLines' }, 'string.link', '', '']],
-            ],
-            footnotesReference: [
-                [/(\[)([0-9]+)(\])(_)/, ['', 'string.link', '', '']],
-                [/(\[)(#@simpleRefName?)(\])(_)/, ['', 'string.link', '', '']],
-                [/(\[)(\*)(\])(_)/, ['', 'string.link', '', '']]
-            ],
-            blankLineOfLiteralBlocks: [
-                [/^$/, '', '@subsequentLinesOfLiteralBlocks'],
-                [/^.*$/, '', '@pop'],
-            ],
-            subsequentLinesOfLiteralBlocks: [
-                [/(@blockLiteralStart+)(.*)/, ['keyword', '']],
-                [/^(?!blockLiteralStart)/, '', '@popall']
-            ],
-            subsequentLines: [
-                [/^[\s]+.*/, ''],
-                [/^(?!\s)/, '', '@pop'],
-            ],
-            hyperlinks: [
-                [/^[\s]+.*/, 'string.link'],
-                [/^(?!\s)/, '', '@pop'],
-            ],
-            comments: [
-                [/^[\s]+.*/, 'comment'],
-                [/^(?!\s)/, '', '@pop'],
-            ],
-            tables: [
-                [/\+-[+-]+/, 'keyword'],
-                [/\+=[+=]+/, 'keyword'],
-            ],
-        }
-    };
+        [/(\|)([^| ]+[^|]*[^| ]*)(\|_{0,2})/, ["", "string.link", ""]],
+        [/^(\.\.)([ ].*)$/, [{ token: "", next: "@comments" }, "comment"]]
+      ],
+      inlineMarkup: [
+        { include: "@citationsReference" },
+        { include: "@footnotesReference" },
+        [/(@simpleRefName)(_{1,2})/, ["string.link", ""]],
+        [/(`)([^<`]+\s+)(<)(.*)(>)(`)(_)/, ["", "string.link", "", "string.link", "", "", ""]],
+        [/\*\*([^\\*]|\*(?!\*))+\*\*/, "strong"],
+        [/\*[^*]+\*/, "emphasis"],
+        [/(``)((?:[^`]|\`(?!`))+)(``)/, ["", "keyword", ""]],
+        [/(__\s+)(.+)/, ["", "keyword"]],
+        [/(:)((?:@simpleRefNameWithoutBq)?)(:`)([^`]+)(`)/, ["", "keyword", "", "", ""]],
+        [/(`)([^`]+)(`:)((?:@simpleRefNameWithoutBq)?)(:)/, ["", "", "", "keyword", ""]],
+        [/(`)([^`]+)(`)/, ""],
+        [/(_`)(@phrase)(`)/, ["", "string.link", ""]]
+      ],
+      citations: [
+        [
+          /^(\.\.\s+\[)((?:@citationName))(\]\s+)(.*)/,
+          [{ token: "", next: "@subsequentLines" }, "string.link", "", ""]
+        ]
+      ],
+      citationsReference: [[/(\[)(@citationName)(\]_)/, ["", "string.link", ""]]],
+      footnotes: [
+        [
+          /^(\.\.\s+\[)((?:[0-9]+))(\]\s+.*)/,
+          [{ token: "", next: "@subsequentLines" }, "string.link", ""]
+        ],
+        [
+          /^(\.\.\s+\[)((?:#@simpleRefName?))(\]\s+)(.*)/,
+          [{ token: "", next: "@subsequentLines" }, "string.link", "", ""]
+        ],
+        [
+          /^(\.\.\s+\[)((?:\*))(\]\s+)(.*)/,
+          [{ token: "", next: "@subsequentLines" }, "string.link", "", ""]
+        ]
+      ],
+      footnotesReference: [
+        [/(\[)([0-9]+)(\])(_)/, ["", "string.link", "", ""]],
+        [/(\[)(#@simpleRefName?)(\])(_)/, ["", "string.link", "", ""]],
+        [/(\[)(\*)(\])(_)/, ["", "string.link", "", ""]]
+      ],
+      blankLineOfLiteralBlocks: [
+        [/^$/, "", "@subsequentLinesOfLiteralBlocks"],
+        [/^.*$/, "", "@pop"]
+      ],
+      subsequentLinesOfLiteralBlocks: [
+        [/(@blockLiteralStart+)(.*)/, ["keyword", ""]],
+        [/^(?!blockLiteralStart)/, "", "@popall"]
+      ],
+      subsequentLines: [
+        [/^[\s]+.*/, ""],
+        [/^(?!\s)/, "", "@pop"]
+      ],
+      hyperlinks: [
+        [/^[\s]+.*/, "string.link"],
+        [/^(?!\s)/, "", "@pop"]
+      ],
+      comments: [
+        [/^[\s]+.*/, "comment"],
+        [/^(?!\s)/, "", "@pop"]
+      ],
+      tables: [
+        [/\+-[+-]+/, "keyword"],
+        [/\+=[+=]+/, "keyword"]
+      ]
+    }
+  };
+  return restructuredtext_exports;
+})();
+return moduleExports;
 });

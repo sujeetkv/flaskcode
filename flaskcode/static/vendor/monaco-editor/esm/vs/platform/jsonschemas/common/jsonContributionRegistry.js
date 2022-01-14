@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as platform from '../../registry/common/platform.js';
 import { Emitter } from '../../../base/common/event.js';
-export var Extensions = {
+import * as platform from '../../registry/common/platform.js';
+export const Extensions = {
     JSONContribution: 'base.contributions.json'
 };
 function normalizeId(id) {
@@ -13,19 +13,18 @@ function normalizeId(id) {
     }
     return id;
 }
-var JSONContributionRegistry = /** @class */ (function () {
-    function JSONContributionRegistry() {
+class JSONContributionRegistry {
+    constructor() {
         this._onDidChangeSchema = new Emitter();
         this.schemasById = {};
     }
-    JSONContributionRegistry.prototype.registerSchema = function (uri, unresolvedSchemaContent) {
+    registerSchema(uri, unresolvedSchemaContent) {
         this.schemasById[normalizeId(uri)] = unresolvedSchemaContent;
         this._onDidChangeSchema.fire(uri);
-    };
-    JSONContributionRegistry.prototype.notifySchemaChanged = function (uri) {
+    }
+    notifySchemaChanged(uri) {
         this._onDidChangeSchema.fire(uri);
-    };
-    return JSONContributionRegistry;
-}());
-var jsonContributionRegistry = new JSONContributionRegistry();
+    }
+}
+const jsonContributionRegistry = new JSONContributionRegistry();
 platform.Registry.add(Extensions.JSONContribution, jsonContributionRegistry);

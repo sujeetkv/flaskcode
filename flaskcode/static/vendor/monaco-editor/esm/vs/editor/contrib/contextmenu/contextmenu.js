@@ -2,19 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -24,20 +11,20 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import * as nls from '../../../nls.js';
 import * as dom from '../../../base/browser/dom.js';
-import { ActionViewItem, Separator } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { ActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
+import { Separator, SubmenuAction } from '../../../base/common/actions.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { isIOS } from '../../../base/common/platform.js';
 import { EditorAction, registerEditorAction, registerEditorContribution } from '../../browser/editorExtensions.js';
 import { EditorContextKeys } from '../../common/editorContextKeys.js';
-import { IMenuService, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
+import * as nls from '../../../nls.js';
+import { IMenuService, MenuId, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
-import { ContextSubMenu } from '../../../base/browser/contextmenu.js';
-var ContextMenuController = /** @class */ (function () {
-    function ContextMenuController(editor, _contextMenuService, _contextViewService, _contextKeyService, _keybindingService, _menuService) {
-        var _this = this;
+let ContextMenuController = class ContextMenuController {
+    constructor(editor, _contextMenuService, _contextViewService, _contextKeyService, _keybindingService, _menuService) {
         this._contextMenuService = _contextMenuService;
         this._contextViewService = _contextViewService;
         this._contextKeyService = _contextKeyService;
@@ -46,29 +33,35 @@ var ContextMenuController = /** @class */ (function () {
         this._toDispose = new DisposableStore();
         this._contextMenuIsBeingShownCount = 0;
         this._editor = editor;
-        this._toDispose.add(this._editor.onContextMenu(function (e) { return _this._onContextMenu(e); }));
-        this._toDispose.add(this._editor.onMouseWheel(function (e) {
-            if (_this._contextMenuIsBeingShownCount > 0) {
-                _this._contextViewService.hideContextView();
+        this._toDispose.add(this._editor.onContextMenu((e) => this._onContextMenu(e)));
+        this._toDispose.add(this._editor.onMouseWheel((e) => {
+            if (this._contextMenuIsBeingShownCount > 0) {
+                const view = this._contextViewService.getContextViewElement();
+                const target = e.srcElement;
+                // Event triggers on shadow root host first
+                // Check if the context view is under this host before hiding it #103169
+                if (!(target.shadowRoot && dom.getShadowRoot(view) === target.shadowRoot)) {
+                    this._contextViewService.hideContextView();
+                }
             }
         }));
-        this._toDispose.add(this._editor.onKeyDown(function (e) {
+        this._toDispose.add(this._editor.onKeyDown((e) => {
             if (e.keyCode === 58 /* ContextMenu */) {
                 // Chrome is funny like that
                 e.preventDefault();
                 e.stopPropagation();
-                _this.showContextMenu();
+                this.showContextMenu();
             }
         }));
     }
-    ContextMenuController.get = function (editor) {
+    static get(editor) {
         return editor.getContribution(ContextMenuController.ID);
-    };
-    ContextMenuController.prototype._onContextMenu = function (e) {
+    }
+    _onContextMenu(e) {
         if (!this._editor.hasModel()) {
             return;
         }
-        if (!this._editor.getOption(14 /* contextmenu */)) {
+        if (!this._editor.getOption(20 /* contextmenu */)) {
             this._editor.focus();
             // Ensure the cursor is at the position of the mouse click
             if (e.target.position && !this._editor.getSelection().containsPosition(e.target.position)) {
@@ -80,6 +73,7 @@ var ContextMenuController = /** @class */ (function () {
             return; // allow native menu on widgets to support right click on input field for example in find
         }
         e.event.preventDefault();
+        e.event.stopPropagation();
         if (e.target.type !== 6 /* CONTENT_TEXT */ && e.target.type !== 7 /* CONTENT_EMPTY */ && e.target.type !== 1 /* TEXTAREA */) {
             return; // only support mouse click into text or native context menu key for now
         }
@@ -87,9 +81,8 @@ var ContextMenuController = /** @class */ (function () {
         this._editor.focus();
         // Ensure the cursor is at the position of the mouse click
         if (e.target.position) {
-            var hasSelectionAtPosition = false;
-            for (var _i = 0, _a = this._editor.getSelections(); _i < _a.length; _i++) {
-                var selection = _a[_i];
+            let hasSelectionAtPosition = false;
+            for (const selection of this._editor.getSelections()) {
                 if (selection.containsPosition(e.target.position)) {
                     hasSelectionAtPosition = true;
                     break;
@@ -100,15 +93,15 @@ var ContextMenuController = /** @class */ (function () {
             }
         }
         // Unless the user triggerd the context menu through Shift+F10, use the mouse position as menu position
-        var anchor = null;
+        let anchor = null;
         if (e.target.type !== 1 /* TEXTAREA */) {
             anchor = { x: e.event.posx - 1, width: 2, y: e.event.posy - 1, height: 2 };
         }
         // Show the context menu
         this.showContextMenu(anchor);
-    };
-    ContextMenuController.prototype.showContextMenu = function (anchor) {
-        if (!this._editor.getOption(14 /* contextmenu */)) {
+    }
+    showContextMenu(anchor) {
+        if (!this._editor.getOption(20 /* contextmenu */)) {
             return; // Context menu is turned off through configuration
         }
         if (!this._editor.hasModel()) {
@@ -119,29 +112,27 @@ var ContextMenuController = /** @class */ (function () {
             return; // We need the context menu service to function
         }
         // Find actions available for menu
-        var menuActions = this._getMenuActions(this._editor.getModel(), 7 /* EditorContext */);
+        const menuActions = this._getMenuActions(this._editor.getModel(), this._editor.isSimpleWidget ? MenuId.SimpleEditorContext : MenuId.EditorContext);
         // Show menu if we have actions to show
         if (menuActions.length > 0) {
             this._doShowContextMenu(menuActions, anchor);
         }
-    };
-    ContextMenuController.prototype._getMenuActions = function (model, menuId) {
-        var result = [];
+    }
+    _getMenuActions(model, menuId) {
+        const result = [];
         // get menu groups
-        var menu = this._menuService.createMenu(menuId, this._contextKeyService);
-        var groups = menu.getActions({ arg: model.uri });
+        const menu = this._menuService.createMenu(menuId, this._contextKeyService);
+        const groups = menu.getActions({ arg: model.uri });
         menu.dispose();
         // translate them into other actions
-        for (var _i = 0, groups_1 = groups; _i < groups_1.length; _i++) {
-            var group = groups_1[_i];
-            var actions = group[1];
-            var addedItems = 0;
-            for (var _a = 0, actions_1 = actions; _a < actions_1.length; _a++) {
-                var action = actions_1[_a];
+        for (let group of groups) {
+            const [, actions] = group;
+            let addedItems = 0;
+            for (const action of actions) {
                 if (action instanceof SubmenuItemAction) {
-                    var subActions = this._getMenuActions(model, action.item.submenu);
+                    const subActions = this._getMenuActions(model, action.item.submenu);
                     if (subActions.length > 0) {
-                        result.push(new ContextSubMenu(action.label, subActions));
+                        result.push(new SubmenuAction(action.id, action.label, subActions));
                         addedItems++;
                     }
                 }
@@ -158,15 +149,13 @@ var ContextMenuController = /** @class */ (function () {
             result.pop(); // remove last separator
         }
         return result;
-    };
-    ContextMenuController.prototype._doShowContextMenu = function (actions, anchor) {
-        var _this = this;
-        if (anchor === void 0) { anchor = null; }
+    }
+    _doShowContextMenu(actions, anchor = null) {
         if (!this._editor.hasModel()) {
             return;
         }
         // Disable hover
-        var oldHoverSetting = this._editor.getOption(44 /* hover */);
+        const oldHoverSetting = this._editor.getOption(52 /* hover */);
         this._editor.updateOptions({
             hover: {
                 enabled: false
@@ -176,65 +165,65 @@ var ContextMenuController = /** @class */ (function () {
             // Ensure selection is visible
             this._editor.revealPosition(this._editor.getPosition(), 1 /* Immediate */);
             this._editor.render();
-            var cursorCoords = this._editor.getScrolledVisiblePosition(this._editor.getPosition());
+            const cursorCoords = this._editor.getScrolledVisiblePosition(this._editor.getPosition());
             // Translate to absolute editor position
-            var editorCoords = dom.getDomNodePagePosition(this._editor.getDomNode());
-            var posx = editorCoords.left + cursorCoords.left;
-            var posy = editorCoords.top + cursorCoords.top + cursorCoords.height;
+            const editorCoords = dom.getDomNodePagePosition(this._editor.getDomNode());
+            const posx = editorCoords.left + cursorCoords.left;
+            const posy = editorCoords.top + cursorCoords.top + cursorCoords.height;
             anchor = { x: posx, y: posy };
         }
+        const useShadowDOM = this._editor.getOption(114 /* useShadowDOM */) && !isIOS; // Do not use shadow dom on IOS #122035
         // Show menu
         this._contextMenuIsBeingShownCount++;
         this._contextMenuService.showContextMenu({
-            getAnchor: function () { return anchor; },
-            getActions: function () { return actions; },
-            getActionViewItem: function (action) {
-                var keybinding = _this._keybindingFor(action);
+            domForShadowRoot: useShadowDOM ? this._editor.getDomNode() : undefined,
+            getAnchor: () => anchor,
+            getActions: () => actions,
+            getActionViewItem: (action) => {
+                const keybinding = this._keybindingFor(action);
                 if (keybinding) {
                     return new ActionViewItem(action, action, { label: true, keybinding: keybinding.getLabel(), isMenu: true });
                 }
-                var customActionViewItem = action;
+                const customActionViewItem = action;
                 if (typeof customActionViewItem.getActionViewItem === 'function') {
                     return customActionViewItem.getActionViewItem();
                 }
                 return new ActionViewItem(action, action, { icon: true, label: true, isMenu: true });
             },
-            getKeyBinding: function (action) {
-                return _this._keybindingFor(action);
+            getKeyBinding: (action) => {
+                return this._keybindingFor(action);
             },
-            onHide: function (wasCancelled) {
-                _this._contextMenuIsBeingShownCount--;
-                _this._editor.focus();
-                _this._editor.updateOptions({
+            onHide: (wasCancelled) => {
+                this._contextMenuIsBeingShownCount--;
+                this._editor.focus();
+                this._editor.updateOptions({
                     hover: oldHoverSetting
                 });
             }
         });
-    };
-    ContextMenuController.prototype._keybindingFor = function (action) {
+    }
+    _keybindingFor(action) {
         return this._keybindingService.lookupKeybinding(action.id);
-    };
-    ContextMenuController.prototype.dispose = function () {
+    }
+    dispose() {
         if (this._contextMenuIsBeingShownCount > 0) {
             this._contextViewService.hideContextView();
         }
         this._toDispose.dispose();
-    };
-    ContextMenuController.ID = 'editor.contrib.contextmenu';
-    ContextMenuController = __decorate([
-        __param(1, IContextMenuService),
-        __param(2, IContextViewService),
-        __param(3, IContextKeyService),
-        __param(4, IKeybindingService),
-        __param(5, IMenuService)
-    ], ContextMenuController);
-    return ContextMenuController;
-}());
+    }
+};
+ContextMenuController.ID = 'editor.contrib.contextmenu';
+ContextMenuController = __decorate([
+    __param(1, IContextMenuService),
+    __param(2, IContextViewService),
+    __param(3, IContextKeyService),
+    __param(4, IKeybindingService),
+    __param(5, IMenuService)
+], ContextMenuController);
 export { ContextMenuController };
-var ShowContextMenu = /** @class */ (function (_super) {
-    __extends(ShowContextMenu, _super);
-    function ShowContextMenu() {
-        return _super.call(this, {
+class ShowContextMenu extends EditorAction {
+    constructor() {
+        super({
             id: 'editor.action.showContextMenu',
             label: nls.localize('action.showContextMenu.label', "Show Editor Context Menu"),
             alias: 'Show Editor Context Menu',
@@ -244,13 +233,12 @@ var ShowContextMenu = /** @class */ (function (_super) {
                 primary: 1024 /* Shift */ | 68 /* F10 */,
                 weight: 100 /* EditorContrib */
             }
-        }) || this;
+        });
     }
-    ShowContextMenu.prototype.run = function (accessor, editor) {
-        var contribution = ContextMenuController.get(editor);
+    run(accessor, editor) {
+        let contribution = ContextMenuController.get(editor);
         contribution.showContextMenu();
-    };
-    return ShowContextMenu;
-}(EditorAction));
+    }
+}
 registerEditorContribution(ContextMenuController.ID, ContextMenuController);
 registerEditorAction(ShowContextMenu);

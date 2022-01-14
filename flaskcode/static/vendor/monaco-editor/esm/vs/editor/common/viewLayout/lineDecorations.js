@@ -3,40 +3,58 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as strings from '../../../base/common/strings.js';
-var LineDecoration = /** @class */ (function () {
-    function LineDecoration(startColumn, endColumn, className, type) {
+export class LineDecoration {
+    constructor(startColumn, endColumn, className, type) {
         this.startColumn = startColumn;
         this.endColumn = endColumn;
         this.className = className;
         this.type = type;
+        this._lineDecorationBrand = undefined;
     }
-    LineDecoration._equals = function (a, b) {
+    static _equals(a, b) {
         return (a.startColumn === b.startColumn
             && a.endColumn === b.endColumn
             && a.className === b.className
             && a.type === b.type);
-    };
-    LineDecoration.equalsArr = function (a, b) {
-        var aLen = a.length;
-        var bLen = b.length;
+    }
+    static equalsArr(a, b) {
+        const aLen = a.length;
+        const bLen = b.length;
         if (aLen !== bLen) {
             return false;
         }
-        for (var i = 0; i < aLen; i++) {
+        for (let i = 0; i < aLen; i++) {
             if (!LineDecoration._equals(a[i], b[i])) {
                 return false;
             }
         }
         return true;
-    };
-    LineDecoration.filter = function (lineDecorations, lineNumber, minLineColumn, maxLineColumn) {
+    }
+    static extractWrapped(arr, startOffset, endOffset) {
+        if (arr.length === 0) {
+            return arr;
+        }
+        const startColumn = startOffset + 1;
+        const endColumn = endOffset + 1;
+        const lineLength = endOffset - startOffset;
+        const r = [];
+        let rLength = 0;
+        for (const dec of arr) {
+            if (dec.endColumn <= startColumn || dec.startColumn >= endColumn) {
+                continue;
+            }
+            r[rLength++] = new LineDecoration(Math.max(1, dec.startColumn - startColumn + 1), Math.min(lineLength + 1, dec.endColumn - startColumn + 1), dec.className, dec.type);
+        }
+        return r;
+    }
+    static filter(lineDecorations, lineNumber, minLineColumn, maxLineColumn) {
         if (lineDecorations.length === 0) {
             return [];
         }
-        var result = [], resultLen = 0;
-        for (var i = 0, len = lineDecorations.length; i < len; i++) {
-            var d = lineDecorations[i];
-            var range = d.range;
+        let result = [], resultLen = 0;
+        for (let i = 0, len = lineDecorations.length; i < len; i++) {
+            const d = lineDecorations[i];
+            const range = d.range;
             if (range.endLineNumber < lineNumber || range.startLineNumber > lineNumber) {
                 // Ignore decorations that sit outside this line
                 continue;
@@ -45,129 +63,142 @@ var LineDecoration = /** @class */ (function () {
                 // Ignore empty range decorations
                 continue;
             }
-            var startColumn = (range.startLineNumber === lineNumber ? range.startColumn : minLineColumn);
-            var endColumn = (range.endLineNumber === lineNumber ? range.endColumn : maxLineColumn);
+            const startColumn = (range.startLineNumber === lineNumber ? range.startColumn : minLineColumn);
+            const endColumn = (range.endLineNumber === lineNumber ? range.endColumn : maxLineColumn);
             result[resultLen++] = new LineDecoration(startColumn, endColumn, d.inlineClassName, d.type);
         }
         return result;
-    };
-    LineDecoration.compare = function (a, b) {
-        if (a.startColumn === b.startColumn) {
-            if (a.endColumn === b.endColumn) {
-                if (a.className < b.className) {
-                    return -1;
-                }
-                if (a.className > b.className) {
-                    return 1;
-                }
-                return 0;
-            }
+    }
+    static _typeCompare(a, b) {
+        const ORDER = [2, 0, 1, 3];
+        return ORDER[a] - ORDER[b];
+    }
+    static compare(a, b) {
+        if (a.startColumn !== b.startColumn) {
+            return a.startColumn - b.startColumn;
+        }
+        if (a.endColumn !== b.endColumn) {
             return a.endColumn - b.endColumn;
         }
-        return a.startColumn - b.startColumn;
-    };
-    return LineDecoration;
-}());
-export { LineDecoration };
-var DecorationSegment = /** @class */ (function () {
-    function DecorationSegment(startOffset, endOffset, className) {
+        const typeCmp = LineDecoration._typeCompare(a.type, b.type);
+        if (typeCmp !== 0) {
+            return typeCmp;
+        }
+        if (a.className !== b.className) {
+            return a.className < b.className ? -1 : 1;
+        }
+        return 0;
+    }
+}
+export class DecorationSegment {
+    constructor(startOffset, endOffset, className, metadata) {
         this.startOffset = startOffset;
         this.endOffset = endOffset;
         this.className = className;
+        this.metadata = metadata;
     }
-    return DecorationSegment;
-}());
-export { DecorationSegment };
-var Stack = /** @class */ (function () {
-    function Stack() {
+}
+class Stack {
+    constructor() {
         this.stopOffsets = [];
         this.classNames = [];
+        this.metadata = [];
         this.count = 0;
     }
-    Stack.prototype.consumeLowerThan = function (maxStopOffset, nextStartOffset, result) {
+    static _metadata(metadata) {
+        let result = 0;
+        for (let i = 0, len = metadata.length; i < len; i++) {
+            result |= metadata[i];
+        }
+        return result;
+    }
+    consumeLowerThan(maxStopOffset, nextStartOffset, result) {
         while (this.count > 0 && this.stopOffsets[0] < maxStopOffset) {
-            var i = 0;
+            let i = 0;
             // Take all equal stopping offsets
             while (i + 1 < this.count && this.stopOffsets[i] === this.stopOffsets[i + 1]) {
                 i++;
             }
             // Basically we are consuming the first i + 1 elements of the stack
-            result.push(new DecorationSegment(nextStartOffset, this.stopOffsets[i], this.classNames.join(' ')));
+            result.push(new DecorationSegment(nextStartOffset, this.stopOffsets[i], this.classNames.join(' '), Stack._metadata(this.metadata)));
             nextStartOffset = this.stopOffsets[i] + 1;
             // Consume them
             this.stopOffsets.splice(0, i + 1);
             this.classNames.splice(0, i + 1);
+            this.metadata.splice(0, i + 1);
             this.count -= (i + 1);
         }
         if (this.count > 0 && nextStartOffset < maxStopOffset) {
-            result.push(new DecorationSegment(nextStartOffset, maxStopOffset - 1, this.classNames.join(' ')));
+            result.push(new DecorationSegment(nextStartOffset, maxStopOffset - 1, this.classNames.join(' '), Stack._metadata(this.metadata)));
             nextStartOffset = maxStopOffset;
         }
         return nextStartOffset;
-    };
-    Stack.prototype.insert = function (stopOffset, className) {
+    }
+    insert(stopOffset, className, metadata) {
         if (this.count === 0 || this.stopOffsets[this.count - 1] <= stopOffset) {
             // Insert at the end
             this.stopOffsets.push(stopOffset);
             this.classNames.push(className);
+            this.metadata.push(metadata);
         }
         else {
             // Find the insertion position for `stopOffset`
-            for (var i = 0; i < this.count; i++) {
+            for (let i = 0; i < this.count; i++) {
                 if (this.stopOffsets[i] >= stopOffset) {
                     this.stopOffsets.splice(i, 0, stopOffset);
                     this.classNames.splice(i, 0, className);
+                    this.metadata.splice(i, 0, metadata);
                     break;
                 }
             }
         }
         this.count++;
         return;
-    };
-    return Stack;
-}());
-var LineDecorationsNormalizer = /** @class */ (function () {
-    function LineDecorationsNormalizer() {
     }
+}
+export class LineDecorationsNormalizer {
     /**
      * Normalize line decorations. Overlapping decorations will generate multiple segments
      */
-    LineDecorationsNormalizer.normalize = function (lineContent, lineDecorations) {
+    static normalize(lineContent, lineDecorations) {
         if (lineDecorations.length === 0) {
             return [];
         }
-        var result = [];
-        var stack = new Stack();
-        var nextStartOffset = 0;
-        for (var i = 0, len = lineDecorations.length; i < len; i++) {
-            var d = lineDecorations[i];
-            var startColumn = d.startColumn;
-            var endColumn = d.endColumn;
-            var className = d.className;
+        let result = [];
+        const stack = new Stack();
+        let nextStartOffset = 0;
+        for (let i = 0, len = lineDecorations.length; i < len; i++) {
+            const d = lineDecorations[i];
+            let startColumn = d.startColumn;
+            let endColumn = d.endColumn;
+            const className = d.className;
+            const metadata = (d.type === 1 /* Before */
+                ? 2 /* PSEUDO_BEFORE */
+                : d.type === 2 /* After */
+                    ? 4 /* PSEUDO_AFTER */
+                    : 0);
             // If the position would end up in the middle of a high-low surrogate pair, we move it to before the pair
             if (startColumn > 1) {
-                var charCodeBefore = lineContent.charCodeAt(startColumn - 2);
+                const charCodeBefore = lineContent.charCodeAt(startColumn - 2);
                 if (strings.isHighSurrogate(charCodeBefore)) {
                     startColumn--;
                 }
             }
             if (endColumn > 1) {
-                var charCodeBefore = lineContent.charCodeAt(endColumn - 2);
+                const charCodeBefore = lineContent.charCodeAt(endColumn - 2);
                 if (strings.isHighSurrogate(charCodeBefore)) {
                     endColumn--;
                 }
             }
-            var currentStartOffset = startColumn - 1;
-            var currentEndOffset = endColumn - 2;
+            const currentStartOffset = startColumn - 1;
+            const currentEndOffset = endColumn - 2;
             nextStartOffset = stack.consumeLowerThan(currentStartOffset, nextStartOffset, result);
             if (stack.count === 0) {
                 nextStartOffset = currentStartOffset;
             }
-            stack.insert(currentEndOffset, className);
+            stack.insert(currentEndOffset, className, metadata);
         }
         stack.consumeLowerThan(1073741824 /* MAX_SAFE_SMALL_INTEGER */, nextStartOffset, result);
         return result;
-    };
-    return LineDecorationsNormalizer;
-}());
-export { LineDecorationsNormalizer };
+    }
+}

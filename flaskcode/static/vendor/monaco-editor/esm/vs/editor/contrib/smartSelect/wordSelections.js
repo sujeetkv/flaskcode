@@ -2,16 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { isLowerAsciiLetter, isUpperAsciiLetter } from '../../../base/common/strings.js';
 import { Range } from '../../common/core/range.js';
-import { isUpperAsciiLetter, isLowerAsciiLetter } from '../../../base/common/strings.js';
-var WordSelectionRangeProvider = /** @class */ (function () {
-    function WordSelectionRangeProvider() {
-    }
-    WordSelectionRangeProvider.prototype.provideSelectionRanges = function (model, positions) {
-        var result = [];
-        for (var _i = 0, positions_1 = positions; _i < positions_1.length; _i++) {
-            var position = positions_1[_i];
-            var bucket = [];
+export class WordSelectionRangeProvider {
+    provideSelectionRanges(model, positions) {
+        const result = [];
+        for (const position of positions) {
+            const bucket = [];
             result.push(bucket);
             this._addInWordRanges(bucket, model, position);
             this._addWordRanges(bucket, model, position);
@@ -19,21 +16,21 @@ var WordSelectionRangeProvider = /** @class */ (function () {
             bucket.push({ range: model.getFullModelRange() });
         }
         return result;
-    };
-    WordSelectionRangeProvider.prototype._addInWordRanges = function (bucket, model, pos) {
-        var obj = model.getWordAtPosition(pos);
+    }
+    _addInWordRanges(bucket, model, pos) {
+        const obj = model.getWordAtPosition(pos);
         if (!obj) {
             return;
         }
-        var word = obj.word, startColumn = obj.startColumn;
-        var offset = pos.column - startColumn;
-        var start = offset;
-        var end = offset;
-        var lastCh = 0;
+        let { word, startColumn } = obj;
+        let offset = pos.column - startColumn;
+        let start = offset;
+        let end = offset;
+        let lastCh = 0;
         // LEFT anchor (start)
         for (; start >= 0; start--) {
-            var ch = word.charCodeAt(start);
-            if (ch === 95 /* Underline */ || ch === 45 /* Dash */) {
+            let ch = word.charCodeAt(start);
+            if ((start !== offset) && (ch === 95 /* Underline */ || ch === 45 /* Dash */)) {
                 // foo-bar OR foo_bar
                 break;
             }
@@ -46,7 +43,7 @@ var WordSelectionRangeProvider = /** @class */ (function () {
         start += 1;
         // RIGHT anchor (end)
         for (; end < word.length; end++) {
-            var ch = word.charCodeAt(end);
+            let ch = word.charCodeAt(end);
             if (isUpperAsciiLetter(ch) && isLowerAsciiLetter(lastCh)) {
                 // fooBar
                 break;
@@ -60,20 +57,18 @@ var WordSelectionRangeProvider = /** @class */ (function () {
         if (start < end) {
             bucket.push({ range: new Range(pos.lineNumber, startColumn + start, pos.lineNumber, startColumn + end) });
         }
-    };
-    WordSelectionRangeProvider.prototype._addWordRanges = function (bucket, model, pos) {
-        var word = model.getWordAtPosition(pos);
+    }
+    _addWordRanges(bucket, model, pos) {
+        const word = model.getWordAtPosition(pos);
         if (word) {
             bucket.push({ range: new Range(pos.lineNumber, word.startColumn, pos.lineNumber, word.endColumn) });
         }
-    };
-    WordSelectionRangeProvider.prototype._addWhitespaceLine = function (bucket, model, pos) {
+    }
+    _addWhitespaceLine(bucket, model, pos) {
         if (model.getLineLength(pos.lineNumber) > 0
             && model.getLineFirstNonWhitespaceColumn(pos.lineNumber) === 0
             && model.getLineLastNonWhitespaceColumn(pos.lineNumber) === 0) {
             bucket.push({ range: new Range(pos.lineNumber, 1, pos.lineNumber, model.getLineMaxColumn(pos.lineNumber)) });
         }
-    };
-    return WordSelectionRangeProvider;
-}());
-export { WordSelectionRangeProvider };
+    }
+}

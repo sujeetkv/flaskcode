@@ -3,49 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as DOM from './dom.js';
-export function renderText(text, options) {
-    if (options === void 0) { options = {}; }
-    var element = createElement(options);
+export function renderText(text, options = {}) {
+    const element = createElement(options);
     element.textContent = text;
     return element;
 }
-export function renderFormattedText(formattedText, options) {
-    if (options === void 0) { options = {}; }
-    var element = createElement(options);
-    _renderFormattedText(element, parseFormattedText(formattedText), options.actionHandler);
+export function renderFormattedText(formattedText, options = {}) {
+    const element = createElement(options);
+    _renderFormattedText(element, parseFormattedText(formattedText, !!options.renderCodeSegments), options.actionHandler, options.renderCodeSegments);
     return element;
 }
 export function createElement(options) {
-    var tagName = options.inline ? 'span' : 'div';
-    var element = document.createElement(tagName);
+    const tagName = options.inline ? 'span' : 'div';
+    const element = document.createElement(tagName);
     if (options.className) {
         element.className = options.className;
     }
     return element;
 }
-var StringStream = /** @class */ (function () {
-    function StringStream(source) {
+class StringStream {
+    constructor(source) {
         this.source = source;
         this.index = 0;
     }
-    StringStream.prototype.eos = function () {
+    eos() {
         return this.index >= this.source.length;
-    };
-    StringStream.prototype.next = function () {
-        var next = this.peek();
+    }
+    next() {
+        const next = this.peek();
         this.advance();
         return next;
-    };
-    StringStream.prototype.peek = function () {
+    }
+    peek() {
         return this.source[this.index];
-    };
-    StringStream.prototype.advance = function () {
+    }
+    advance() {
         this.index++;
-    };
-    return StringStream;
-}());
-function _renderFormattedText(element, treeNode, actionHandler) {
-    var child;
+    }
+}
+function _renderFormattedText(element, treeNode, actionHandler, renderCodeSegments) {
+    let child;
     if (treeNode.type === 2 /* Text */) {
         child = document.createTextNode(treeNode.content || '');
     }
@@ -55,15 +52,18 @@ function _renderFormattedText(element, treeNode, actionHandler) {
     else if (treeNode.type === 4 /* Italics */) {
         child = document.createElement('i');
     }
+    else if (treeNode.type === 7 /* Code */ && renderCodeSegments) {
+        child = document.createElement('code');
+    }
     else if (treeNode.type === 5 /* Action */ && actionHandler) {
-        var a = document.createElement('a');
+        const a = document.createElement('a');
         a.href = '#';
-        actionHandler.disposeables.add(DOM.addStandardDisposableListener(a, 'click', function (event) {
+        actionHandler.disposables.add(DOM.addStandardDisposableListener(a, 'click', (event) => {
             actionHandler.callback(String(treeNode.index), event);
         }));
         child = a;
     }
-    else if (treeNode.type === 7 /* NewLine */) {
+    else if (treeNode.type === 8 /* NewLine */) {
         child = document.createElement('br');
     }
     else if (treeNode.type === 1 /* Root */) {
@@ -73,37 +73,37 @@ function _renderFormattedText(element, treeNode, actionHandler) {
         element.appendChild(child);
     }
     if (child && Array.isArray(treeNode.children)) {
-        treeNode.children.forEach(function (nodeChild) {
-            _renderFormattedText(child, nodeChild, actionHandler);
+        treeNode.children.forEach((nodeChild) => {
+            _renderFormattedText(child, nodeChild, actionHandler, renderCodeSegments);
         });
     }
 }
-function parseFormattedText(content) {
-    var root = {
+function parseFormattedText(content, parseCodeSegments) {
+    const root = {
         type: 1 /* Root */,
         children: []
     };
-    var actionViewItemIndex = 0;
-    var current = root;
-    var stack = [];
-    var stream = new StringStream(content);
+    let actionViewItemIndex = 0;
+    let current = root;
+    const stack = [];
+    const stream = new StringStream(content);
     while (!stream.eos()) {
-        var next = stream.next();
-        var isEscapedFormatType = (next === '\\' && formatTagType(stream.peek()) !== 0 /* Invalid */);
+        let next = stream.next();
+        const isEscapedFormatType = (next === '\\' && formatTagType(stream.peek(), parseCodeSegments) !== 0 /* Invalid */);
         if (isEscapedFormatType) {
             next = stream.next(); // unread the backslash if it escapes a format tag type
         }
-        if (!isEscapedFormatType && isFormatTag(next) && next === stream.peek()) {
+        if (!isEscapedFormatType && isFormatTag(next, parseCodeSegments) && next === stream.peek()) {
             stream.advance();
             if (current.type === 2 /* Text */) {
                 current = stack.pop();
             }
-            var type = formatTagType(next);
+            const type = formatTagType(next, parseCodeSegments);
             if (current.type === type || (current.type === 5 /* Action */ && type === 6 /* ActionClose */)) {
                 current = stack.pop();
             }
             else {
-                var newCurrent = {
+                const newCurrent = {
                     type: type,
                     children: []
                 };
@@ -121,12 +121,12 @@ function parseFormattedText(content) {
                 current = stack.pop();
             }
             current.children.push({
-                type: 7 /* NewLine */
+                type: 8 /* NewLine */
             });
         }
         else {
             if (current.type !== 2 /* Text */) {
-                var textCurrent = {
+                const textCurrent = {
                     type: 2 /* Text */,
                     content: next
                 };
@@ -147,10 +147,10 @@ function parseFormattedText(content) {
     }
     return root;
 }
-function isFormatTag(char) {
-    return formatTagType(char) !== 0 /* Invalid */;
+function isFormatTag(char, supportCodeSegments) {
+    return formatTagType(char, supportCodeSegments) !== 0 /* Invalid */;
 }
-function formatTagType(char) {
+function formatTagType(char, supportCodeSegments) {
     switch (char) {
         case '*':
             return 3 /* Bold */;
@@ -160,6 +160,8 @@ function formatTagType(char) {
             return 5 /* Action */;
         case ']':
             return 6 /* ActionClose */;
+        case '`':
+            return supportCodeSegments ? 7 /* Code */ : 0 /* Invalid */;
         default:
             return 0 /* Invalid */;
     }

@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { createKeybinding } from '../../../base/common/keyCodes.js';
+import { createKeybinding } from '../../../base/common/keybindings.js';
 import { OS } from '../../../base/common/platform.js';
 import { CommandsRegistry } from '../../commands/common/commands.js';
 import { Registry } from '../../registry/common/platform.js';
-var KeybindingsRegistryImpl = /** @class */ (function () {
-    function KeybindingsRegistryImpl() {
+class KeybindingsRegistryImpl {
+    constructor() {
         this._coreKeybindings = [];
         this._extensionKeybindings = [];
         this._cachedMergedKeybindings = null;
@@ -15,7 +15,7 @@ var KeybindingsRegistryImpl = /** @class */ (function () {
     /**
      * Take current platform into account and reduce to primary & secondary.
      */
-    KeybindingsRegistryImpl.bindToCurrentPlatform = function (kb) {
+    static bindToCurrentPlatform(kb) {
         if (OS === 1 /* Windows */) {
             if (kb && kb.win) {
                 return kb.win;
@@ -32,85 +32,86 @@ var KeybindingsRegistryImpl = /** @class */ (function () {
             }
         }
         return kb;
-    };
-    KeybindingsRegistryImpl.prototype.registerKeybindingRule = function (rule) {
-        var actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
+    }
+    registerKeybindingRule(rule) {
+        const actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
         if (actualKb && actualKb.primary) {
-            var kk = createKeybinding(actualKb.primary, OS);
+            const kk = createKeybinding(actualKb.primary, OS);
             if (kk) {
                 this._registerDefaultKeybinding(kk, rule.id, rule.args, rule.weight, 0, rule.when);
             }
         }
         if (actualKb && Array.isArray(actualKb.secondary)) {
-            for (var i = 0, len = actualKb.secondary.length; i < len; i++) {
-                var k = actualKb.secondary[i];
-                var kk = createKeybinding(k, OS);
+            for (let i = 0, len = actualKb.secondary.length; i < len; i++) {
+                const k = actualKb.secondary[i];
+                const kk = createKeybinding(k, OS);
                 if (kk) {
                     this._registerDefaultKeybinding(kk, rule.id, rule.args, rule.weight, -i - 1, rule.when);
                 }
             }
         }
-    };
-    KeybindingsRegistryImpl.prototype.registerCommandAndKeybindingRule = function (desc) {
+    }
+    registerCommandAndKeybindingRule(desc) {
         this.registerKeybindingRule(desc);
         CommandsRegistry.registerCommand(desc);
-    };
-    KeybindingsRegistryImpl._mightProduceChar = function (keyCode) {
-        if (keyCode >= 21 /* KEY_0 */ && keyCode <= 30 /* KEY_9 */) {
+    }
+    static _mightProduceChar(keyCode) {
+        if (keyCode >= 21 /* Digit0 */ && keyCode <= 30 /* Digit9 */) {
             return true;
         }
-        if (keyCode >= 31 /* KEY_A */ && keyCode <= 56 /* KEY_Z */) {
+        if (keyCode >= 31 /* KeyA */ && keyCode <= 56 /* KeyZ */) {
             return true;
         }
-        return (keyCode === 80 /* US_SEMICOLON */
-            || keyCode === 81 /* US_EQUAL */
-            || keyCode === 82 /* US_COMMA */
-            || keyCode === 83 /* US_MINUS */
-            || keyCode === 84 /* US_DOT */
-            || keyCode === 85 /* US_SLASH */
-            || keyCode === 86 /* US_BACKTICK */
+        return (keyCode === 80 /* Semicolon */
+            || keyCode === 81 /* Equal */
+            || keyCode === 82 /* Comma */
+            || keyCode === 83 /* Minus */
+            || keyCode === 84 /* Period */
+            || keyCode === 85 /* Slash */
+            || keyCode === 86 /* Backquote */
             || keyCode === 110 /* ABNT_C1 */
             || keyCode === 111 /* ABNT_C2 */
-            || keyCode === 87 /* US_OPEN_SQUARE_BRACKET */
-            || keyCode === 88 /* US_BACKSLASH */
-            || keyCode === 89 /* US_CLOSE_SQUARE_BRACKET */
-            || keyCode === 90 /* US_QUOTE */
+            || keyCode === 87 /* BracketLeft */
+            || keyCode === 88 /* Backslash */
+            || keyCode === 89 /* BracketRight */
+            || keyCode === 90 /* Quote */
             || keyCode === 91 /* OEM_8 */
-            || keyCode === 92 /* OEM_102 */);
-    };
-    KeybindingsRegistryImpl.prototype._assertNoCtrlAlt = function (keybinding, commandId) {
+            || keyCode === 92 /* IntlBackslash */);
+    }
+    _assertNoCtrlAlt(keybinding, commandId) {
         if (keybinding.ctrlKey && keybinding.altKey && !keybinding.metaKey) {
             if (KeybindingsRegistryImpl._mightProduceChar(keybinding.keyCode)) {
                 console.warn('Ctrl+Alt+ keybindings should not be used by default under Windows. Offender: ', keybinding, ' for ', commandId);
             }
         }
-    };
-    KeybindingsRegistryImpl.prototype._registerDefaultKeybinding = function (keybinding, commandId, commandArgs, weight1, weight2, when) {
+    }
+    _registerDefaultKeybinding(keybinding, commandId, commandArgs, weight1, weight2, when) {
         if (OS === 1 /* Windows */) {
             this._assertNoCtrlAlt(keybinding.parts[0], commandId);
         }
         this._coreKeybindings.push({
-            keybinding: keybinding,
+            keybinding: keybinding.parts,
             command: commandId,
             commandArgs: commandArgs,
             when: when,
             weight1: weight1,
-            weight2: weight2
+            weight2: weight2,
+            extensionId: null,
+            isBuiltinExtension: false
         });
         this._cachedMergedKeybindings = null;
-    };
-    KeybindingsRegistryImpl.prototype.getDefaultKeybindings = function () {
+    }
+    getDefaultKeybindings() {
         if (!this._cachedMergedKeybindings) {
             this._cachedMergedKeybindings = [].concat(this._coreKeybindings).concat(this._extensionKeybindings);
             this._cachedMergedKeybindings.sort(sorter);
         }
         return this._cachedMergedKeybindings.slice(0);
-    };
-    return KeybindingsRegistryImpl;
-}());
-export var KeybindingsRegistry = new KeybindingsRegistryImpl();
+    }
+}
+export const KeybindingsRegistry = new KeybindingsRegistryImpl();
 // Define extension point ids
-export var Extensions = {
+export const Extensions = {
     EditorModes: 'platform.keybindingsRegistry'
 };
 Registry.add(Extensions.EditorModes, KeybindingsRegistry);
