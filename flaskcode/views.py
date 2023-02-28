@@ -18,7 +18,7 @@ def resource_data(file_path):
     file_path = os.path.join(g.flaskcode_resource_basepath, file_path)
     if not (os.path.exists(file_path) and os.path.isfile(file_path)):
         abort(404)
-    response = send_file(file_path, mimetype='text/plain', cache_timeout=0)
+    response = send_file(file_path, mimetype='text/plain')
     mimetype, encoding = mimetypes.guess_type(file_path, False)
     if mimetype:
         response.headers.set('X-File-Mimetype', mimetype)
