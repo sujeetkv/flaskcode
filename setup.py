@@ -44,15 +44,15 @@ setup(
             'flaskcode = flaskcode.cli:main',
         ]
     },
-    python_requires='>=3.6',
+    python_requires='>=3.9',
     install_requires=[
-        'flask',
+        'flask>=3.1.0',
     ],
     setup_requires=[
         'pytest-runner',
     ],
     tests_require=[
-        'flask',
+        'flask>=3.1.0',
         'pytest>=4.5.0',
     ],
     classifiers=[
