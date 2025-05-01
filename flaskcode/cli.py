@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """flaskcode cli module"""
 import os
 import click

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import os
 import mimetypes
 from flask import render_template, abort, jsonify, send_file, g, request

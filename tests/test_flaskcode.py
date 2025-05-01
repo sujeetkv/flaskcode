@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """flaskcode module tests"""
 from flask import url_for
 

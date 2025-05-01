@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """flaskcode Flask Blueprint"""
 import os
 from flask import Blueprint, current_app, g, abort

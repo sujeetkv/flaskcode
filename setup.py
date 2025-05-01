@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """flaskcode module setup"""
 import os
 from setuptools import setup

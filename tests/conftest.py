@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import pytest
 from flaskcode.cli import create_flask_app
 
