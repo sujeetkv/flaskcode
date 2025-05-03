@@ -1,5 +1,6 @@
 """flaskcode cli module"""
 import os
+
 import click
 from flask import Flask, request, make_response
 
