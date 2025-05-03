@@ -19,7 +19,6 @@ flaskcode.languages = [];
 flaskcode.defaultExt = 'txt';
 flaskcode.defaultLangId = 'plaintext';
 flaskcode.defaultLang = null;
-flaskcode.fallbackLang = null;
 
 flaskcode.$editorContainer = null;
 flaskcode.$editorBody = null;
@@ -55,8 +54,7 @@ $(function () {
     require(['vs/editor/editor.main'], function() {
         flaskcode.languages = monaco.languages.getLanguages();
         flaskcode.allowedLangIds = flaskcode.languages.map(function (lang) { return lang.id; });
-        flaskcode.defaultLang = flaskcode.getLanguageByExtension(flaskcode.defaultExt);
-        flaskcode.fallbackLang = flaskcode.getLanguageById(flaskcode.defaultLangId);
+        flaskcode.defaultLang = flaskcode.getLanguageById(flaskcode.defaultLangId);
 
         $('ul#dir-tree').on('click', '.file-item', function () {
             return flaskcode.openResource($(this));
@@ -129,7 +127,9 @@ $(function () {
             var base_path_name = $form.find('#base_path_name').val();
             var new_filename = $form.find('#new_filename').val();
             if (!(new_filename && flaskcode.validResource(new_filename))) {
-                $form.find('.form-msg').empty().append($('<span class="text-danger">Please enter valid file name.</span>').autoremove(10));
+                $form.find('.form-msg').empty().append(
+                    $('<span class="text-danger">Please enter valid file name.</span>').autoremove(10)
+                );
             } else {
                 var resource_url = base_url + '/' + new_filename + '.txt';
                 $.ajax({
@@ -144,13 +144,20 @@ $(function () {
                         $button.button('reset');
                     },
                 }).done(function (data, status, xhr) {
-                    $form.find('.form-msg').empty().append($('<span class="text-danger">This file already exists.</span>').autoremove(10));
+                    $form.find('.form-msg').empty().append(
+                        $('<span class="text-danger">This file already exists.</span>').autoremove(10)
+                    );
                 }).fail(function (xhr, status, err) {
                     if (xhr.status == 404) {
-                        flaskcode.loadEditor({url: resource_url, filePath: base_path_name + '/' + new_filename}, false, true);
+                        flaskcode.loadEditor({
+                            url: resource_url,
+                            filePath: base_path_name + '/' + new_filename
+                        }, false, true);
                         $('#fileNameModal').modal('hide');
                     } else {
-                        $form.find('.form-msg').empty().append($('<span class="text-danger">Internal Error: '+err+'</span>').autoremove(10));
+                        $form.find('.form-msg').empty().append(
+                            $('<span class="text-danger">Internal Error: '+err+'</span>').autoremove(10)
+                        );
                     }
                 });
             }
@@ -158,7 +165,10 @@ $(function () {
         });
 
         $('#editor-header #resource-close').on('click', function () {
-            if (flaskcode.editorWidget.editorState == flaskcode.editorStates.MODIFIED && !confirm('Close without saving?')) {
+            if (
+                flaskcode.editorWidget.editorState == flaskcode.editorStates.MODIFIED &&
+                !confirm('Close without saving?')
+            ) {
                 return false;
             }
             flaskcode.saveResourceState();
@@ -247,7 +257,9 @@ flaskcode.minimapEnabled = function (minimapFlag) {
 flaskcode.notifyEditor = function (message, category) {
     var msgType = category == 'error' ? 'danger' : 'success';
     var $msg = $('<div class="alert alert-dismissible alert-'+msgType+'" role="alert">'+
-        '<button type="button" class="close" data-dismiss="alert" aria-label="Close"><i class="fa fa-times" aria-hidden="true"></i></button>'+
+        '<button type="button" class="close" data-dismiss="alert" aria-label="Close">'+
+        '<i class="fa fa-times" aria-hidden="true"></i>'+
+        '</button>'+
         '<strong>'+message+'</strong>'+
     '</div>');
     $msg.autoremove(msgType == 'success' ? 3 : 7);
@@ -357,7 +369,10 @@ flaskcode.onEditorSave = function (editor) {
                     flaskcode.setEditorState(flaskcode.editorStates.LOADED);
                     flaskcode.notifyEditor(data.message || 'Saved!');
                     if (flaskcode.$editorContainer.data('isNewResource')) {
-                        flaskcode.highlightSelectedResource(filePath, flaskcode.dirname(filePath).replace(/^\/+|\/+$/gm,''));
+                        flaskcode.highlightSelectedResource(
+                            filePath,
+                            flaskcode.dirname(filePath).replace(/^\/+|\/+$/gm,'')
+                        );
                         flaskcode.$editorContainer.data('isNewResource', false);
                     }
                 } else {
@@ -400,8 +415,14 @@ flaskcode.setEditorEvents = function (editor) {
         contextMenuGroupId: 'navigation',
         contextMenuOrder: 1,
         run: function (ed) {
-            if (flaskcode.editorWidget.editorState == flaskcode.editorStates.INIT || flaskcode.editorWidget.editorState == flaskcode.editorStates.LOADED) {
-                flaskcode.loadEditor({url: flaskcode.$editorContainer.data('url'), filePath: flaskcode.$editorContainer.data('filePath')}, true);
+            if (
+                flaskcode.editorWidget.editorState == flaskcode.editorStates.INIT ||
+                flaskcode.editorWidget.editorState == flaskcode.editorStates.LOADED
+            ) {
+                flaskcode.loadEditor({
+                    url: flaskcode.$editorContainer.data('url'),
+                    filePath: flaskcode.$editorContainer.data('filePath')
+                }, true);
             } else if (flaskcode.editorWidget.editorState == flaskcode.editorStates.MODIFIED) {
                 alert('Current changes not saved.');
                 ed.focus();
@@ -420,7 +441,10 @@ flaskcode.setEditorEvents = function (editor) {
         contextMenuOrder: 1.1,
         run: function (ed) {
             if (flaskcode.editorWidget.editorState != flaskcode.editorStates.BUSY) {
-                flaskcode.loadEditor({url: flaskcode.$editorContainer.data('url'), filePath: flaskcode.$editorContainer.data('filePath')}, true);
+                flaskcode.loadEditor({
+                    url: flaskcode.$editorContainer.data('url'),
+                    filePath: flaskcode.$editorContainer.data('filePath')
+                }, true);
             }
         },
     });
@@ -437,6 +461,16 @@ flaskcode.setEditorEvents = function (editor) {
 
     // state change event
     flaskcode.onStateChange = flaskcode.onEditorStateChange;
+};
+
+flaskcode.createEditor = function () {
+    flaskcode.editorWidget.editor = monaco.editor.create(flaskcode.editorElement, {
+        theme: flaskcode.editorTheme(),
+        minimap: {enabled: flaskcode.minimapEnabled()},
+        fontSize: 13,
+        model: null,
+    });
+    flaskcode.setEditorEvents(flaskcode.editorWidget.editor);
 };
 
 flaskcode.initEditorBody = function (editorId, resource, isNewResource) {
@@ -457,37 +491,46 @@ flaskcode.resetEditorBody = function () {
 };
 
 flaskcode.saveResourceState = function () {
-    if (flaskcode.editorWidget.editor && flaskcode.editorWidget.editor.getModel() && flaskcode.editorWidget.resourceName) {
-        flaskcode.storage.set(flaskcode.editorWidget.resourceName, JSON.stringify(flaskcode.editorWidget.editor.saveViewState()));
+    if (
+        flaskcode.editorWidget.editor &&
+        flaskcode.editorWidget.editor.getModel() &&
+        flaskcode.editorWidget.resourceName
+    ) {
+        flaskcode.storage.set(
+            flaskcode.editorWidget.resourceName,
+            JSON.stringify(flaskcode.editorWidget.editor.saveViewState())
+        );
     }
 };
 
 flaskcode.restoreResourceState = function () {
-    if (flaskcode.editorWidget.editor && flaskcode.editorWidget.editor.getModel() 
-    && flaskcode.editorWidget.resourceName && flaskcode.storage.get(flaskcode.editorWidget.resourceName)) {
-        flaskcode.editorWidget.editor.restoreViewState(JSON.parse(flaskcode.storage.get(flaskcode.editorWidget.resourceName)));
+    if (
+        flaskcode.editorWidget.editor &&
+        flaskcode.editorWidget.editor.getModel() &&
+        flaskcode.editorWidget.resourceName &&
+        flaskcode.storage.get(flaskcode.editorWidget.resourceName)
+    ) {
+        flaskcode.editorWidget.editor.restoreViewState(
+            JSON.parse(flaskcode.storage.get(flaskcode.editorWidget.resourceName))
+        );
     }
 };
 
 flaskcode.setEditor = function (data, resource, isNewResource) {
-    var resourceLang = flaskcode.getLanguageByExtension(flaskcode.getResourceExt(resource.url) || resource.extension || flaskcode.defaultExt) || flaskcode.getLanguageByMimetype(resource.mimetype);
-    var lang = resourceLang || flaskcode.defaultLang || flaskcode.fallbackLang;
+    var resourceLang = flaskcode.getLanguageByExtension(flaskcode.getResourceExt(resource.url) ||
+            resource.extension || flaskcode.defaultExt) || flaskcode.getLanguageByMimetype(resource.mimetype);
+    var lang = resourceLang || flaskcode.defaultLang;
 
     if (!flaskcode.editorWidget.editor) {
         flaskcode.resetEditorBody();
-        flaskcode.editorWidget.editor = monaco.editor.create(flaskcode.editorElement, {
-            theme: flaskcode.editorTheme(),
-            minimap: {enabled: flaskcode.minimapEnabled()},
-            fontSize: 13,
-            model: null,
-        });
-        flaskcode.setEditorEvents(flaskcode.editorWidget.editor);
+        flaskcode.createEditor();
     } else {
         flaskcode.saveResourceState();
     }
 
     var oldModel = flaskcode.editorWidget.editor.getModel();
     var newModel = monaco.editor.createModel(data, lang.id);
+
     flaskcode.editorWidget.editor.setModel(newModel);
     flaskcode.editorWidget.resourceName = resource.url;
     flaskcode.restoreResourceState();
@@ -503,7 +546,7 @@ flaskcode.setEditor = function (data, resource, isNewResource) {
     }
 };
 
-flaskcode.clearEditor = function (alt_content) {
+flaskcode.clearEditor = function (altContent) {
     if (flaskcode.editorWidget.editor) {
         if (flaskcode.editorWidget.editor.getModel()) {
             flaskcode.editorWidget.editor.getModel().dispose();
@@ -513,13 +556,22 @@ flaskcode.clearEditor = function (alt_content) {
         flaskcode.editorWidget.resourceName = null;
         flaskcode.setEditorState(flaskcode.editorStates.INIT);
     }
-    flaskcode.resetEditorBody().append(alt_content || '');
+    flaskcode.resetEditorBody().append(altContent || '');
     flaskcode.notifyCursorPosition(null);
     flaskcode.notifyLanguage(null);
 };
 
 flaskcode.loadEditor = function (resource, forceReload, isNewResource) {
-    if (!forceReload && (flaskcode.editorWidget.resourceName == resource.url || (flaskcode.editorWidget.editorState == flaskcode.editorStates.MODIFIED && !confirm('Current changes not saved. Are you sure to move on without saving?')))) {
+    if (
+        !forceReload &&
+        (
+            flaskcode.editorWidget.resourceName == resource.url ||
+            (
+                flaskcode.editorWidget.editorState == flaskcode.editorStates.MODIFIED &&
+                !confirm('Current changes not saved. Are you sure to move on without saving?')
+            )
+        )
+    ) {
         flaskcode.editorWidget.editor.focus();
         return false;
     }
@@ -541,7 +593,9 @@ flaskcode.loadEditor = function (resource, forceReload, isNewResource) {
                     resource.encoding = xhr.getResponseHeader('X-File-Encoding');
                     flaskcode.setEditor(data, resource);
                 } else {
-                    flaskcode.clearEditor(flaskcode.editorBodyMsg('<h1 class="text-center">Error while loading file !</h1>'));
+                    flaskcode.clearEditor(
+                        flaskcode.editorBodyMsg('<h1 class="text-center">Error while loading file !</h1>')
+                    );
                 }
             },
             error: function (xhr, status, err) {
@@ -566,11 +620,16 @@ flaskcode.validResource = function (filename) {
 };
 
 flaskcode.openResource = function ($resourceElement) {
-    if (!flaskcode.validResource($resourceElement.data('pathName'))) {
-        alert('This file type is not allowed to open !');
+    if (
+        !flaskcode.validResource($resourceElement.data('pathName')) &&
+        !confirm('Unknown file type ! Are you sure to open it ?')
+    ) {
         return false;
     } else {
-        flaskcode.loadEditor({url: $resourceElement.data('url'), filePath: $resourceElement.data('pathName')});
+        flaskcode.loadEditor({
+            url: $resourceElement.data('url'),
+            filePath: $resourceElement.data('pathName')
+        });
         return true;
     }
 };
