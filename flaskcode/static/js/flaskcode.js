@@ -382,7 +382,7 @@ flaskcode.setEditorEvents = function (editor) {
     editor.addAction({
         id: 'save',
         label: 'Save',
-        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_S],
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
         precondition: '!editorReadonly',
         keybindingContext: '!editorReadonly',
         contextMenuGroupId: '1_modification',
@@ -394,7 +394,7 @@ flaskcode.setEditorEvents = function (editor) {
     editor.addAction({
         id: 'reload',
         label: 'Reload',
-        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_R],
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyR],
         precondition: null,
         keybindingContext: null,
         contextMenuGroupId: 'navigation',
@@ -413,7 +413,7 @@ flaskcode.setEditorEvents = function (editor) {
     editor.addAction({
         id: 'force-reload',
         label: 'Force Reload',
-        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KEY_R],
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyR],
         precondition: null,
         keybindingContext: null,
         contextMenuGroupId: 'navigation',
