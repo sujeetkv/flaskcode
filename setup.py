@@ -52,7 +52,7 @@ setup(
     ],
     tests_require=[
         'flask>=3.1.0',
-        'pytest>=4.5.0',
+        'pytest',
     ],
     classifiers=[
         # 'Development Status :: 1 - Planning',

@@ -1,6 +1,6 @@
 # flaskcode
 
-[![Build Status](https://travis-ci.org/sujeetkv/flaskcode.svg?branch=master)](https://travis-ci.org/sujeetkv/flaskcode)
+[![Test Status](https://github.com/sujeetkv/flaskcode/actions/workflows/test-workflow.yml/badge.svg)](https://github.com/sujeetkv/flaskcode/actions/workflows/test-workflow.yml)
 [![PyPI Version](https://img.shields.io/pypi/v/flaskcode.svg)](https://pypi.org/project/flaskcode)
 [![MIT License](https://img.shields.io/github/license/sujeetkv/flaskcode.svg)](https://github.com/sujeetkv/flaskcode/blob/master/LICENSE)
 
