@@ -218,13 +218,15 @@ flaskcode.getLanguageById = function (langId) {
 
 flaskcode.getLanguageByExtension = function (extension) {
     return flaskcode.languages.find(function (lang) {
-        return lang.extensions.indexOf('.'+extension) > -1;
+        var extensions = lang.extensions || [];
+        return extensions.indexOf('.'+extension) > -1;
     });
 };
 
 flaskcode.getLanguageByMimetype = function (mimetype) {
     return flaskcode.languages.find(function (lang) {
-        return lang.mimetypes.indexOf(mimetype) > -1;
+        var mimetypes = lang.mimetypes || [];
+        return mimetypes.indexOf(mimetype) > -1;
     });
 };
 
@@ -234,7 +236,9 @@ flaskcode.minimapEnabled = function (minimapFlag) {
         return flag === null ? true : !!parseInt(flag);
     } else {
         if (flaskcode.editorWidget.editor) {
-            flaskcode.editorWidget.editor.updateOptions({minimap: {enabled: !!minimapFlag}});
+            flaskcode.editorWidget.editor.updateOptions({
+                minimap: {enabled: !!minimapFlag},
+            });
             flaskcode.storage.set('flaskcodeMinimapEnabled', Number(!!minimapFlag));
         }
     }
@@ -246,7 +250,7 @@ flaskcode.notifyEditor = function (message, category) {
         '<button type="button" class="close" data-dismiss="alert" aria-label="Close"><i class="fa fa-times" aria-hidden="true"></i></button>'+
         '<strong>'+message+'</strong>'+
     '</div>');
-    $msg.autoremove(msgType == 'success' ? 5 : 10);
+    $msg.autoremove(msgType == 'success' ? 3 : 7);
     flaskcode.$editorContainer.find('.editor-notification').empty().append($msg);
 };
 
