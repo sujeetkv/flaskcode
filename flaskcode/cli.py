@@ -12,6 +12,9 @@ variables of the form FLASKCODE_*. For example FLASKCODE_USERNAME.
 """.format(app_title=default_config.FLASKCODE_APP_TITLE)
 
 
+themes = ['vs', 'vs-dark', 'hc-black']
+
+
 def add_auth(blueprint, username, password, realm=default_config.FLASKCODE_APP_TITLE):
     @blueprint.before_request
     def http_basic_auth():
@@ -39,7 +42,7 @@ def create_flask_app(username=None, password=None):
 @click.option('-p', '--port', default=5001, type=int, help='Port on which to bind HTTP server.')
 @click.option('--username', default=None, help='HTTP Basic Auth username.')
 @click.option('--password', default=None, help='HTTP Basic Auth password.')
-@click.option('--editor-theme', default='vs-dark', type=click.Choice(['vs', 'vs-dark', 'hc-black']), help='Editor theme, default is vs-dark.')
+@click.option('--editor-theme', default='vs-dark', type=click.Choice(themes), help='Editor theme, default is vs-dark.')
 @click.option('--debug', default=False, is_flag=True, help='Run in flask DEBUG mode.')
 @click.option('--env', default='development', help='Flask environment, default is development.')
 @click.version_option(version=__pkginfo__.version, prog_name=__pkginfo__.title)
