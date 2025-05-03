@@ -1,4 +1,5 @@
 import pytest
+
 from flaskcode.cli import create_flask_app
 
 

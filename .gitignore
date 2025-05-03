@@ -18,6 +18,7 @@ htmlcov
 .cache/
 .coverage
 .coverage.*
+.pytest_cache/
 
 .idea/
 .vscode/

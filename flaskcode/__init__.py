@@ -1,6 +1,7 @@
 """flaskcode Flask Blueprint"""
 import os
 from flask import Blueprint, current_app, g, abort
+
 from . import __pkginfo__, default_config
 
 
