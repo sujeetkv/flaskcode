@@ -1,9 +1,6 @@
 import os
 import io
 import shutil
-from functools import wraps
-
-from flask import request, make_response
 
 
 DEFAULT_CHUNK_SIZE = 16 * 1024
@@ -52,10 +49,15 @@ def dir_tree(abs_path, abs_root_path, exclude_names=None, excluded_extensions=No
                 continue
             new_path = os.path.join(abs_path, name)
             if os.path.isdir(new_path):
-                tree['children'].append(dir_tree(new_path, abs_root_path, exclude_names, excluded_extensions, allowed_extensions))
+                tree['children'].append(
+                    dir_tree(new_path, abs_root_path, exclude_names, excluded_extensions, allowed_extensions)
+                )
             else:
                 ext = get_file_extension(name)
-                if (excluded_extensions and ext in excluded_extensions) or (allowed_extensions and ext not in allowed_extensions):
+                if (
+                    (excluded_extensions and ext in excluded_extensions) or
+                    (allowed_extensions and ext not in allowed_extensions)
+                ):
                     continue
                 tree['children'].append(dict(
                     name=os.path.basename(new_path),
@@ -63,18 +65,3 @@ def dir_tree(abs_path, abs_root_path, exclude_names=None, excluded_extensions=No
                     is_file=True,
                 ))
     return tree
-
-
-def head_compatible(route_handler):
-    """View decorator to make view handler compatible for `HEAD` method request."""
-    @wraps(route_handler)
-    def decorated_function(*args, **kwargs):
-        if request.method == 'HEAD':
-            route_response = route_handler(*args, **kwargs)
-            response = make_response()
-            response.headers.clear()
-            response.headers.extend(route_response.headers)
-            return response
-        else:
-            return route_handler(*args, **kwargs)
-    return decorated_function
