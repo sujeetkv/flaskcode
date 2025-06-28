@@ -3,18 +3,18 @@ import os
 
 from flask import Blueprint, current_app, g, abort
 
-from . import __pkginfo__, default_config
+from . import default_config
+from ._version import __version__
 
 
-__title__ = __pkginfo__.title
-__version__ = __pkginfo__.version
-__author__ = __pkginfo__.author
-__email__ = __pkginfo__.email
-__uri__ = __pkginfo__.uri
-__description__ = __pkginfo__.description
-__license__ = __pkginfo__.license
-__copyright__ = __pkginfo__.copyright
-__status__ = __pkginfo__.status
+__title__ = 'flaskcode'
+__author__ = 'Sujeet Kumar'
+__email__ = 'sujeetkv90@gmail.com'
+__uri__ = 'https://github.com/sujeetkv/flaskcode'
+__description__ = 'Web based code editor on python flask framework'
+__license__ = 'MIT'
+__copyright__ = 'Copyright (c) 2019 Sujeet Kumar <sujeetkv90@gmail.com>'
+__status__ = 'Development'
 
 
 blueprint = Blueprint(

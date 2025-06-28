@@ -1,10 +1,11 @@
 """flaskcode cli module"""
 import os
+import sys
 
 import click
 from flask import Flask, request, make_response
 
-from . import blueprint, default_config, __pkginfo__
+from . import blueprint, default_config, __title__, __version__
 
 
 help_str = """Run {app_title} with given RESOURCE_BASEPATH or current working directory.
@@ -47,7 +48,7 @@ def create_flask_app(username=None, password=None):
 @click.option('--editor-theme', default='vs-dark', type=click.Choice(themes), help='Editor theme, default is vs-dark.')
 @click.option('--debug', default=False, is_flag=True, help='Run in flask DEBUG mode.')
 @click.option('--env', default='development', help='Flask environment, default is development.')
-@click.version_option(version=__pkginfo__.version, prog_name=__pkginfo__.title)
+@click.version_option(version=__version__, prog_name=__title__)
 def run(resource_basepath, host, port, username, password, editor_theme, debug, env):
     os.environ.setdefault('FLASK_ENV', env)
     os.environ.setdefault('FLASK_DEBUG', '1' if debug else '0')
@@ -60,4 +61,12 @@ def run(resource_basepath, host, port, username, password, editor_theme, debug, 
 
 
 def main():
-    run(auto_envvar_prefix='FLASKCODE') # pylint:disable=unexpected-keyword-arg,no-value-for-parameter
+    try:
+        run(auto_envvar_prefix='FLASKCODE') # pylint:disable=unexpected-keyword-arg,no-value-for-parameter
+    except KeyboardInterrupt:
+        sys.stderr.write('\n')
+        return 1
+    except Exception as err:
+        sys.stderr.write('Error: %s\n' % err)
+        return 1
+    return 0
