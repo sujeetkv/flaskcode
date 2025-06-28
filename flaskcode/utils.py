@@ -36,7 +36,7 @@ def write_file(content, filepath, encoding='utf-8', chunk_size=None):
 def dir_tree(abs_path, abs_root_path, exclude_names=None, excluded_extensions=None, allowed_extensions=None):
     tree = dict(
         name=os.path.basename(abs_path),
-        path_name=abs_path[len(abs_root_path):].lstrip('/\\'),# TODO: use os.path.relpath
+        path_name=abs_path[len(abs_root_path):].replace('\\', '/').lstrip('/'), # TODO: use os.path.relpath
         children=[]
     )
     try:
@@ -61,7 +61,7 @@ def dir_tree(abs_path, abs_root_path, exclude_names=None, excluded_extensions=No
                     continue
                 tree['children'].append(dict(
                     name=os.path.basename(new_path),
-                    path_name=new_path[len(abs_root_path):].lstrip('/\\'),# TODO: use os.path.relpath
+                    path_name=new_path[len(abs_root_path):].replace('\\', '/').lstrip('/'), # TODO: use os.path.relpath
                     is_file=True,
                 ))
     return tree
