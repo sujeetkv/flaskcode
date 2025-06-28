@@ -14,19 +14,18 @@ def get_file_extension(filename):
     return ext.lower()
 
 
-def write_file(content, filepath, encoding='utf-8', chunk_size=None):
+def write_file(content, filepath, encoding='utf-8', newline='\n', chunk_size=None):
     success = True
     message = 'File saved successfully'
     if isinstance(content, str):
-        content_io = io.StringIO()
-        content_io.write(content)
-        with io.open(filepath, 'w', encoding=encoding, newline='\n') as dest:
-            content_io.seek(0)
+        content_buffer = io.StringIO(content, newline=newline)
+        with io.open(filepath, 'w', encoding=encoding, newline=newline) as dest:
+            content_buffer.seek(0)
             try:
-                shutil.copyfileobj(content_io, dest, chunk_size or DEFAULT_CHUNK_SIZE)
-            except OSError as e:
+                shutil.copyfileobj(content_buffer, dest, chunk_size or DEFAULT_CHUNK_SIZE)
+            except OSError as err:
                 success = False
-                message = 'Could not save file: ' + str(e)
+                message = 'Could not save file: ' + str(err)
     else:
         success = False
         message = 'Could not save file: Invalid content'
