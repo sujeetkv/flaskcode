@@ -510,9 +510,10 @@ flaskcode.restoreResourceState = function () {
         flaskcode.editorWidget.resourceName &&
         flaskcode.storage.get(flaskcode.editorWidget.resourceName)
     ) {
-        flaskcode.editorWidget.editor.restoreViewState(
-            JSON.parse(flaskcode.storage.get(flaskcode.editorWidget.resourceName))
-        );
+        var viewState = JSON.parse(flaskcode.storage.get(flaskcode.editorWidget.resourceName));
+        // Bug: https://github.com/microsoft/monaco-editor/issues/4904
+        delete viewState.contributionsState['editor.contrib.wordHighlighter'];
+        flaskcode.editorWidget.editor.restoreViewState(viewState);
     }
 };
 
