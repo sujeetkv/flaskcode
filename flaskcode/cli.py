@@ -15,7 +15,7 @@ variables of the form FLASKCODE_*. For example FLASKCODE_USERNAME.
 """.format(app_title=default_config.FLASKCODE_APP_TITLE)
 
 
-themes = ['vs', 'vs-dark', 'hc-black']
+themes = ['vs', 'vs-dark', 'hc-black', 'hc-light']
 
 
 def add_auth(blueprint, username, password, realm=default_config.FLASKCODE_APP_TITLE):

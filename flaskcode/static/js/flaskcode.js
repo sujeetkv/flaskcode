@@ -33,7 +33,7 @@ flaskcode.editorStates = {
 };
 
 flaskcode.defaultEditorTheme = 'vs-dark';
-flaskcode.availableEditorThemes = ['vs', 'vs-dark', 'hc-black'];
+flaskcode.availableEditorThemes = ['vs', 'vs-dark', 'hc-black', 'hc-light'];
 
 flaskcode.APP_BUSY = false;
 
